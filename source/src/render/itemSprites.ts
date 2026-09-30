@@ -338,6 +338,15 @@ const BUCKET = [
 ];
 SPRITES.bucket = { map: BUCKET, pal: { o: [60, 60, 66], M: [150, 150, 158], L: [210, 210, 216], D: [120, 120, 128], W: [70, 70, 76] } };
 SPRITES.water_bucket = { map: BUCKET, pal: { o: [60, 60, 66], M: [150, 150, 158], L: [210, 210, 216], D: [120, 120, 128], W: [60, 110, 214] } };
+// lava bucket: the same bucket with a glowing orange surface (a bright fleck of molten yellow)
+SPRITES.lava_bucket = {
+  map: [
+    '................', '................', '....oooooooo....', '...o........o...', '..o..........o..',
+    '..oooooooooooo..', '..oMLLLLLLLLDo..', '..oMLRRYRRRLDo..', '...oMLLLLLLDo...', '...oMLLLLLLDo...',
+    '...oMLLLLLLDo...', '....oMLLLLDo....', '....oMLLLLDo....', '.....oooooo.....', '................', '................',
+  ],
+  pal: { o: [60, 60, 66], M: [150, 150, 158], L: [210, 210, 216], D: [120, 120, 128], R: [232, 100, 22], Y: [255, 214, 96] },
+};
 SPRITES.rune_shard = {
   map: [
     '................', '................', '.........oo.....', '........oLVo....', '.......oLVVDo...',

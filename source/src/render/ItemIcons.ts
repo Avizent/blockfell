@@ -5,6 +5,9 @@ import { TEXTURE_NAMES } from '../meshing/textureNames';
 import type { TextureAtlas } from '../meshing/TextureAtlas';
 import { spritePixels } from './itemSprites';
 
+/** Cube blocks with open sides whose icons also show the far faces. */
+const SEE_THROUGH = new Set(['spawner']);
+
 /**
  * Builds the inventory icon sheet. Block items are drawn as small isometric cubes
  * from their real textures (affine-mapped with nearest-neighbour sampling);
@@ -82,6 +85,16 @@ export class ItemIcons {
     const cx = ox + 8 * s, y0 = oy + (16 * s - hTop - hSide) / 2;
     const T = [cx, y0], R = [cx + w / 2, y0 + hTop / 2], Bm = [cx, y0 + hTop], L = [cx - w / 2, y0 + hTop / 2];
     ctx.save();
+    if (SEE_THROUGH.has(b.key)) {
+      // an open cage: the far sides show through the bars, so paint them first (darker)
+      const Tb = [T[0], T[1] + hSide];
+      ctx.setTransform((R[0] - T[0]) / 16, (R[1] - T[1]) / 16, (L[0] - T[0]) / 16, (L[1] - T[1]) / 16, Tb[0], Tb[1]);
+      ctx.drawImage(this.tex(name(b.faces[3]), 0.42), 0, 0);                 // bottom
+      ctx.setTransform((R[0] - T[0]) / 16, (R[1] - T[1]) / 16, 0, hSide / 16, T[0], T[1]);
+      ctx.drawImage(this.tex(name(b.faces[5]), 0.5), 0, 0);                  // north (far right)
+      ctx.setTransform((L[0] - T[0]) / 16, (L[1] - T[1]) / 16, 0, hSide / 16, T[0], T[1]);
+      ctx.drawImage(this.tex(name(b.faces[1]), 0.56), 0, 0);                 // west (far left)
+    }
     // top (+Y)
     ctx.setTransform((R[0] - T[0]) / 16, (R[1] - T[1]) / 16, (L[0] - T[0]) / 16, (L[1] - T[1]) / 16, T[0], T[1]);
     ctx.drawImage(this.tex(name(b.faces[2]), 1), 0, 0);

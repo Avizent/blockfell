@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { LAVA_LAYER } from '../meshing/textureNames';
 
 /**
  * Shared shader for every chunk mesh. One material for all opaque/cutout geometry,
@@ -24,6 +25,7 @@ export interface WorldUniforms {
   uAmbient: THREE.IUniform<number>;
   uGamma: THREE.IUniform<number>;
   uWaterFrame: THREE.IUniform<number>;
+  uLavaFrame: THREE.IUniform<number>;
 }
 
 export function createWorldUniforms(): WorldUniforms {
@@ -40,6 +42,7 @@ export function createWorldUniforms(): WorldUniforms {
     uAmbient: { value: 0.045 },
     uGamma: { value: 0.5 },
     uWaterFrame: { value: 0 },
+    uLavaFrame: { value: 0 },
   };
 }
 
@@ -50,6 +53,7 @@ uniform mat4 projectionMatrix;
 uniform vec3 uSunDir;
 uniform float uSunStrength;
 uniform float uWaterFrame;
+uniform float uLavaFrame;
 in vec3 position;
 in vec2 aUv;
 in vec4 aData;
@@ -72,7 +76,8 @@ void main() {
 #ifdef WATER
   vLayer = aData.x + uWaterFrame;
 #else
-  vLayer = aData.x;
+  // lava surfaces carry the first lava frame; animate them
+  vLayer = abs(aData.x - LAVA_LAYER) < 0.5 ? aData.x + uLavaFrame : aData.x;
 #endif
   float sun = face < 6 ? max(dot(NORMALS[face], uSunDir), 0.0) : 0.5;
   vShade = FACE_SHADE[face] * AO_CURVE[ao] * (0.93 + 0.1 * sun * uSunStrength);
@@ -130,6 +135,7 @@ export function createChunkMaterials(uniforms: WorldUniforms): { opaque: THREE.R
     uniforms,
     vertexShader: vertex,
     fragmentShader: fragment,
+    defines: { LAVA_LAYER: LAVA_LAYER.toFixed(1) },
     side: THREE.FrontSide,
   });
   const water = new THREE.RawShaderMaterial({
@@ -137,7 +143,7 @@ export function createChunkMaterials(uniforms: WorldUniforms): { opaque: THREE.R
     uniforms,
     vertexShader: vertex,
     fragmentShader: fragment,
-    defines: { WATER: 1 },
+    defines: { WATER: 1, LAVA_LAYER: LAVA_LAYER.toFixed(1) },
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,

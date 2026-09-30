@@ -133,7 +133,9 @@ export class Particles {
     this.blockBreak(x - 0.5, y - 0.5, z - 0.5, colors, brightness, 3);
   }
 
-  effect(kind: EffectKind, x: number, y: number, z: number, count: number): void {
+  /** `light` (0-1) dims the particles that don't glow (smoke, splashes, drips) to the brightness where they appear. */
+  effect(kind: EffectKind, x: number, y: number, z: number, count: number, light = 1): void {
+    const k = Math.max(0.18, Math.min(1, light));
     for (let i = 0; i < count; i++) {
       const j = () => (Math.random() - 0.5);
       if (kind === 'happy' || kind === 'angry') {
@@ -141,7 +143,7 @@ export class Particles {
         this.spawn({ x: x + j() * 0.9, y: y + j() * 0.6, z: z + j() * 0.9, vx: 0, vy: 0.012, vz: 0,
           max: 18 + Math.random() * 10, size: 0.08, r: happy ? 0.35 : 0.9, g: happy ? 1 : 0.2, b: happy ? 0.4 : 0.15, gravity: 0, glow: true });
       } else if (kind === 'poof' || kind === 'smoke') {
-        const g = 0.6 + Math.random() * 0.35;
+        const g = (0.6 + Math.random() * 0.35) * k;
         this.spawn({ x: x + j() * 0.8, y: y + j() * 0.8, z: z + j() * 0.8, vx: j() * 0.05, vy: 0.03 + Math.random() * 0.03, vz: j() * 0.05,
           max: 14 + Math.random() * 10, size: 0.12 + Math.random() * 0.1, r: g, g, b: g, gravity: -0.002, glow: false });
       } else if (kind === 'flame') {
@@ -150,7 +152,7 @@ export class Particles {
       } else if (kind === 'drip') {
         // a raindrop landing: a tiny splash that jumps up and falls back
         this.spawn({ x: x + j() * 0.9, y, z: z + j() * 0.9, vx: j() * 0.03, vy: 0.05 + Math.random() * 0.03, vz: j() * 0.03,
-          max: 5 + Math.random() * 3, size: 0.045, r: 0.62, g: 0.72, b: 0.95, gravity: 0.03, glow: false });
+          max: 5 + Math.random() * 3, size: 0.045, r: 0.62 * k, g: 0.72 * k, b: 0.95 * k, gravity: 0.03, glow: false });
       } else if (kind === 'heart') {
         const k = Math.random();
         this.spawn({ x: x + j() * 0.8, y: y + j() * 0.4, z: z + j() * 0.8, vx: 0, vy: 0.02, vz: 0,
@@ -160,7 +162,7 @@ export class Particles {
           max: 10, size: 0.06, r: 0.9, g: 0.9, b: 0.95, gravity: 0.02, glow: true });
       } else {
         this.spawn({ x: x + j(), y, z: z + j(), vx: j() * 0.1, vy: 0.15 + Math.random() * 0.1, vz: j() * 0.1,
-          max: 12, size: 0.07, r: 0.55, g: 0.7, b: 1, gravity: 0.04, glow: false });
+          max: 12, size: 0.07, r: 0.55 * k, g: 0.7 * k, b: k, gravity: 0.04, glow: false });
       }
     }
   }
