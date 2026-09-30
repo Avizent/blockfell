@@ -14,7 +14,7 @@ const CONTROLS: [string, string][] = [
   ['Left Ctrl or double-tap W', 'Sprint'], ['Left Shift', 'Sneak / fly down'], ['Left mouse', 'Mine / attack'],
   ['Right mouse', 'Place block / use item / open'], ['Middle mouse', 'Pick block'], ['1 - 9, mouse wheel', 'Select hotbar slot'],
   ['E', 'Inventory'], ['Q (Ctrl+Q)', 'Drop item (whole stack)'], ['F', 'Swap item to off-hand'],
-  ['Esc', 'Pause menu'], ['F1', 'Hide HUD'], ['F3', 'Debug / performance overlay'],
+  ['Esc', 'Pause menu'], ['M', 'Sound on / off'], ['F1', 'Hide HUD'], ['F3', 'Debug / performance overlay'],
   ['In inventories', 'Shift-click moves, right-click splits, drag spreads, double-click collects, 1-9 swaps'],
   ['Touch: left thumb', 'Joystick - walk; push past the rim to sprint'],
   ['Touch: right thumb', 'Drag to look; tap to use or place (tap a creature to attack); hold to mine'],
@@ -66,9 +66,11 @@ export function OptionsScreen() {
         <Button size="small" onClick={() => set('clouds', !o.clouds)}>Clouds: {onOff(o.clouds)}</Button>
         <Slider value={o.renderScale} min={0.5} max={1} step={0.05} onChange={(v) => set('renderScale', v)} label={`Render Scale: ${Math.round(o.renderScale * 100)}%`} />
         <Button size="small" onClick={() => set('invertY', !o.invertY)}>Invert Mouse: {onOff(o.invertY)}</Button>
-        <Slider value={o.masterVolume} min={0} max={1} step={0.01} onChange={(v) => set('masterVolume', v)} label={`Master Volume: ${Math.round(o.masterVolume * 100)}%`} />
-        <Slider value={o.musicVolume} min={0} max={1} step={0.01} onChange={(v) => set('musicVolume', v)} label={`Music: ${Math.round(o.musicVolume * 100)}%`} />
-        <Slider value={o.soundVolume} min={0} max={1} step={0.01} onChange={(v) => set('soundVolume', v)} label={`Sounds: ${Math.round(o.soundVolume * 100)}%`} />
+        <Button size="small" testId="btn-sound" title="Switch all sound on or off (M in a world)" onClick={() => engine.toggleSound()}>Sound: {onOff(o.sound)}</Button>
+        <Button size="small" testId="btn-music" title="Switch the music on or off; sound effects carry on" onClick={() => set('music', !o.music)}>Music: {onOff(o.music)}</Button>
+        <Slider value={o.masterVolume} min={0} max={1} step={0.01} onChange={(v) => set('masterVolume', v)} label={o.sound ? `Master Volume: ${Math.round(o.masterVolume * 100)}%` : 'Master Volume: Sound OFF'} />
+        <Slider value={o.musicVolume} min={0} max={1} step={0.01} onChange={(v) => set('musicVolume', v)} label={o.music ? `Music Volume: ${Math.round(o.musicVolume * 100)}%` : 'Music Volume: Music OFF'} />
+        <Slider value={o.soundVolume} min={0} max={1} step={0.01} onChange={(v) => set('soundVolume', v)} label={`Sound Effects: ${Math.round(o.soundVolume * 100)}%`} />
         <Button size="small" onClick={() => set('greedyMeshing', !o.greedyMeshing)} title="Engine benchmark toggle">Greedy Meshing: {onOff(o.greedyMeshing)}</Button>
         <Button size="small" testId="btn-touch-controls" title="On-screen joystick and buttons for phones and tablets"
           onClick={() => set('touchControls', o.touchControls === 'auto' ? 'on' : o.touchControls === 'on' ? 'off' : 'auto')}>
@@ -101,6 +103,12 @@ export function OptionsScreen() {
   );
 }
 
+/** The Sound switch on the pause menu, so it is one tap away on a phone or tablet. */
+function SoundButton() {
+  useStore(ui, (s) => s.optionsVersion);
+  return <Button size="half" testId="btn-pause-sound" title="Switch all sound on or off (M)" onClick={() => engine.toggleSound()}>Sound: {engine.options.sound ? 'ON' : 'OFF'}</Button>;
+}
+
 export function PauseMenu() {
   return (
     <div className="screen" data-testid="pause-menu">
@@ -112,7 +120,10 @@ export function PauseMenu() {
           <Button size="half" onClick={() => ui.set({ overlay: 'advancements' })}>Advancements</Button>
           <Button size="half" onClick={() => ui.set({ overlay: 'stats' })}>Statistics</Button>
         </div>
-        <Button size="wide" onClick={() => ui.set({ overlay: 'options', optionsReturn: 'pause' })}>Options...</Button>
+        <div className="row">
+          <Button size="half" onClick={() => ui.set({ overlay: 'options', optionsReturn: 'pause' })}>Options...</Button>
+          <SoundButton />
+        </div>
         <div style={{ height: '8rem' }} />
         <Button size="wide" testId="btn-save-quit" onClick={() => void engine.saveAndQuit()}>Save and Quit to Title</Button>
       </div>
