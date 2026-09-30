@@ -156,13 +156,17 @@ check('walk with one thumb while looking with the other', Math.hypot(m1.x - m0.x
 // ================================================================== TAP AND HOLD
 await ev(([x, y, z]) => window.__bf.game.teleport(x, y, z), [X + 0.5, Y, Z + 0.5]);
 await look(0, -0.62);    // looking at the grass two blocks ahead
+// (a wandering animal in the line of sight would take the tap as a hit: clear them away)
+await ev(() => { const g = window.__bf.game; for (const e of g.entities.list) if (e.type === 'mob') e.removed = true; });
 await give('dirt', 0, 10);
 await wait(300);
 const tgt = (await state()).target;
+const tgtMob = await ev(() => window.__bf.game.targetMob?.mobType ?? null);
 await tapAt(LX, LY);
 await ticks(3);
 const placed = tgt ? await key(tgt.x, tgt.y + 1, tgt.z) : null;
-check('tap places the block in your hand', placed === 'dirt' && (await ev(() => window.__bf.game.inventory.countItem('dirt'))) === 9, { tgt, placed });
+const dirtLeft = await ev(() => window.__bf.game.inventory.countItem('dirt'));
+check('tap places the block in your hand', placed === 'dirt' && dirtLeft === 9, { tgt, placed, dirtLeft, tgtMob });
 // hold to mine it
 await give(null, 0, 0);
 await wait(200);

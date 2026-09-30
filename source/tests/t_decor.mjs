@@ -343,7 +343,7 @@ if (run('dyes')) {
     for (const c of g.world.chunks.values()) for (let i = 0; i < c.blocks.length; i++) { if (c.blocks[i] === B.FLOWER_BLUE) blue++; else if (c.blocks[i] === B.FLOWER_WHITE) white++; }
     return { blue, white, gen: g.world.genVersion };
   });
-  check('new worlds (terrain version 4) grow Skybells and Moon Daisies in the wild', wild.gen === 4 && wild.blue > 0 && wild.white > 0, wild);
+  check('new worlds (terrain version 4 and later) grow Skybells and Moon Daisies in the wild', wild.gen >= 4 && wild.blue > 0 && wild.white > 0, wild);
   await setMode('survival');
   await tp(X + 0.5, Y, Z + 3.5, YAW.n, -0.6);
   await give('magenta_wool', 0, 4);
