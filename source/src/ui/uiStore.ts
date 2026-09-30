@@ -15,6 +15,9 @@ export interface HudState {
   hurtTick: number;
   regenTick: number;
   underwater: boolean;
+  /** Eyes in lava / on fire (screen overlays). */
+  inLava?: boolean;
+  burning?: boolean;
   offhand: boolean;
   saturationShake: boolean;
 }

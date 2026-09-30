@@ -140,10 +140,14 @@ export function HUD() {
   const overlay = useStore(ui, (s) => s.overlay);
   const locked = useStore(ui, (s) => s.locked);
   const under = useStore(ui, (s) => s.hud.underwater);
+  const inLava = useStore(ui, (s) => !!s.hud.inLava);
+  const burning = useStore(ui, (s) => !!s.hud.burning);
   const hurt = useStore(ui, (s) => s.hud.hurtTick);
   return (
     <div className="hud">
       {under && <div className="underwater" />}
+      {inLava && <div className="in-lava" data-testid="in-lava" />}
+      {burning && <div className="on-fire" data-testid="on-fire" />}
       {hurt > 0 && <div className="hurt-vignette" style={{ opacity: hurt / 10 }} />}
       {!hide && (
         <>
