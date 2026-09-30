@@ -126,6 +126,10 @@ for (const c of DYE_COLORS) if (c !== 'white') blockItem(woolKey(c), 'decoration
 blockItem('flower_blue', 'natural');
 blockItem('flower_white', 'natural');
 
+// ---- 1.7 lava and dungeons
+blockItem('cinderstone', 'building');
+blockItem('spawner', 'functional', { maxStack: 16 });
+
 // ---- ingredients
 add({ id: 'stick', name: 'Stick', category: 'ingredients', fuel: 100 });
 add({ id: 'coal', name: 'Coal', category: 'ingredients', fuel: 1600 });
@@ -139,6 +143,7 @@ add({ id: 'string', name: 'String', category: 'ingredients' });
 add({ id: 'rune_shard', name: 'Rune Shard', category: 'ingredients' });
 add({ id: 'bucket', name: 'Bucket', kind: 'bucket', maxStack: 16, category: 'tools' });
 add({ id: 'water_bucket', name: 'Water Bucket', kind: 'bucket', maxStack: 1, category: 'tools' });
+add({ id: 'lava_bucket', name: 'Lava Bucket', kind: 'bucket', maxStack: 1, category: 'tools', fuel: 20000 });
 // ---- 1.6 boats and fishing
 add({ id: 'boat', name: 'Boat', kind: 'boat', maxStack: 1, category: 'tools', fuel: 1200 });
 add({ id: 'fishing_rod', name: 'Fishing Rod', kind: 'rod', maxStack: 1, category: 'tools', durability: 64, fuel: 300 });
