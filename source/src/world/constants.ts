@@ -29,7 +29,7 @@ export const TICKS_PER_SECOND = 20;
 export const TICK_MS = 1000 / TICKS_PER_SECOND;
 export const DAY_LENGTH_TICKS = 24000; // a full day is 20 real minutes, as the reference game
 
-export const GAME_VERSION = '1.7.0';
+export const GAME_VERSION = '1.7.1';
 export const SAVE_FORMAT = 1;
 
 /** Index of a voxel inside a chunk's block array. Caller guarantees 0<=lx,lz<16, 0<=ly<128. */
