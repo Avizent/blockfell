@@ -1,0 +1,143 @@
+# Blockfell
+
+A first-person voxel sandbox that runs in the browser. It borrows the interaction model of classic block-building games (mine, craft, build, survive the night) and uses **original** branding, pixel font, textures, item art, creature models and procedurally synthesised sound. Nothing is copied from Minecraft.
+
+Built with TypeScript, React (menus/HUD), Three.js/WebGL2 (world), Vite and Web Workers.
+
+## Playing
+
+- **Easiest:** open `Blockfell.html` in Chrome, Edge or Firefox (double-click it). It is a single self-contained file and your worlds are saved in that browser.
+- **Online, iPhone and iPad:** https://avizent.github.io/blockfell/ (add it to the Home Screen from Safari's Share menu). After the first visit it also starts with no internet connection, and the title screen offers a Restart when a newer version has been published.
+- **From source:** `npm install`, then `npm run dev` and open http://localhost:5173.
+- **Benchmark:** add `#bench` to the address (for example `Blockfell.html#bench`). It creates a temporary creative world, measures a stationary view, a 25-second high-speed flight and block-edit latency, prints the results on screen, then deletes the world.
+
+### Controls
+
+| Key | Action |
+| --- | --- |
+| W A S D / mouse | Move / look (click the game to capture the mouse) |
+| Space | Jump, swim up; double-tap in Creative to fly |
+| Left Ctrl or double-tap W | Sprint |
+| Left Shift | Sneak (you won't walk off edges); descend when flying |
+| Left mouse | Mine / attack (hold to mine) |
+| Right mouse | Place block, use item (eat, draw bow, spawn egg, bucket, hoe, seeds, bone meal), open crafting table / furnace / chest / Rune Table, open doors, gates and trapdoors, sleep in a bed, trade with a villager, tame/feed a Fellhound or tell it to sit, write on a sign, plant a flower pot, hang or change a painting |
+| Middle mouse | Pick block |
+| 1–9, mouse wheel | Hotbar |
+| E | Inventory (Creative: item catalogue with search) |
+| Q / Ctrl+Q | Drop one / drop stack |
+| F | Swap item into the off-hand |
+| Esc | Pause menu |
+| F1 / F3 | Hide HUD / debug and performance overlay |
+
+**Phones and tablets (touch):** Blockfell switches to on-screen controls automatically on touch devices (Options › Touch Controls: Auto / On / Off). Left thumb: a joystick that appears under your thumb (push past the rim to sprint). Right thumb: drag to look; tap to use or place at the crosshair (tapping a creature attacks it); touch and hold to mine (or eat, or draw a bow). Buttons: Jump (double-tap to fly in Creative), Sneak (on/off), Inventory, Pause; tap a hotbar slot to select it, hold it to drop one. In inventories: tap to pick up and put down (or drag a stack to its new slot), touch and hold a stack to take half, hold a slot while carrying to put down one (slide on to put one in each slot), drag a carried stack across slots to share it out evenly, tap outside to drop, swipe the Creative catalogue and the trade list, ✕ closes. Needs iOS/iPadOS 15 or later (the build targets Safari 15). iPhone and iPad browsers can't run `Blockfell.html` as a saved file, so open it from a web address — it is published at https://avizent.github.io/blockfell/ (GitHub repo `Avizent/blockfell`: upload a new `dist-single/index.html` as `index.html` to update it) (the hosted claude.ai page or your own copy on a static host) and use Share › Add to Home Screen for full screen.
+
+Inventory: left-click pick/place/swap, right-click split or place one, drag to spread, shift-click to transfer, double-click to collect, number keys to swap with the hotbar, Q to drop.
+
+## Features
+
+- Title screen over a live, slowly panning rendered world, with **Continue: <world>** for the world played last; world list (last-played world preselected) with Play, Create, Edit (rename, backup copy), Delete, Re-Create, and a backup reminder for the selected world (never exported, or played since a backup more than a week old).
+- Resume (1.6): if the page or Home Screen app is closed mid-game, the next start goes straight back into that world (Options > Reopen Last World); Save and Quit returns to the title screen. Blockfell asks the browser for persistent storage (`navigator.storage.persist()`) so saved worlds are exempt from automatic eviction where the browser allows it.
+- Offline (1.6): when served over HTTPS (or localhost), a small service worker (`sw.js`) keeps a copy of the single-page build and serves it cache-first for navigations only, so the game starts without a connection. The page checks the live copy's build stamp (on start, when brought back to the foreground and when the connection returns), caches a newer build and shows a "Blockfell x.y is ready - Restart" notice on the title screen and world list; it never swaps versions in the middle of a game.
+- Create World: name, Survival/Creative, Peaceful–Hard, seed, structures (villages; ruins with loot chests), bonus chest, game rules (keep inventory, daylight cycle, mob spawning, natural regeneration).
+- Seeded terrain: oceans, beaches, plains, forests, birch forests, taiga, deserts (cacti, dry shrubs), badlands (terracotta bands over red sand), rivers, hills, mountains, snowy peaks, caves (tunnels and caverns), coal, iron and rune ore, oak/birch/spruce trees, flowers, tall grass, villages, ruins. Worlds record their terrain version (1 = 1.0, 2 = 1.1, 3 = 1.2, 4 = 1.4), so older worlds keep their landscape and never get villages; version 4 adds wild Skybells and Moon Daisies and lantern lamp posts in villages.
+- Survival: health, hunger, saturation and exhaustion, experience and levels, fall damage, drowning, starvation, armour, tool tiers and durability, mining speeds, death and respawn, advancements and statistics.
+- Creative: instant breaking, unlimited blocks, flight, searchable catalogue (Building, Decoration, Natural, Functional, Tools, Combat, Food, Ingredients, Spawn Items, Survival Inventory), destroy slot.
+- Crafting (2×2 and 3×3, shaped and shapeless), furnace smelting with fuel, chests.
+- Building shapes: slabs (6 materials; bottom/top halves; two join into a full block), stairs (5 materials; four facings, upside-down), two-block doors (open/close, hinges, double doors), beds, wall torches that drop when unsupported. Player and creatures step up half-block heights without jumping.
+- Flowing water: sources spread 7 blocks, fall, pick the nearest way down, recede when the source goes, and form new sources between two others. Currents push players, creatures and items; water washes out torches and plants. Buckets fill from and pour sources.
+- Beds: set the respawn point; sleeping at night (no monsters within 8 blocks) skips to morning.
+- Runes (original enchanting): Rune Shards from deep rune ore, a Rune Table, three deterministic offers per item priced in levels and shards, eight runes (Swift, Sturdy, Keen Edge, Plunder, Bounty, Might, Warding, Soft Landing), shimmering inscribed items.
+- Farming: hoes till grass/dirt into farmland (moist within 4 blocks of water); wheat (8 stages) and carrots (4) grow on random ticks in light 9+; bone meal; trampling; bread, hay bales (soften falls); shovel-made village paths.
+- Villages (1.2 worlds, structures on): deterministic per-region plans in plains, desert (sandstone) and taiga (spruce) styles; houses with beds, doors and workstations, a well, a farm, lamp posts and paths, stamped chunk by chunk in the generation worker; bigger houses have a loot chest. No cave mouths open inside a village.
+- Villagers: A* pathfinding over the voxel grid, opening and closing doors; daily routine (wander, work at a workstation, farmers harvest and replant; walk home at dusk; sleep in their own bed; wake at dawn); flee hostiles. Five professions from workstations (Grain Bin, Forge, Mason's Bench, Scribe's Desk, Fletching Bench); unemployed villagers claim free workstations and beds; newcomers move into free beds at dawn (including beds the player adds).
+- Trading: amber currency, two offers per level, Novice → Expert with experience, limited uses and restocking at the workstation, shift-click bulk trading, rune-inscribed gear from experts; saved with the world.
+- Sentinel: an original stone village guardian that patrols, fights hostiles (raiders first), resists knockback, and turns on the player who hurts it or a villager. Hostiles (Shamblers, Dustwalkers, raiders) hunt villagers.
+- Night raids: when the player is in a village at nightfall (difficulty-based chance, at most every other night): 2–4 waves that march on the village, raid bar, victory gift, Hero of the Village advancement and a day-long 30% discount.
+- Weather (1.3, all worlds): clear spells, rain and thunderstorms on a random cycle (Weather Cycle game rule; Creative can set it in Options), saved per world. Rain falls as camera-facing column quads around the player, stopped by the first solid or water block (roofs keep it off); snow in snowy lands and high mountains; nothing in deserts/badlands. Overcast, darker sky and fog; splash particles; procedural rain loop (muffled indoors) and thunder. Lightning strikes random exposed ground during storms (damage, flash, bolt geometry). Rain waters farmland and crops, stops undead burning; storms let hostiles appear in the open by day and can be slept through.
+- Fellhound (1.3): an original wolf-like creature in packs in forests, taiga and snowy lands; hunts rabbits; the pack turns on a player who hits one. Tamed with raw meat (1 in 3), it gets a collar, follows with door-aware A* paths, catches up by bounding to the player, sits/stays on right-click, fights what the player attacks or is attacked by (never villagers or the Sentinel; its kills give the player XP), heals with meat, shows health with its tail, is immune to its owner's hits and arrows, and is saved with the world.
+- Decoration (1.4, all worlds): fences that join up with fences, gates and solid blocks (1.5 blocks tall to jump or wander over), fence gates that swing away from whoever opens them, climbable ladders (walk in or jump to climb, sneak to hold, slow slide without fall damage), trapdoors (top/bottom halves, open against the hinge), glass panes that join into window frames, lanterns (light 15, standing or hanging on a chain), flower pots for flowers, cacti and dry shrubs, writable signs (standing with 16 turns or on walls; four lines typed in an editor, drawn in the game's pixel font on the board, text colour from a dye), and 18 original paintings in six sizes, procedurally painted in code (placed at the largest size that fits, sneak for small, right-click to change, pop off when unsupported).
+- Colour (1.4): 16 dyes from four flowers (two new: Skybell, Moon Daisy), bone meal, coal, dry shrubs and smelted cactus, ten dye mixes, 15 coloured wools (any wool + dye, or 8 white wool around a dye); bone meal sprouts all four flowers in any world.
+- Boats (1.6): crafted from five planks, placed on water, ridden with W/S to row and A/D to turn (joystick on touch), Shift or the Sneak button to climb out onto the nearest dry land. The hull floats at a fixed draft on a damped spring, is nudged by currents, stops at the shore, barely moves on land, breaks after three quick hits (one in Creative) and drops itself; the rider is saved and seated again on load. Rowing tops out at about 6 blocks/s, costs no hunger, and counts Distance by Boat and the Set Sail advancement.
+- Fishing (1.6): a fishing rod (sticks and string, 64 uses, takes the Sturdy rune) casts a float that arcs out and bobs on water. After 5-30 s (sooner in rain) a trail of ripples approaches and the fish bites for 1-2 s; reeling in then lands the catch, which flies to the player with 1-6 XP: fish 85% (trout, perch; both cook in a furnace), junk 10%, treasure 5% (amber, rune shards, a worn bow). Missed bites reset the wait; a float on the ground costs double wear; the line snaps if the rod is put away or the player is more than 32 blocks off. Catch of the Day advancement and a Fish Caught statistic.
+- Creatures: pig, cow, sheep, chicken, goat (leaps), rabbit (hops) — wander, avoid drops, panic when hit; Shambler (chases and hits), Bone Archer (keeps distance and shoots), Crawler (climbs walls, calm in bright light unless provoked), Dustwalker (desert Shambler that does not burn and makes you hungry). Hostiles spawn in darkness; Shamblers and Bone Archers burn in sunlight. Spawning favours biomes (goats in mountains, rabbits in deserts and taiga).
+- Day/night cycle with moving sun and moon, stars, clouds, changing sky, fog and light.
+- Smooth lighting with sky light and block light (torches, furnaces, lumen blocks) and ambient occlusion.
+- Procedural audio: material-specific digging, footsteps, creature voices and a sparse generative soundtrack.
+- IndexedDB saves with autosave.
+- World backups: **Export World** writes a single `.blockfell` file (gzip JSON: settings, player, chunk deltas, chests, creatures). In Chrome and Edge you pick a folder once (for example Dropbox > MineCraft); Blockfell remembers it, lists the backups there under **Import World...**, and backs each world up automatically on **Save and Quit**. Other browsers download the file and import it with a file picker. Importing a world that already exists offers Replace or Keep Both.
+
+## Architecture
+
+```
+src/
+  engine/       Engine (app controller), Renderer, GameLoop (fixed 20 Hz ticks + interpolation),
+                InputManager (pointer lock), MenuPanorama
+  world/        constants (coordinates), BlockRegistry, Chunk, ChunkManager (streaming/culling),
+                World (voxel data + deltas + block entities), TerrainGenerator, Villages (planner/stamper),
+                NoiseGenerator, BiomeSystem, Fluids
+  meshing/      ChunkMesher (face culling + greedy meshing), Lighting (sky/block light BFS),
+                MeshBuilder, TextureAtlas, textures (procedural 16x16 art), textureNames
+  workers/      world.worker (generation + meshing), WorkerPool (priority scheduling), protocol
+  player/       Player (movement physics, survival state), PlayerPhysics (AABB collision)
+  interaction/  VoxelRaycaster (3D DDA), BlockBreaking, BlockPlacement (orientation, halves, supports)
+  inventory/    ItemRegistry, ItemStack, Inventory/Container, ScreenHandler (all click semantics), Enchantments (runes)
+  crafting/     RecipeManager, recipes
+  entities/     Entity, Mob (AI), Villager, Sentinel, Hound (companion), Trades, Pathfinder (A*), Drops (items, XP orbs, arrows),
+                EntityManager (spawning), BoxModel, mobModels
+  systems/      DayNightSystem, WeatherSystem, SaveManager (IndexedDB), WorldBackup (.blockfell export/import), AudioManager, Options, Progress
+  render/       ChunkMaterial (shader), Sky, Precipitation (rain, snow, lightning), FirstPerson (hand), Effects (outline, cracks, particles),
+                ItemIcons, ItemModels, itemSprites
+  ui/           React screens, HUD and inventories (1 CSS rem = 1 GUI pixel)
+  game/Game.ts  one running world session: rules, interaction, furnaces, farming, trading, saving
+  game/VillageManager.ts  village population, newcomers, raids
+```
+
+### Key techniques
+
+- **World = voxel data, rendering = derived meshes.** Chunks are 16×128×16 columns stored as `Uint8Array` block ids (`index = x | z<<4 | y<<8`). World→chunk conversion uses `>> 4` and `& 15`, which is correct for negative coordinates.
+- **Hidden-face elimination.** The worker copies the 3×3 chunk neighbourhood into one padded volume, so faces on chunk borders are culled against the real neighbour.
+- **Greedy meshing.** Per direction and slice, visible faces go into a 2D mask keyed by texture layer, AO and the four corner light values. Rectangles are grown along U, then V. A face only merges along an axis on which its lighting is constant, so merging never changes the picture. Textures tile across merged quads through a texture array with REPEAT wrapping.
+- **Lighting.** Sky light falls straight down, then flood-fills sideways; block light floods from emitters. It is baked per vertex and the day/night level is applied in the shader, so time of day never forces a remesh.
+- **Localised remeshing.** An edit updates voxel data first, records a delta, and marks the owning chunk. Neighbours are marked only when the block is on a border. The mesher also compares the 2-block border band of each neighbour's light and remeshes that neighbour only if its lighting actually changed.
+- **Streaming.** Data radius is render distance + 1, meshes are built within the render distance, and chunks unload beyond +2 (hysteresis). Jobs are prioritised by distance, with edited chunks first. Geometry is disposed on unload.
+- **Culling.** Each chunk's tight AABB is tested against the camera frustum every frame. Each chunk costs at most two draw calls (opaque/cutout and water).
+- **Collision.** A swept AABB is resolved per axis (Y, X, Z) against only the voxels the move can touch. Shaped blocks (slabs, stairs, doors, beds, cacti) contribute lists of boxes; a blocked horizontal move retries 0.6 higher (step-up).
+- **Shaped blocks.** Orientation and state are separate block ids with per-id model boxes (1/16 units), so they stay a single byte in chunk data and saves. The mesher emits each model's boxes, skipping box faces that lie flush against an opaque neighbour; ordinary cubes are still culled and greedy-merged as before.
+- **Flowing water.** Event-driven updates (5-tick delay, capped per tick) keep a level per cell (source, 1–7, falling); the mesher builds sloped surfaces from the corner heights and only greedy-merges flat, uniform water.
+- **Raycasting.** Amanatides & Woo 3D DDA; non-full blocks test their selection box.
+- **Villages.** A village is planned once per 320-block region from the seed (site, style, buildings, paths) by the same deterministic code on the worker and the main thread; each generated chunk stamps only the parts inside it (terrain pads first, then buildings), so a village straddling many chunks lines up exactly and nothing is stored until the player changes it.
+- **Connected shapes.** Fences and panes are one block id each; their arms (mesh, collision boxes and selection box) come from a 16-entry table indexed by which of the four neighbours they join, worked out from the padded volume in the mesher and from world lookups in physics and raycasting, so they stay one byte in chunk data and cross chunk borders correctly. Pane glass faces and narrow edge faces get different textures.
+- **Signs and paintings.** A sign is a plain block id (standing, or four wall facings) whose text lives in a block entity; a small renderer draws each nearby sign as a board with a per-sign canvas texture, redrawn only when its text or colour changes. Paintings are entities (like the reference game): a box with the motif's canvas texture, placed by searching the motifs and anchor offsets that fit around the clicked cell, saved with the other entities.
+- **Touch input.** `src/engine/touch.ts` decides when touch controls apply (iOS always, otherwise a coarse primary pointer) and bridges finger pointer events to synthetic mouse events for the mouse-driven menus, inventories and sliders (dropping the browser's late compatibility events). `src/ui/TouchControls.tsx` feeds the same `InputManager` state as the keyboard and mouse: an analog `stick`, `virtualKey`, `virtualMouse` and `addLook`; taps and holds are told apart by the events' own timestamps, so a slow frame never turns a tap into a hold. Pointer lock is skipped (Safari on iOS has none).
+- **Pathfinding.** Villagers and the Sentinel use a bounded A* over standable cells (steps up/down one block, doors passable, crops avoided), with re-planning when stuck.
+- **Precipitation.** One vertical quad per block column within 10 blocks, billboarded around Y in the vertex shader, from the column's rain height (a top-down scan for the first solid or water block) up past the camera; a scrolling procedural texture animates streaks or flakes. Two draw calls; rebuilt only when the camera changes block or every 0.35 s.
+- **Saves.** The seed plus per-chunk deltas (`localIndex << 8 | blockId`), block entities and creatures. Loading regenerates terrain from the seed, then applies the deltas.
+
+## Verification
+
+Automated browser tests live in `tests/` (Playwright + headless Chromium). Start `npm run dev` first, then run `VW=960 VH=540 CHROME_PATH=/path/to/chrome node tests/run.mjs tests/t_final.mjs`. The final integration test currently passes 45/45. Highlights:
+
+- Mesher face counts equal an independent brute-force count on every chunk tested, including across chunk borders.
+- One interior edit remeshes exactly one chunk and regenerates nothing. A border edit remeshes both chunks.
+- Flying 500+ blocks keeps loaded chunks bounded (about 300) with steady GPU geometry counts.
+- Frustum culling drops visible chunks from about 70 to 3 when looking at the sky.
+- The final integration test (section 42 workflow) covers the full workflow: create, walk, mine, collect, place, inventory, craft, save, reload, creative search, flight, far travel, day/night and creatures.
+- `tests/t_features.mjs` (45 checks) covers the 1.1 features: slab/stair placement and joining, step-up, doors, wall torches, beds and sleeping, water spreading/currents/buckets/receding/waterfalls/new sources, runes and their effects, the new creatures, the new biomes, saving them, and old-world compatibility.
+- `tests/t_villages.mjs` (73 checks) covers 1.2: tilling, planting, bone meal, moisture, growth and darkness, harvesting, trampling, recipes; village generation and old-world compatibility; population, routines (work, walking home, sleeping, doors, waking), newcomers; jobs, trading, levelling, sold-out offers, restocking; the Sentinel; hostiles hunting villagers; raids from start to victory and the discount; saving it all.
+- `tests/t_weather.mjs` (48 checks) covers 1.3: weather fading, rain around the player, darker skies, roofs, dry and snowy places, the cycle and its rule, lightning (damage, bolts, natural strikes, advancement), undead in the rain, rain on farmland and crops, storm spawning, sleeping through storms, the Creative weather option; Fellhound spawn eggs, taming, following, catching up, sitting, owner immunity, healing, tail, fighting for the owner, XP credit, angry packs, hunting, natural spawning in the taiga, and saving hounds, weather and the rule.
+- `tests/t_decor.mjs` (80 checks) covers 1.4: every new recipe, dyes and mixes, dyeing wool in the crafting grid; placing fences, joining, blocking walking and jumping, penning animals, spawn rules; gates (placing, joining, blocking, opening away from the player, walking through); ladders (placing, climbing, holding on, sliding without damage, dropping when unsupported); trapdoors (halves, standing on them, dropping through); panes (joining, blocking, shattering); wild and bone-meal flowers; signs (placing, the editor, rotation, rendered text, re-editing, Escape, line length, dye colour, wall signs, dropping); lanterns (standing, hanging, light, support); flower pots (planting, taking back, cacti, drops); paintings (largest fit, no overlap, cycling, taking down, sneaking for small ones, falling off); and saving and reloading all of it.
+- `tests/t_v16.mjs` (56 checks) covers 1.6: the boat and rod recipes, icons, tabs, cooking and eating fish; placing a boat, floating at the right draft, climbing in, rowing, turning, the shore stopping it, the Set Sail advancement and statistic, climbing out onto land, breaking it (Survival and Creative), dragging on land, saving and reloading while seated; casting, the float settling, reeling in early, the approach and bite, landing a catch (statistic, advancement, XP, wear), missing a bite, the line snapping, ground wear, rain, the catch table's odds and fishing from a boat; Continue, reopening into the world left mid-game, Save and Quit forgetting it, the world list's preselection, the backup reminder, the Reopen Last World option, a remembered world that was deleted, the persistent-storage request; and, against the single-file build served over HTTP (`ONLY=offline URL1=http://localhost:8765/`), the offline copy, starting and playing with no connection, and a newer build being downloaded and offered with Restart.
+- `tests/t_touch.mjs` (62 checks) plays on an emulated iPhone in landscape with real touch events: GUI scale and lighter settings, menus by tap, joystick walking/strafing/sprinting/stopping (and no drift when the thumb lands at the screen edge), dragging to look, two thumbs at once, tap to place, hold to mine, taps that don't dig, taking back a hold that was really a tap, taps and hotbar taps held up by a slow frame (judged by the touch's own timestamps: the tap still places, a long-press drop is put back), tapping a creature, holding to eat, Jump, Sneak (and releasing it when touch controls are switched off), double-tap to fly, hotbar taps, sliding and long-press drop, the inventory and close button, hover cleared on lift, crafting by touch alone (drag a log to the grid, take the planks, hold to put down one, hold-and-slide one per slot, drag to share out evenly, hold to take half), a second finger working the inventory while a thumb rests on the glass, swiping the Creative catalogue, the GUI shrinking to fit a Safari tab (844×340, 667×320), swiping and tapping villager trades, Pause, sliders, scrolling Options, placing and writing a sign (editor fits the screen), boats and fishing by touch (tap to place and board, joystick rowing, Sneak to climb out, tap to cast and to reel in on a bite), the portrait hint, and that a computer keeps mouse and keyboard.
+- `tests/t_webkit.mjs` runs the single-file build in a real WebKit engine (WebKitGTK MiniBrowser over WebDriver, posing as an iPhone): loads, WebGL 2, touch mode, world generation, game loop, joystick, look, tap to place, crafting through the mouse bridge, close button, Save and Quit, no script errors.
+- `tests/t_backup.mjs` (24 checks) covers export to a folder, the remembered folder, the last-played world preselected, restore after deleting, automatic backup on Save and Quit, Replace / Keep Both, same-name worlds, the download and file-picker fallback, and rejection of damaged files. Serve `dist-single/` on http://localhost:8765 first.
+
+## Known limitations
+
+- There is no lava, and lightning doesn't start fires.
+- Signs only have text on the front; paintings can't be placed on floors or ceilings.
+- Villagers don't breed; a village grows by newcomers moving into free beds at dawn.
+- Villagers, the Sentinel and raiders only act in loaded chunks near the player.
+- Water only flows in loaded chunks (it resumes when a chunk loads again).
+- There is no multiplayer; the button is shown as unavailable until the first world exists, then Continue takes its place.
+- Boats seat only the player (creatures don't ride them). The offline copy and update notice need the game served over HTTPS or localhost; they don't apply to the double-clicked file (which needs no network anyway) or the page embedded in claude.ai.
+- Touch controls have no equivalent of shift-click (quick move) or middle-click (pick block); iPhone and iPad need the game served from a web address (not a saved file). Touch play is tested in Chromium's device emulation and a WebKitGTK smoke test, not yet on a physical iPhone or iPad.
