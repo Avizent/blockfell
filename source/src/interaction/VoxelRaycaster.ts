@@ -1,4 +1,4 @@
-import { AIR, CONNECT, IS_WATER, getBlock, selectionAt } from '../world/BlockRegistry';
+import { AIR, CONNECT, IS_FLUID, getBlock, selectionAt } from '../world/BlockRegistry';
 import { World, UNLOADED } from '../world/World';
 
 export interface RayHit {
@@ -37,8 +37,8 @@ export function raycast(world: World, ox: number, oy: number, oz: number, dx: nu
   let t = 0;
   for (let i = 0; i < 256 && t <= maxDist; i++) {
     const b = world.getBlock(x, y, z);
-    const fluidHit = fluids && IS_WATER[b] === 1 && getBlock(b).fluidLevel === 0;
-    if (b !== AIR && (!IS_WATER[b] || fluidHit) && b !== UNLOADED) {
+    const fluidHit = fluids && IS_FLUID[b] === 1 && getBlock(b).fluidLevel === 0;
+    if (b !== AIR && (!IS_FLUID[b] || fluidHit) && b !== UNLOADED) {
       const def = getBlock(b);
       const s = CONNECT[b] ? selectionAt((a, c, d) => world.getBlock(a, c, d), b, x, y, z) : def.selection;
       const full = fluidHit || (s[0] === 0 && s[1] === 0 && s[2] === 0 && s[3] === 1 && s[4] === 1 && s[5] === 1);
