@@ -11,4 +11,8 @@ An original browser voxel sandbox: explore a generated world, mine, craft, build
 
 Worlds are saved in the browser you play in. Use **Export World** / **Import World** in the world list to move a world between devices.
 
+**Player's guide:** [How to Play (PDF, 41 pages)](guide/Blockfell-How-to-Play.pdf)
+
+**Source code:** [`source/`](source/) — TypeScript, React, Three.js (WebGL 2), Vite and Web Workers. See [source/README.md](source/README.md) for features, architecture and tests. To build: `cd source && npm install && npm run build:single`.
+
 `index.html` is the complete game in one file (built from the Blockfell source with `npm run build:single`); `sw.js` is the small service worker that keeps an offline copy of it.
