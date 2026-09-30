@@ -153,6 +153,42 @@ export function exposeTestApi(): void {
     /** Fishing: a line's catch (r in 0..1 picks from the loot table), and hurrying the next bite. */
     rollCatch(r?: number) { return rollCatch(r); },
     hurryBite() { const b = engine.game?.bobber; if (b) { b.wait = 1; } return !!b; },
+    /** 1.7: dungeons and lava lakes the generator makes within `r` chunks of the player (pure: regenerates chunks). */
+    dungeons(r = 6) {
+      const g = engine.game;
+      if (!g) return [];
+      const pcx = Math.floor(g.player.x / 16), pcz = Math.floor(g.player.z / 16);
+      const out: { x: number; y: number; z: number; mob: string; chests: { x: number; y: number; z: number }[] }[] = [];
+      for (let cx = pcx - r; cx <= pcx + r; cx++) for (let cz = pcz - r; cz <= pcz + r; cz++) {
+        const res = g.world.generator.generateChunk(cx, cz);
+        for (const s of res.spawners) out.push({ ...s, chests: res.containers.filter((c) => c.loot === 'dungeon').map((c) => ({ x: c.x, y: c.y, z: c.z })) });
+      }
+      const px = g.player.x, pz = g.player.z;
+      return out.sort((a, b) => Math.hypot(a.x - px, a.z - pz) - Math.hypot(b.x - px, b.z - pz));
+    },
+    lavaLakes(r = 6) {
+      const g = engine.game;
+      if (!g) return [];
+      const pcx = Math.floor(g.player.x / 16), pcz = Math.floor(g.player.z / 16);
+      const out: { x: number; y: number; z: number; cells: number }[] = [];
+      for (let cx = pcx - r; cx <= pcx + r; cx++) for (let cz = pcz - r; cz <= pcz + r; cz++) {
+        const b = g.world.generator.generateChunk(cx, cz).blocks;
+        let n = 0, top = -1, tx = 0, tz = 0;
+        for (let i = 0; i < b.length; i++) {
+          if (!B.IS_LAVA[b[i]] || (i >> 8) <= 11) continue;
+          n++;
+          if ((i >> 8) > top || ((i >> 8) === top && ((i & 15) === 7 || ((i >> 4) & 15) === 7))) { top = i >> 8; tx = i & 15; tz = (i >> 4) & 15; }
+        }
+        if (n) out.push({ x: cx * 16 + tx, y: top, z: cz * 16 + tz, cells: n });
+      }
+      const px = g.player.x, pz = g.player.z;
+      return out.sort((a, b) => Math.hypot(a.x - px, a.z - pz) - Math.hypot(b.x - px, b.z - pz));
+    },
+    spawnerInfo() {
+      const g = engine.game;
+      if (!g) return null;
+      return { known: [...g.spawners.known.values()], spawned: g.spawners.spawned, figures: g.spawnerFigures.count };
+    },
     motifs() { return MOTIFS.map((m) => ({ id: m.id, title: m.title, w: m.w, h: m.h })); },
     items() { return ITEMS.map((i) => ({ id: i.id, name: i.name, category: i.category, block: i.block })); },
     item(id: string) { const d = getItem(id); return { id: d.id, name: d.name, category: d.category, smelt: d.smelt ?? null, block: d.block }; },
