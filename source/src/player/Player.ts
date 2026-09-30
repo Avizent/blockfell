@@ -1,6 +1,6 @@
 import { AABB, boxCollides, boxTouches, moveBox } from './PlayerPhysics';
 import { World, UNLOADED } from '../world/World';
-import { CLIMBABLE, IS_WATER } from '../world/BlockRegistry';
+import { CLIMBABLE, IS_LAVA, IS_WATER } from '../world/BlockRegistry';
 
 export type GameMode = 'survival' | 'creative';
 export type Difficulty = 'peaceful' | 'easy' | 'normal' | 'hard';
@@ -40,6 +40,13 @@ export class Player {
   onGround = false;
   inWater = false;
   eyeInWater = false;
+  /** Lava around the legs (swimming in it) / at eye level. */
+  inLava = false;
+  eyeInLava = false;
+  /** Any part of the body touching lava (it burns). */
+  touchingLava = false;
+  /** Ticks left of being on fire. */
+  fireTicks = 0;
   collidedH = false;
   /** Standing in a ladder cell (climb by walking into it or holding jump). */
   onLadder = false;
@@ -109,6 +116,9 @@ export class Player {
     this.onGround = true;
     this.inWater = false;
     this.eyeInWater = false;
+    this.inLava = false;
+    this.eyeInLava = false;
+    this.touchingLava = false;
     this.sprinting = false;
     this.sneaking = false;
     this.flying = false;
@@ -214,8 +224,12 @@ export class Player {
     const feet = this.box.clone();
     feet.minY += 0.4; feet.maxY -= 0.4;
     this.inWater = boxTouches(world, feet, (b) => IS_WATER[b] === 1);
-    this.eyeInWater = IS_WATER[world.getBlock(Math.floor(this.x), Math.floor(this.y + this.eyeHeight - 0.08), Math.floor(this.z))] === 1;
-    if (this.inWater || this.flying) this.fallDistance = 0;
+    const eyeBlock = world.getBlock(Math.floor(this.x), Math.floor(this.y + this.eyeHeight - 0.08), Math.floor(this.z));
+    this.eyeInWater = IS_WATER[eyeBlock] === 1;
+    this.inLava = boxTouches(world, feet, (b) => IS_LAVA[b] === 1);
+    this.eyeInLava = IS_LAVA[eyeBlock] === 1;
+    this.touchingLava = this.inLava || boxTouches(world, this.box, (b) => IS_LAVA[b] === 1);
+    if (this.inWater || this.inLava || this.flying) this.fallDistance = 0;
 
     this.sneaking = input.sneak && !this.flying;
     const targetEye = this.sneaking ? EYE_SNEAKING : EYE_STANDING;
@@ -223,7 +237,7 @@ export class Player {
 
     let fwd = input.forward, str = input.strafe;
     if (this.sneaking) { fwd *= 0.3; str *= 0.3; }
-    const canSprint = fwd > 0.5 && !this.sneaking && (this.creative || this.food > 6) && !this.eyeInWater;
+    const canSprint = fwd > 0.5 && !this.sneaking && (this.creative || this.food > 6) && !this.eyeInWater && !this.inLava;
     if (input.sprint && canSprint) this.sprinting = true;
     if (!canSprint || this.collidedH) this.sprinting = false;
     // tiny residual velocities snap to zero so the player comes fully to rest
@@ -238,6 +252,17 @@ export class Player {
       this.move(world);
       this.vx *= 0.91; this.vz *= 0.91; this.vy *= 0.6;
       if (this.onGround && !input.jump) this.flying = false;
+    } else if (this.inLava) {
+      // lava is thick: slow to wade through, you sink, and swimming up is hard work
+      this.moveRelative(fwd, str, 0.02);
+      if (input.jump) this.vy += 0.03;
+      this.move(world);
+      this.vx *= 0.5; this.vy *= 0.5; this.vz *= 0.5;
+      this.vy -= 0.02;
+      if (this.collidedH) {
+        const test = this.box.clone().offset(this.vx, this.vy + 0.6, this.vz);
+        if (!boxCollides(world, test)) this.vy = 0.3;
+      }
     } else if (this.inWater) {
       this.moveRelative(fwd, str, 0.02);
       if (input.jump) this.vy += 0.04;
