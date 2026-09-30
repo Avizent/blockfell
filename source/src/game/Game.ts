@@ -26,6 +26,8 @@ import { raycast, RayHit } from '../interaction/VoxelRaycaster';
 import { breakProgressPerTick, canHarvest } from '../interaction/BlockBreaking';
 import { resolvePlacement, needsSupport, supportOk, partnerOf, lookFacing, faceFacing } from '../interaction/BlockPlacement';
 import { SignRenderer } from '../render/SignRenderer';
+import { SpawnerRenderer } from '../render/SpawnerRenderer';
+import { SpawnerSystem } from './Spawners';
 import { Painting, placePainting } from '../entities/Painting';
 import { Boat, BOAT_SEAT, BOAT_HEIGHT, BOAT_WIDTH, BOAT_DRAFT, waterSurfaceAt } from '../entities/Boat';
 import { Bobber, rollCatch } from '../entities/Fishing';
@@ -57,6 +59,8 @@ interface Breaking {
  * entities, time, and all per-tick gameplay rules. Rendering-side helpers
  * (hand, outline, cracks, particles) are driven from here too.
  */
+const UNLIT_EFFECT: Partial<Record<EffectKind, true>> = { smoke: true, poof: true, splash: true, drip: true };
+
 export class Game implements EntityHost, PrecipSource {
   readonly world: World;
   readonly chunks: ChunkManager;
@@ -106,6 +110,8 @@ export class Game implements EntityHost, PrecipSource {
   tradeWith: Villager | null = null;
   /** Signs: boards and text drawn from their block entities. */
   readonly signs: SignRenderer;
+  readonly spawners: SpawnerSystem;
+  readonly spawnerFigures: SpawnerRenderer;
   /** The sign whose text is being edited. */
   signPos: { x: number; y: number; z: number } | null = null;
   /** The painting under the crosshair (nearer than any block). */
@@ -158,11 +164,13 @@ export class Game implements EntityHost, PrecipSource {
       }
     }
     this.chunks = new ChunkManager(this.world, engine.pool, r.materials, engine.options.renderDistance);
-    this.fluids = new FluidSystem(this.world, (x, y, z, id) => this.washOut(x, y, z, id));
+    this.fluids = new FluidSystem(this.world, (x, y, z, id, lava) => (lava ? this.burnOut(x, y, z) : this.washOut(x, y, z, id)));
+    this.fluids.onReact = (x, y, z, formed) => this.onFluidsMeet(x, y, z, formed);
+    this.spawners = new SpawnerSystem(this.world, this.entities, this);
     this.villages = new VillageManager(this);
     this.villages.load(extra?.villages);
     // water the player changed keeps flowing when its chunk is loaded again; villages get their people
-    this.chunks.onChunkLoaded = (c) => { this.wakeWater(c); this.villages.onChunkLoaded(c.cx, c.cz); };
+    this.chunks.onChunkLoaded = (c) => { this.wakeWater(c); this.villages.onChunkLoaded(c.cx, c.cz); this.spawners.scanChunk(c); };
     this.chunks.greedy = engine.options.greedyMeshing;
     r.scene.add(this.chunks.group);
     r.scene.add(this.entities.group);
@@ -170,6 +178,8 @@ export class Game implements EntityHost, PrecipSource {
     this.precip = new Precipitation(r.scene);
     this.signs = new SignRenderer(r.atlas);
     r.scene.add(this.signs.group);
+    this.spawnerFigures = new SpawnerRenderer();
+    r.scene.add(this.spawnerFigures.group);
     this.outline = new BlockOutline(r.scene);
     this.crack = new CrackOverlay(r.scene, engine.models);
     this.hand = new FirstPerson(r.overlayScene, engine.models);
@@ -184,7 +194,7 @@ export class Game implements EntityHost, PrecipSource {
     this.entities.simulationDistance = engine.options.simulationDistance * 16;
     this.entities.mobSpawning = this.rules.doMobSpawning;
 
-    this.world.events.on('blockChanged', (e) => this.onBlockChanged(e.x, e.y, e.z, e.old, e.id));
+    this.world.events.on('blockChanged', (e) => this.onBlockChanged(e.x, e.y, e.z, e.old, e.id, e.cause));
 
     // ---- player state
     const p = this.player;
@@ -237,8 +247,9 @@ export class Game implements EntityHost, PrecipSource {
   sound(name: string, x?: number, y?: number, z?: number, volume = 1, pitch = 1): void {
     this.engine.audio.play(name, x, y, z, volume, pitch);
   }
+  /** Particles; the unlit kinds (smoke, splashes, drips) take the light where they appear, so smoke in a dark cave isn't white. */
   effect(kind: EffectKind, x: number, y: number, z: number, count: number): void {
-    this.particles.effect(kind, x, y, z, count);
+    this.particles.effect(kind, x, y, z, count, UNLIT_EFFECT[kind] ? this.brightnessAt(x, y, z) : 1);
   }
   giveItem(stack: ItemStack): number {
     const left = this.inventory.add(stack);
@@ -300,13 +311,13 @@ export class Game implements EntityHost, PrecipSource {
     if (source.mob && !p.creative && !p.dead) this.lastHurtBy = { mob: source.mob, tick: this.tickCount };
     if (p.creative || p.dead || p.invulnerable > 0 || amount <= 0) return;
     let dmg = amount;
-    if (source.kind !== 'fall' && source.kind !== 'drown' && source.kind !== 'starve') {
+    if (source.kind !== 'fall' && source.kind !== 'drown' && source.kind !== 'starve' && source.kind !== 'burn') {
       const armor = this.inventory.armorPoints();
       dmg *= 1 - Math.min(20, armor) / 25;
       if (armor > 0) for (let i = 0; i < 4; i++) {
         if (this.inventory.get(ARMOR_START + i) && this.inventory.damageItem(ARMOR_START + i, Math.max(1, Math.floor(amount / 4)))) this.sound('tool_break');
       }
-      if (source.kind !== 'cactus') {
+      if (source.kind !== 'cactus' && source.kind !== 'lava') {
         const dx = p.x - source.x, dz = p.z - source.z, l = Math.hypot(dx, dz) || 1;
         p.vx += (dx / l) * 0.4; p.vz += (dz / l) * 0.4; p.vy = Math.max(p.vy, 0.36);
       }
@@ -391,6 +402,8 @@ export class Game implements EntityHost, PrecipSource {
     this.crack.dispose();
     this.hand.dispose();
     this.signs.dispose();
+    this.spawnerFigures.dispose();
+    this.spawnerFigures.group.removeFromParent();
     this.fishLine.removeFromParent();
     this.fishLine.geometry.dispose();
     (this.fishLine.material as THREE.Material).dispose();
@@ -543,7 +556,11 @@ export class Game implements EntityHost, PrecipSource {
     } else if (kind === 'chest') {
       let be = this.world.blockEntities.get(key) as ChestEntity | undefined;
       if (!be || be.type !== 'chest') { be = { type: 'chest', items: new Array(27).fill(null) }; this.world.blockEntities.set(key, be); }
-      if (be.loot) { this.fillLoot(be, x, y, z); delete be.loot; }
+      if (be.loot) {
+        if (be.loot === 'dungeon') this.progress.grant('dungeon');
+        this.fillLoot(be, x, y, z);
+        delete be.loot;
+      }
       const c = new Container(27);
       c.slots = be.items;
       h.addGroup('chest', c, 0, 27);
@@ -638,6 +655,7 @@ export class Game implements EntityHost, PrecipSource {
 
   private fillLoot(be: ChestEntity, x: number, y: number, z: number): void {
     const rng = mulberry32(hash4(this.world.seed, x, y, z));
+    if (be.loot === 'dungeon') { this.fillDungeonLoot(be, rng); return; }
     const table: [string, number, number, number][] = be.loot === 'village' ? [
       ['bread', 1, 4, 0.7], ['wheat', 2, 8, 0.5], ['wheat_seeds', 2, 6, 0.5], ['carrot', 1, 5, 0.5], ['apple', 1, 3, 0.4],
       ['amber', 1, 3, 0.45], ['torch', 2, 6, 0.4], ['iron_ingot', 1, 2, 0.2], ['stone_hoe', 1, 1, 0.15], ['bone_meal', 2, 6, 0.3],
@@ -654,6 +672,32 @@ export class Game implements EntityHost, PrecipSource {
       if (be.items[slot]) continue;
       be.items[slot] = makeStack(id, a + Math.floor(rng() * (b - a + 1)));
     }
+  }
+
+  /** Dungeon chests: food, bones and string from the creatures, iron, a little treasure. */
+  private fillDungeonLoot(be: ChestEntity, rng: () => number): void {
+    const table: [string, number, number, number][] = [
+      ['bread', 1, 3, 0.5], ['spoiled_flesh', 2, 5, 0.5], ['bone', 2, 6, 0.6], ['string', 2, 5, 0.5],
+      ['coal', 3, 8, 0.5], ['iron_ingot', 1, 4, 0.5], ['wheat', 2, 5, 0.3], ['apple', 1, 3, 0.3],
+      ['arrow', 6, 12, 0.35], ['bucket', 1, 1, 0.25], ['rune_shard', 1, 3, 0.35], ['amber', 2, 6, 0.4],
+      ['bow', 1, 1, 0.15], ['iron_chestplate', 1, 1, 0.08], ['iron_helmet', 1, 1, 0.08],
+    ];
+    let filled = 0;
+    const put = (st: ItemStack) => {
+      for (let tries = 0; tries < 8; tries++) {
+        const slot = Math.floor(rng() * 27);
+        if (be.items[slot]) continue;
+        be.items[slot] = st;
+        filled++;
+        return;
+      }
+    };
+    for (const [id, a, b, chance] of table) if (rng() <= chance) put(makeStack(id, a + Math.floor(rng() * (b - a + 1))));
+    // the prize: an iron tool or sword already carved with a rune
+    const r = rng();
+    if (r < 0.14) put({ ...makeStack('iron_pickaxe'), ench: { [rng() < 0.5 ? 'swift' : 'sturdy']: 1 + Math.floor(rng() * 2) } });
+    else if (r < 0.28) put({ ...makeStack('iron_sword'), ench: { [rng() < 0.5 ? 'plunder' : 'keen']: 1 + Math.floor(rng() * 2) } });
+    if (filled === 0) put(makeStack('bone', 3));
   }
 
   private onCrafted(r: ItemStack): void {
@@ -710,7 +754,7 @@ export class Game implements EntityHost, PrecipSource {
     if (cur === undefined || cur > due) this.scheduled.set(k, due);
   }
 
-  private onBlockChanged(x: number, y: number, z: number, old: number, id: number): void {
+  private onBlockChanged(x: number, y: number, z: number, old: number, id: number, cause = 'player'): void {
     // neighbours may need to react (falling sand, plants/torches/doors losing support, water)
     this.schedule(x, y + 1, z, 2);
     this.schedule(x, y - 1, z, 2);
@@ -720,6 +764,7 @@ export class Game implements EntityHost, PrecipSource {
     if (id === B.SAND || id === B.GRAVEL) this.schedule(x, y, z, 2);
     if (B.getBlock(old).interact === 'furnace' && B.getBlock(id).interact !== 'furnace') this.furnaces.delete(posKey(x, y, z));
     if (B.getBlock(old).interact === 'sign' || B.getBlock(id).interact === 'sign') this.signs.refresh();
+    if (id === B.SPAWNER || old === B.SPAWNER) this.spawners.onBlockChanged(x, y, z, old, id, cause);
   }
 
   private runScheduled(): void {
@@ -771,12 +816,42 @@ export class Game implements EntityHost, PrecipSource {
     }
   }
 
+  /** A plant or torch in the way of lava burns up. */
+  private burnOut(x: number, y: number, z: number): void {
+    this.sound('fizz', x + 0.5, y + 0.5, z + 0.5, 0.4, 1.3);
+    this.effect('smoke', x + 0.5, y + 0.4, z + 0.5, 4);
+  }
+
+  /** Lava and water met: a hiss, a puff of steam, and maybe an advancement. */
+  private onFluidsMeet(x: number, y: number, z: number, formed: number): void {
+    this.sound('fizz', x + 0.5, y + 0.5, z + 0.5, 0.7, 0.8 + Math.random() * 0.3);
+    this.effect('smoke', x + 0.5, y + 1.05, z + 0.5, 8);
+    const p = this.player;
+    if (formed === B.CINDERSTONE && !p.dead && Math.hypot(p.x - x - 0.5, p.y - y, p.z - z - 0.5) < 12) this.progress.grant('cinder');
+  }
+
+  /**
+   * Lava lakes near the player glow, pop and spit the odd ember: a few random
+   * cells around the player are sampled every tick (cheap, and busier near lots of lava).
+   */
+  private tickLavaAmbience(): void {
+    const p = this.player;
+    for (let n = 0; n < 6; n++) {
+      const x = Math.floor(p.x + (Math.random() - 0.5) * 24), z = Math.floor(p.z + (Math.random() - 0.5) * 24);
+      const y = Math.floor(p.y + (Math.random() - 0.5) * 16);
+      const id = this.world.getBlock(x, y, z);
+      if (!B.IS_LAVA[id] || B.FLUID_LEVEL[id] !== 0 || this.world.getBlock(x, y + 1, z) !== B.AIR) continue;
+      this.effect('flame', x + Math.random(), y + 1, z + Math.random(), 1);
+      if (Math.random() < 0.15) this.sound('lava_pop', x + 0.5, y + 1, z + 0.5, 0.35, 0.8 + Math.random() * 0.4);
+    }
+  }
+
   /** Re-schedules flowing water saved in a chunk's changes when the chunk loads. */
   private wakeWater(c: Chunk): void {
     const d = this.world.deltas.get(chunkKey(c.cx, c.cz));
     if (!d) return;
     for (const [i, id] of d) {
-      if (!B.IS_WATER[id] || c.blocks[i] !== id) continue;
+      if (!B.IS_FLUID[id] || c.blocks[i] !== id) continue;
       const x = c.cx * 16 + (i & 15), z = c.cz * 16 + ((i >> 4) & 15), y = i >> 8;
       this.fluids.schedule(x, y, z, this.tickCount, 10);
     }
@@ -928,7 +1003,7 @@ export class Game implements EntityHost, PrecipSource {
       if (p.inWater && !p.flying && this.sleepTicks === 0) this.pushByCurrent();
       if (this.sleepTicks === 0) p.tickMovement(this.world, move);
       else { p.prevX = p.x; p.prevY = p.y; p.prevZ = p.z; }
-      if (!wasInWater && p.inWater && p.vy < -0.3) { this.sound('splash', p.x, p.y, p.z, 0.5); this.particles.effect('splash', p.x, p.y + 0.5, p.z, 12); }
+      if (!wasInWater && p.inWater && p.vy < -0.3) { this.sound('splash', p.x, p.y, p.z, 0.5); this.effect('splash', p.x, p.y + 0.5, p.z, 12); }
       this.footsteps();
     }
 
@@ -953,6 +1028,8 @@ export class Game implements EntityHost, PrecipSource {
     this.tickFurnaces();
     this.runScheduled();
     this.fluids.tick(this.tickCount);
+    this.spawners.tick();
+    this.tickLavaAmbience();
     this.tickRandom();
     if (this.sleepTicks > 0) this.tickSleep();
     this.particles.tick((x, y, z) => B.IS_SOLID[this.world.getBlock(x, y, z)] === 1 && this.world.getBlock(x, y, z) !== UNLOADED);
@@ -1062,7 +1139,8 @@ export class Game implements EntityHost, PrecipSource {
 
   private tickSurvival(): void {
     const p = this.player;
-    if (p.creative) { p.air = 300; return; }
+    if (p.creative) { p.air = 300; p.fireTicks = 0; return; }
+    this.tickFire();
     // cactus spines
     if (this.tickCount % 10 === 0) {
       const b = p.box, e = 0.02;
@@ -1106,16 +1184,42 @@ export class Game implements EntityHost, PrecipSource {
     if (p.y < -30) this.damagePlayer(4, { x: p.x, y: p.y, z: p.z, kind: 'void' });
   }
 
+  /**
+   * Lava: 2 hearts every half second (armour helps a little) and it sets you alight
+   * for 15 seconds. Burning costs half a heart a second (armour doesn't help) until
+   * it burns out or water or rain puts it out.
+   */
+  private tickFire(): void {
+    const p = this.player;
+    if (this.riding) return;
+    if (p.touchingLava) {
+      p.fireTicks = 300;
+      if (this.tickCount % 10 === 0) this.damagePlayer(4, { x: p.x, y: p.y, z: p.z, kind: 'lava' });
+      if (this.tickCount % 6 === 0) this.sound('lava_pop', p.x, p.y + 0.5, p.z, 0.3, 1.2);
+    } else if (p.fireTicks > 0) {
+      if (p.inWater || p.eyeInWater || this.rainingOn(Math.floor(p.x), Math.floor(p.eyeY), Math.floor(p.z))) {
+        p.fireTicks = 0;
+        this.sound('fizz', p.x, p.y + 1, p.z, 0.6, 1.1);
+        this.effect('smoke', p.x, p.y + 1, p.z, 8);
+        return;
+      }
+      p.fireTicks--;
+      if (p.fireTicks % 20 === 0) this.damagePlayer(1, { x: p.x, y: p.y, z: p.z, kind: 'burn' });
+    }
+  }
+
   private die(kind: string): void {
     const p = this.player;
     p.dead = true;
     p.health = 0;
+    p.fireTicks = 0;
     this.breaking = null;
     this.progress.add('deaths');
     const messages: Record<string, string> = {
       fall: 'You hit the ground too hard', mob: 'You were slain by a creature', arrow: 'You were shot by a Bone Archer',
       drown: 'You drowned', starve: 'You starved to death', void: 'You fell out of the world', cactus: 'You were pricked to death',
       lightning: 'You were struck by lightning', hound: 'You were mauled by a pack of Fellhounds',
+      lava: 'You sank into the lava', burn: 'You burned to death',
     };
     const score = p.xpTotal;
     if (this.screen) this.closeScreen();
@@ -1296,7 +1400,7 @@ export class Game implements EntityHost, PrecipSource {
     const keen = runeLevel(held, 'keen');
     if (keen) dmg += 0.5 * keen + 0.5;
     const crit = !p.onGround && p.vy < 0 && !p.inWater && !p.flying;
-    if (crit) { dmg *= 1.5; this.particles.effect('crit', mob.x, mob.y + mob.height * 0.7, mob.z, 10); }
+    if (crit) { dmg *= 1.5; this.effect('crit', mob.x, mob.y + mob.height * 0.7, mob.z, 10); }
     const [dx, , dz] = this.lookDir();
     mob.hurt(dmg, this, dx * (p.sprinting ? 1.6 : 1), dz * (p.sprinting ? 1.6 : 1), true);
     this.progress.add('damage_dealt', dmg);
@@ -1391,6 +1495,7 @@ export class Game implements EntityHost, PrecipSource {
       if (id === B.WHEAT[7] || id === B.CARROTS[3]) this.progress.grant('harvest');
       p.addExhaustion(0.005);
       if (id === B.STONE && harvest) this.progress.grant('stone');
+      if (id === B.SPAWNER) { this.progress.grant('spawner'); this.progress.add('spawners_broken'); }
       const tool = held ? getItem(held.id).tool : undefined;
       if (tool && !p.creative && def.hardness > 0) {
         if (this.inventory.damageItem(this.inventory.selected, tool.type === 'sword' ? 2 : 1)) this.sound('tool_break', p.x, p.eyeY, p.z);
@@ -1425,6 +1530,14 @@ export class Game implements EntityHost, PrecipSource {
           return;
         }
       }
+      if (def.kind === 'spawn' && t && pressed && t.block === B.SPAWNER) {
+        // a spawn egg on a Monster Cage changes the creature it makes
+        this.spawners.entity(t.x, t.y, t.z).mob = def.spawn as string;
+        if (!p.creative) this.consume(slotIndex);
+        this.sound('pop', t.x + 0.5, t.y + 0.5, t.z + 0.5, 0.5, 0.8);
+        this.hand.swing();
+        return;
+      }
       if (def.kind === 'spawn' && t && pressed) {
         const m = this.entities.spawnMob(def.spawn as MobType, t.px + 0.5, t.py, t.pz + 0.5, this);
         m.persistent = true;
@@ -1433,7 +1546,8 @@ export class Game implements EntityHost, PrecipSource {
         return;
       }
       if (def.kind === 'bucket' && pressed) {
-        if (this.useBucket(slotIndex, held.id === 'water_bucket')) { this.hand.swing(); return; }
+        const pour = held.id === 'water_bucket' ? B.WATER : held.id === 'lava_bucket' ? B.LAVA : null;
+        if (this.useBucket(slotIndex, pour)) { this.hand.swing(); return; }
         continue;
       }
       if (def.kind === 'boat' && pressed) {
@@ -1807,32 +1921,39 @@ export class Game implements EntityHost, PrecipSource {
   }
 
   /** Buckets: scoop up a water source, or pour one out. */
-  private useBucket(slotIndex: number, full: boolean): boolean {
+  /**
+   * Buckets. An empty bucket scoops up a water or lava source (a Water / Lava Bucket);
+   * a full one pours its source where you point. `pour` is the fluid in the bucket.
+   */
+  private useBucket(slotIndex: number, pour: number | null): boolean {
     const p = this.player;
     const [ex, ey, ez] = this.eye();
     const [dx, dy, dz] = this.lookDir();
-    const hit = raycast(this.world, ex, ey, ez, dx, dy, dz, this.reach(), !full);
+    const hit = raycast(this.world, ex, ey, ez, dx, dy, dz, this.reach(), pour === null);
     if (!hit) return false;
-    if (!full) {
-      if (B.FLUID_LEVEL[hit.block] !== 0) return false;
+    if (pour === null) {
+      if (B.FLUID_LEVEL[hit.block] !== 0 || !B.IS_FLUID[hit.block]) return false;
+      const filled = B.IS_LAVA[hit.block] ? 'lava_bucket' : 'water_bucket';
       this.world.setBlock(hit.x, hit.y, hit.z, B.AIR, 'player');
-      this.sound('bucket_fill', hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, 0.7);
+      this.sound(filled === 'lava_bucket' ? 'lava_fill' : 'bucket_fill', hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, 0.7);
       if (!p.creative) {
         const s = this.inventory.get(slotIndex)!;
-        if (s.count <= 1) this.inventory.slots[slotIndex] = makeStack('water_bucket');
-        else { s.count--; const left = this.inventory.add(makeStack('water_bucket')); if (left) this.dropStack(makeStack('water_bucket')); }
+        if (s.count <= 1) this.inventory.slots[slotIndex] = makeStack(filled);
+        else { s.count--; const left = this.inventory.add(makeStack(filled)); if (left) this.dropStack(makeStack(filled)); }
         this.inventory.changed();
       }
       return true;
     }
     let x = hit.px, y = hit.py, z = hit.pz;
     const at = B.getBlock(hit.block);
-    if (at.replaceable || B.IS_WATER[hit.block]) { x = hit.x; y = hit.y; z = hit.z; }
+    if (at.replaceable || B.IS_FLUID[hit.block]) { x = hit.x; y = hit.y; z = hit.z; }
     const cur = this.world.getBlock(x, y, z);
-    if (cur === UNLOADED || (!B.getBlock(cur).replaceable && !needsSupport(cur)) || B.FLUID_LEVEL[cur] === 0 || B.IS_SOLID[cur]) return false;
-    if (needsSupport(cur) && !B.IS_SOLID[cur]) this.washOut(x, y, z, cur);
-    this.world.setBlock(x, y, z, B.WATER, 'player');
-    this.sound('bucket_empty', x + 0.5, y + 0.5, z + 0.5, 0.7);
+    if (cur === UNLOADED || (!B.getBlock(cur).replaceable && !needsSupport(cur)) || (B.IS_FLUID[cur] && B.FLUID_LEVEL[cur] === 0) || B.IS_SOLID[cur]) return false;
+    if (needsSupport(cur) && !B.IS_SOLID[cur]) {
+      if (pour === B.LAVA) this.burnOut(x, y, z); else this.washOut(x, y, z, cur);
+    }
+    this.world.setBlock(x, y, z, pour, 'player');
+    this.sound(pour === B.LAVA ? 'lava_empty' : 'bucket_empty', x + 0.5, y + 0.5, z + 0.5, 0.7);
     if (!p.creative) { this.inventory.slots[slotIndex] = makeStack('bucket'); this.inventory.changed(); }
     return true;
   }
@@ -1934,7 +2055,7 @@ export class Game implements EntityHost, PrecipSource {
       if (this.precipAt(x, z) !== PRECIP_RAIN) continue;
       const top = this.rainTop(x, z);
       if (top < 0 || Math.abs(top - p.y) > 10) continue;
-      this.particles.effect('drip', x + 0.5, top + 1.02, z + 0.5, 1);
+      this.effect('drip', x + 0.5, top + 1.02, z + 0.5, 1);
     }
     // lightning during thunderstorms
     if (w.stormy && Math.random() < 1 / 200) {
@@ -1958,7 +2079,7 @@ export class Game implements EntityHost, PrecipSource {
       if (m.alive && Math.hypot(m.x - cx, m.z - cz) < 3.5) m.hurt(5, this, m.x - cx, m.z - cz, false);
     }
     if (Math.hypot(p.x - cx, p.z - cz) < 3 && Math.abs(p.y - y) < 4) this.damagePlayer(5, { x: cx, y, z: cz, kind: 'lightning' });
-    this.particles.effect('smoke', cx, y + 0.3, cz, 8);
+    this.effect('smoke', cx, y + 0.3, cz, 8);
     if (d < 32) this.progress.grant('storm');
     this.lastStrike = { x, y, z, tick: this.tickCount };
   }
@@ -1991,7 +2112,7 @@ export class Game implements EntityHost, PrecipSource {
       if (s >= stages.length - 1) return false;
       const next = Math.min(stages.length - 1, s + (stages.length === 8 ? 2 + Math.floor(Math.random() * 4) : 1 + Math.floor(Math.random() * 2)));
       this.world.setBlock(x, y, z, stages[next], 'player');
-      this.particles.effect('happy', x + 0.5, y + 0.4, z + 0.5, 8);
+      this.effect('happy', x + 0.5, y + 0.4, z + 0.5, 8);
       return true;
     }
     if (id === B.GRASS) {
@@ -2002,7 +2123,7 @@ export class Game implements EntityHost, PrecipSource {
           if (this.world.getBlock(gx, gy, gz) === B.GRASS && this.world.getBlock(gx, gy + 1, gz) === B.AIR) {
             const r = Math.random();
             this.world.setBlock(gx, gy + 1, gz, r < 0.8 ? B.TALL_GRASS : r < 0.85 ? B.FLOWER_RED : r < 0.9 ? B.FLOWER_YELLOW : r < 0.95 ? B.FLOWER_BLUE : B.FLOWER_WHITE, 'player');
-            this.particles.effect('happy', gx + 0.5, gy + 1.3, gz + 0.5, 2);
+            this.effect('happy', gx + 0.5, gy + 1.3, gz + 0.5, 2);
             n++;
             break;
           }
@@ -2084,7 +2205,7 @@ export class Game implements EntityHost, PrecipSource {
         if (burn > 0) {
           be.burnTime = be.burnTotal = burn;
           fuel.count--;
-          if (fuel.count <= 0) be.items[1] = null;
+          if (fuel.count <= 0) be.items[1] = fuel.id === 'lava_bucket' ? makeStack('bucket') : null;
           changed = true;
         }
       }
@@ -2106,7 +2227,7 @@ export class Game implements EntityHost, PrecipSource {
         const facing = def.facing ?? 's';
         this.world.setBlock(x, y, z, B.facingVariant(burning ? 'furnace_lit' : 'furnace', facing), 'system');
       }
-      if (burning && this.tickCount % 10 === 0 && Math.random() < 0.3) this.particles.effect('smoke', x + 0.5, y + 1.1, z + 0.5, 1);
+      if (burning && this.tickCount % 10 === 0 && Math.random() < 0.3) this.effect('smoke', x + 0.5, y + 1.1, z + 0.5, 1);
       if (changed && this.openPos && posKey(this.openPos.x, this.openPos.y, this.openPos.z) === key) ui.set({ invVersion: ui.get().invVersion + 1 });
       if (this.openPos && posKey(this.openPos.x, this.openPos.y, this.openPos.z) === key) {
         ui.set({ furnace: { burn: be.burnTotal ? be.burnTime / be.burnTotal : 0, cook: be.cookTime / 200 } });
@@ -2175,8 +2296,13 @@ export class Game implements EntityHost, PrecipSource {
     u.uSunStrength.value = L.sunStrength;
     u.uGamma.value = opts.brightness;
     u.uWaterFrame.value = Math.floor(performance.now() / 150) % 8;
+    u.uLavaFrame.value = Math.floor(performance.now() / 260) % 8;
     const far = this.chunks.renderDistance * 16;
-    if (p.eyeInWater) {
+    if (p.eyeInLava) {
+      u.uFogColor.value.setRGB(0.85, 0.32, 0.06);
+      u.uFogNear.value = 0;
+      u.uFogFar.value = 1.6;
+    } else if (p.eyeInWater) {
       u.uFogColor.value.setRGB(0.08, 0.16, 0.42).multiplyScalar(0.4 + 0.6 * L.daylight);
       u.uFogNear.value = 0;
       u.uFogFar.value = 18;
@@ -2216,6 +2342,7 @@ export class Game implements EntityHost, PrecipSource {
     }
     else this.outline.hide();
     this.signs.update(this.world, cam.position, (x, y, z) => this.brightnessAt(x, y, z));
+    this.spawnerFigures.update(this.spawners, cam.position, (x, y, z) => this.brightnessAt(x, y, z), this.paused ? 0 : dt);
     const handLight = this.brightnessAt(p.x, p.eyeY, p.z);
     this.hand.root.visible = this.sleepTicks === 0;   // no hand while lying in bed
     this.hand.update(a, walk, bobAmt * 2.2, handLight, this.fovCurrent);
@@ -2244,6 +2371,7 @@ export class Game implements EntityHost, PrecipSource {
       air: p.air, selected: this.inventory.selected, creative: p.creative,
       hurtTick: p.invulnerable > 0 && p.hurtTime > 0 ? p.hurtTime : 0,
       regenTick: 0, underwater: p.eyeInWater, offhand: !!this.inventory.get(OFFHAND),
+      inLava: p.eyeInLava, burning: p.fireTicks > 0 && !p.creative && !p.dead,
       saturationShake: p.food <= 4 && p.food > 0,
     };
     const key = JSON.stringify(hud);
