@@ -15,7 +15,7 @@ export interface Step { x: number; y: number; z: number }
 let closedDoorsBlock = false;
 
 function passable(id: number): boolean {
-  if (id === UNLOADED) return false;
+  if (id === UNLOADED || B.IS_LAVA[id]) return false;
   if (B.IS_WATER[id]) return true;
   const d = B.getBlock(id);
   if (d.shape === 'door') return !closedDoorsBlock || !!d.open;

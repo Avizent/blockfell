@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Entity, EntityHost, Hurtable } from './Entity';
 import { MobType, mobModel } from './mobModels';
 import { instantiate, BuiltModel } from './BoxModel';
-import { IS_SOLID, IS_WATER } from '../world/BlockRegistry';
+import { IS_LAVA, IS_SOLID, IS_WATER } from '../world/BlockRegistry';
 import { UNLOADED } from '../world/World';
 
 interface MobSpec {
@@ -75,6 +75,8 @@ export class Mob extends Entity implements Hurtable {
   protected sawPlayer = false;
   protected losTimer = 0;
   protected burnTicks = 0;
+  /** Ticks left of burning after touching lava. */
+  fireTicks = 0;
   protected limbPhase = 0;
   protected limbAmount = 0;
   protected prevLimbAmount = 0;
@@ -234,6 +236,7 @@ export class Mob extends Entity implements Hurtable {
     for (let d = 0; d <= 3; d++) {
       const b = host.world.getBlock(Math.floor(ax), Math.floor(this.y - 1 - d + 0.01), Math.floor(az));
       if (b === UNLOADED) return false;
+      if (IS_LAVA[b]) return false;
       if (IS_WATER[b]) return this.spec.hostile;
       if (IS_SOLID[b]) return true;
     }
@@ -257,6 +260,7 @@ export class Mob extends Entity implements Hurtable {
     if (this.hurtTime > 0) this.hurtTime--;
     if (this.invulnerable > 0) this.invulnerable--;
     if (this.attackAnim > 0) this.attackAnim--;
+    if (this.deathTime === 0) this.tickFire(host);
     if (this.deathTime > 0) {
       this.deathTime++;
       this.vx *= 0.5; this.vz *= 0.5;
@@ -268,6 +272,24 @@ export class Mob extends Entity implements Hurtable {
       return false;
     }
     return true;
+  }
+
+  /** Lava burns (2 hearts every half second) and sets creatures alight; water or rain puts the fire out. */
+  protected tickFire(host: EntityHost): void {
+    if (this.inLava) {
+      this.fireTicks = 160;
+      if (this.age % 10 === 0) this.hurt(4, host, 0, 0, false);
+    } else if (this.fireTicks > 0) {
+      if (this.inWater || host.rainingOn(Math.floor(this.x), Math.floor(this.y + this.height), Math.floor(this.z))) {
+        this.fireTicks = 0;
+        host.sound('fizz', this.x, this.y + 0.5, this.z, 0.4, 1.2);
+        host.effect('smoke', this.x, this.y + this.height * 0.6, this.z, 4);
+        return;
+      }
+      this.fireTicks--;
+      if (this.fireTicks % 20 === 0) this.hurt(1, host, 0, 0, false);
+    }
+    if (this.fireTicks > 0 && this.age % 3 === 0) host.effect('flame', this.x + (Math.random() - 0.5) * this.width, this.y + Math.random() * this.height, this.z + (Math.random() - 0.5) * this.width, 1);
   }
 
   /** Walking animation from the distance moved this tick. */

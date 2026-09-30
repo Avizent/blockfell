@@ -32,6 +32,13 @@ export class ItemEntity extends Entity {
     if (this.inWater) this.vy += 0.03;
     this.physics(host.world, 0.04, 0.98, 0.588, 0.98);
     if (this.age > 6000) { this.removed = true; return; }
+    if (this.inLava) {
+      // lava burns dropped items
+      this.removed = true;
+      host.sound('fizz', this.x, this.y, this.z, 0.4, 1.4);
+      host.effect('smoke', this.x, this.y + 0.2, this.z, 5);
+      return;
+    }
 
     // merge with nearby identical stacks (reduces entity count)
     if (this.age % 20 === 0) {
@@ -140,6 +147,7 @@ export class XpOrb extends Entity {
       this.vx += (dx / d) * f; this.vy += (dy / d) * f; this.vz += (dz / d) * f;
     }
     this.physics(host.world, 0.03, 0.98, 0.6, 0.98);
+    if (this.inLava) { this.removed = true; host.effect('smoke', this.x, this.y, this.z, 2); return; }
     if (d < 1.2 && !p.dead && this.age > 10) {
       host.addXp(this.value);
       host.sound('orb', this.x, this.y, this.z, 0.25, 1.2 + Math.random() * 0.8);

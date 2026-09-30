@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Entity, EntityHost } from './Entity';
-import { moveBox } from '../player/PlayerPhysics';
-import { IS_WATER, FLUID_LEVEL } from '../world/BlockRegistry';
+import { boxTouches, moveBox } from '../player/PlayerPhysics';
+import { IS_LAVA, IS_WATER, FLUID_LEVEL } from '../world/BlockRegistry';
 import { waterFlow } from '../world/Fluids';
 import type { World } from '../world/World';
 import type { ItemModels } from '../render/ItemModels';
@@ -150,6 +150,13 @@ export class Boat extends Entity {
       host.sound('splash', this.x, this.y, this.z, 0.15, 1.6 + Math.random() * 0.3);
     }
     if (!this.rider) { this.control.forward = 0; this.control.turn = 0; }
+    if (boxTouches(world, this.box, (b) => IS_LAVA[b] === 1)) {
+      // a wooden boat burns up in lava
+      this.removed = true;
+      host.sound('fizz', this.x, this.y, this.z, 0.7, 0.9);
+      host.effect('smoke', this.x, this.y + 0.4, this.z, 14);
+      host.effect('flame', this.x, this.y + 0.4, this.z, 8);
+    }
   }
 
   /** A hit from the player: breaks after a few (at once in Creative). Returns true if it broke. */

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { AABB, boxTouches, moveBox } from '../player/PlayerPhysics';
 import type { World } from '../world/World';
-import { IS_WATER } from '../world/BlockRegistry';
+import { IS_LAVA, IS_WATER } from '../world/BlockRegistry';
 import { waterFlow } from '../world/Fluids';
 import type { Player, Difficulty } from '../player/Player';
 import type { ItemStack } from '../inventory/ItemStack';
@@ -33,6 +33,8 @@ export interface EntityHost {
   /** Weather intensities 0..1 (rain includes storms). */
   weatherRain(): number;
   weatherThunder(): number;
+  /** Is rain falling on this spot (open sky, raining, not a dry land)? */
+  rainingOn(x: number, y: number, z: number): boolean;
   brightnessAt(x: number, y: number, z: number): number;
   damagePlayer(amount: number, source: { x: number; y: number; z: number; kind: string; mob?: Mob }): void;
   giveItem(stack: ItemStack): number;
@@ -82,6 +84,8 @@ export abstract class Entity {
   onGround = false;
   collidedH = false;
   inWater = false;
+  /** Touching lava (it burns creatures, and destroys items and boats). */
+  inLava = false;
   removed = false;
   /** Height this entity can walk up without jumping (slabs, stairs). */
   stepHeight = 0;
@@ -110,6 +114,7 @@ export abstract class Entity {
   protected physics(world: World, gravity: number, drag: number, groundFriction: number, airFriction = 0.91): void {
     this.syncBox();
     this.inWater = boxTouches(world, this.box, (b) => IS_WATER[b] === 1);
+    this.inLava = boxTouches(world, this.box, (b) => IS_LAVA[b] === 1);
     const ovx = this.vx, ovy = this.vy, ovz = this.vz;
     const [mx, my, mz] = moveBox(world, this.box, ovx, ovy, ovz, this.onGround ? this.stepHeight : 0);
     this.x = (this.box.minX + this.box.maxX) / 2;
@@ -120,7 +125,10 @@ export abstract class Entity {
     if (mx !== ovx) this.vx = 0;
     if (my !== ovy) this.vy = 0;
     if (mz !== ovz) this.vz = 0;
-    if (this.inWater) {
+    if (this.inLava) {
+      // thick and slow
+      this.vx *= 0.5; this.vz *= 0.5; this.vy = this.vy * 0.5 - gravity * 0.25;
+    } else if (this.inWater) {
       // currents carry creatures and items along
       const [fx, fz, falling] = waterFlow(world, Math.floor(this.x), Math.floor(this.y + 0.1), Math.floor(this.z));
       this.vx += fx * 0.02; this.vz += fz * 0.02;

@@ -13,7 +13,7 @@ import type { Facing } from '../world/BlockRegistry';
 import type { MobType } from './mobModels';
 import type { ItemStack } from '../inventory/ItemStack';
 import { rayBox } from '../interaction/VoxelRaycaster';
-import { GRASS, IS_SOLID, IS_WATER, AIR, SNOWY_GRASS, SAND, RED_SAND, STONE, SNOW, SPAWN_FLOOR } from '../world/BlockRegistry';
+import { GRASS, IS_FLUID, IS_SOLID, AIR, SNOWY_GRASS, SAND, RED_SAND, STONE, SNOW, SPAWN_FLOOR } from '../world/BlockRegistry';
 import { BIOME_BADLANDS, BIOME_DESERT, BIOME_MOUNTAINS, BIOME_SNOWY, BIOME_TAIGA, BIOME_FOREST, BIOME_BIRCH } from '../world/BiomeSystem';
 import { UNLOADED } from '../world/World';
 import { WORLD_HEIGHT } from '../world/constants';
@@ -256,7 +256,7 @@ export class EntityManager implements EntityQueries {
       if (IS_SOLID[b]) {
         if (!SPAWN_FLOOR[b]) return null;
         const a1 = host.world.getBlock(x, y + 1, z), a2 = host.world.getBlock(x, y + 2, z);
-        if (!IS_SOLID[a1] && !IS_SOLID[a2] && !IS_WATER[a1]) return y + 1;
+        if (!IS_SOLID[a1] && !IS_SOLID[a2] && !IS_FLUID[a1] && !IS_FLUID[a2]) return y + 1;
         return null;
       }
     }
