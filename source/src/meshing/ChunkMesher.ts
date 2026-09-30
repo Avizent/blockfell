@@ -1,12 +1,12 @@
 import {
-  AIR, BEDROCK, CULL_GROUP, CULL_SAME, FACE_LAYER, FLUID_LEVEL, IS_OPAQUE, IS_WATER, MODEL, NEIGHBOR_LIGHT, RENDER,
+  AIR, BEDROCK, CULL_GROUP, CULL_SAME, FACE_LAYER, FLUID_LEVEL, IS_LAVA, IS_OPAQUE, IS_WATER, MODEL, NEIGHBOR_LIGHT, RENDER,
   RENDER_CROSS, RENDER_CUBE, RENDER_LIQUID, RENDER_MODEL, RENDER_TORCH, RENDER_WALL_TORCH, TOP_ROT, getBlock,
   CONNECT, CONNECT_MODEL, CONNECT_PANE, MODEL_CROSS, MODEL_FACES, PANE_EDGE_LAYER, connectMask,
 } from '../world/BlockRegistry';
 import { CHUNK_VOLUME, WORLD_HEIGHT } from '../world/constants';
 import { computeLight, PAD, PLANE, PVOL, PW, PY, pIndex } from './Lighting';
 import { MeshBuffers, MeshBuilder } from './MeshBuilder';
-import { WATER_LAYER } from './textureNames';
+import { LAVA_LAYER, WATER_LAYER } from './textureNames';
 
 /**
  * CHUNK MESHING
@@ -31,7 +31,9 @@ import { WATER_LAYER } from './textureNames';
  *     corner values are identical; faces with a lighting/AO gradient are emitted
  *     individually so merging never changes the image.
  *
- *  Output: one opaque/cutout mesh + one translucent (water) mesh per chunk.
+ *  Output: one opaque/cutout mesh + one translucent (water) mesh per chunk. Lava is
+ *  a liquid too (same surface shapes as water) but opaque and self-lit, so it goes
+ *  into the opaque mesh with full block light and an animated texture layer.
  */
 
 export interface MeshStats {
@@ -221,15 +223,15 @@ const waterH = new Int32Array(4); // NW, NE, SE, SW
  * highest of them, or a full block if any has water directly above. Every cell
  * computes a shared corner identically, so neighbouring surfaces always meet.
  */
-function waterCorners(pi: number): boolean {
+function waterCorners(pi: number, kind: Uint8Array = IS_WATER): boolean {
   const cells = [[-1, -PW, -1 - PW], [1, -PW, 1 - PW], [1, PW, 1 + PW], [-1, PW, -1 + PW]];
   for (let c = 0; c < 4; c++) {
     let h = -1;
     for (const o of [0, cells[c][0], cells[c][1], cells[c][2]]) {
       const n = pi + o;
       const id = padded[n];
-      if (!IS_WATER[id]) continue;
-      if (IS_WATER[padded[n + PLANE]]) { h = 16; break; }
+      if (!kind[id]) continue;
+      if (kind[padded[n + PLANE]]) { h = 16; break; }
       const hh = fluidHeight(id);
       if (hh > h) h = hh;
     }
@@ -293,21 +295,24 @@ export function meshChunk(chunks: Uint8Array[], greedy: boolean, prevLight: (Uin
                 quads++;
               }
             } else if (r === RENDER_LIQUID) {
-              if (IS_WATER[nb] || IS_OPAQUE[nb]) continue;
+              const lava = IS_LAVA[b] === 1;
+              const kind = lava ? IS_LAVA : IS_WATER;
+              if (kind[nb] || IS_OPAQUE[nb]) continue;
               visibleFaces++;
               // sloped (flowing) surfaces are emitted per block by emitSlopedWater
-              if (!waterCorners(pi)) continue;
+              if (!waterCorners(pi, kind)) continue;
               const lowered = f !== 3 && waterH[0] === 14 ? 1 : 0;
               const front = pi + dn;
-              const s4 = sky[front] * 4, b4 = blk[front] * 4;
+              const s4 = sky[front] * 4, b4 = lava ? 60 : blk[front] * 4;
+              const layer = lava ? LAVA_LAYER : WATER_LAYER;
               if (greedy) {
-                maskA[m] = 1 | (WATER_LAYER << 1) | (0xff << 9) | (3 << 19) | (1 << 21) | (lowered << 22);
+                maskA[m] = 1 | (layer << 1) | (0xff << 9) | (3 << 19) | ((lava ? 0 : 1) << 21) | (lowered << 22);
                 maskB[m] = s4 | (s4 << 6) | (s4 << 12) | (s4 << 18);
                 maskC[m] = b4 | (b4 << 6) | (b4 << 12) | (b4 << 18);
                 any = true;
               } else {
                 uniAo.fill(3); uniSky.fill(s4); uniBlk.fill(b4);
-                emitQuad(waterB, f, sl, coord[d.u], coord[d.v], 1, 1, WATER_LAYER, uniAo, uniSky, uniBlk, lowered === 1, true);
+                emitQuad(lava ? opaqueB : waterB, f, sl, coord[d.u], coord[d.v], 1, 1, layer, uniAo, uniSky, uniBlk, lowered === 1, true);
                 quads++;
               }
             }
@@ -584,24 +589,29 @@ function emitSmallCross(x: number, y: number, z: number, pi: number, c: Int16Arr
   return n;
 }
 
-// ------------------------------------------------------------------ flowing water
-/** Water cells whose surface is not flat are emitted here, one quad per visible face. */
+// ------------------------------------------------------------------ flowing water and lava
+/** Water and lava cells whose surface is not flat are emitted here, one quad per visible face. */
 function emitSlopedWater(minY: number, maxY: number): number {
   let n = 0;
   for (let y = minY; y <= maxY; y++) {
     for (let z = 0; z < 16; z++) {
       for (let x = 0; x < 16; x++) {
         const pi = pIndex(x, y, z);
-        if (!IS_WATER[padded[pi]]) continue;
-        if (waterCorners(pi)) continue;
+        const id = padded[pi];
+        const lava = IS_LAVA[id] === 1;
+        if (!lava && !IS_WATER[id]) continue;
+        const kind = lava ? IS_LAVA : IS_WATER;
+        if (waterCorners(pi, kind)) continue;
         const [hNW, hNE, hSE, hSW] = waterH;
         const X = x * 16, Y = y * 16, Z = z * 16;
+        const Bld = lava ? opaqueB : waterB;
+        const layer = lava ? LAVA_LAYER : WATER_LAYER;
         for (let f = 0; f < 6; f++) {
           const d = DIRS[f];
           const np = pi + d.s * AXIS_STEP[d.a];
           const nb = padded[np];
-          if (IS_WATER[nb] || IS_OPAQUE[nb]) continue;
-          const s4 = sky[np] * 4, b4 = blk[np] * 4;
+          if (kind[nb] || IS_OPAQUE[nb]) continue;
+          const s4 = sky[np] * 4, b4 = lava ? 60 : blk[np] * 4;
           let pts: number[][];
           switch (f) {
             case 2: pts = [[X, Y + hNW, Z], [X, Y + hSW, Z + 16], [X + 16, Y + hSE, Z + 16], [X + 16, Y + hNE, Z]]; break;
@@ -611,12 +621,12 @@ function emitSlopedWater(minY: number, maxY: number): number {
             case 4: pts = [[X, Y, Z + 16], [X + 16, Y, Z + 16], [X + 16, Y + hSE, Z + 16], [X, Y + hSW, Z + 16]]; break;
             default: pts = [[X, Y, Z], [X, Y + hNW, Z], [X + 16, Y + hNE, Z], [X + 16, Y, Z]]; break;
           }
-          const base = waterB.vc;
+          const base = Bld.vc;
           for (const p of pts) {
             uvFor(f, p[0], p[1], p[2], uvTmp);
-            waterB.vertex(p[0], p[1], p[2], uvTmp[0], uvTmp[1], WATER_LAYER, f | (3 << 3), s4, b4);
+            Bld.vertex(p[0], p[1], p[2], uvTmp[0], uvTmp[1], layer, f | (3 << 3), s4, b4);
           }
-          waterB.quad(base, false);
+          Bld.quad(base, false);
           n++;
         }
       }

@@ -1,5 +1,5 @@
 import { mulberry32 } from '../core/rng';
-import { DESTROY_STAGES, TEXTURE_NAMES, WATER_FRAMES } from './textureNames';
+import { DESTROY_STAGES, LAVA_FRAMES, TEXTURE_NAMES, WATER_FRAMES } from './textureNames';
 import { DYE_COLORS, DYE_RGB } from '../world/dyes';
 
 /**
@@ -186,6 +186,64 @@ function water(frame: number): PixelTex {
     const hi = w > 0.62;
     t.set(x, y, hi ? [120, 170, 235] : c, hi ? 200 : 172);
   }
+  return t;
+}
+
+/**
+ * Lava: molten orange with bright yellow currents and darker cooling crust. The
+ * frames loop (the pattern drifts one full period over LAVA_FRAMES frames), and
+ * every frame tiles seamlessly so lakes can be drawn as one big greedy quad.
+ */
+function lava(frame: number): PixelTex {
+  const t = new PixelTex();
+  const rng = mulberry32(4242);
+  // two tileable noise fields drifting in different directions (2 pixels a frame, so the
+  // loop of LAVA_FRAMES frames moves each exactly one tile and repeats seamlessly)
+  const n1 = tileNoise(rng, 8), n2 = tileNoise(rng, 4), grain = tileNoise(rng, 2);
+  const step = TEX / LAVA_FRAMES;
+  const a = frame * step;
+  for (let y = 0; y < TEX; y++) for (let x = 0; x < TEX; x++) {
+    // mostly molten orange with soft brighter currents; darker cooling skin in the troughs
+    const v = n2[((y + a) & 15) * 16 + x] * 0.5 + n1[y * 16 + ((x - a) & 15)] * 0.32 + grain[((y - a) & 15) * 16 + ((x + a) & 15)] * 0.18;
+    let c: RGB;
+    if (v > 0.7) c = [255, 214, 104];
+    else if (v > 0.5) c = [250, 156, 42];
+    else if (v > 0.3) c = [234, 112, 26];
+    else c = [196, 70, 20];
+    t.set(x, y, shade(c, 0.95 + grain[y * 16 + x] * 0.1));
+  }
+  return t;
+}
+
+/** Cinderstone: glassy black-grey rock with thin ember-red veins (cooled lava). */
+function cinderstone(rng: () => number): PixelTex {
+  const t = noisy([40, 36, 42], rng, 0.07, 4, 0.2);
+  speckle(t, rng, 16, [66, 62, 72]);
+  speckle(t, rng, 10, [26, 24, 28]);
+  for (let k = 0; k < 4; k++) {
+    let x = Math.floor(rng() * 16), y = Math.floor(rng() * 16);
+    const len = 4 + Math.floor(rng() * 6);
+    for (let i = 0; i < len; i++) {
+      t.set(x, y, i % 3 === 0 ? [222, 104, 38] : [150, 46, 26]);
+      const d = Math.floor(rng() * 4);
+      if (d === 0) x++; else if (d === 1) x--; else if (d === 2) y++; else y--;
+    }
+  }
+  return t;
+}
+
+/** Monster Cage: a frame of dark iron bars (the gaps are see-through). */
+function spawnerCage(rng: () => number): PixelTex {
+  const t = new PixelTex();
+  for (let y = 0; y < TEX; y++) for (let x = 0; x < TEX; x++) {
+    const edge = x === 0 || y === 0 || x === 15 || y === 15;
+    const bar = x === 5 || x === 10 || y === 5 || y === 10;
+    if (!edge && !bar) { t.set(x, y, [0, 0, 0], 0); continue; }
+    let c: RGB = edge ? [62, 66, 78] : [46, 50, 60];
+    if (edge && (x === 0 || y === 0)) c = shade(c, 1.18);
+    t.set(x, y, shade(c, 1 + (rng() - 0.5) * 0.16));
+  }
+  for (const [x, y] of [[5, 5], [10, 5], [5, 10], [10, 10], [0, 0], [15, 0], [0, 15], [15, 15]]) t.set(x, y, [112, 118, 134]);
   return t;
 }
 
@@ -1212,6 +1270,9 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   m.set('flower_pot_top', flowerPot(R('pot_top'), true));
   for (const c of DYE_COLORS) if (c !== 'white') m.set(`wool_${c}`, dyedWool(R('wool_' + c), DYE_RGB[c]));
   for (let f = 0; f < WATER_FRAMES; f++) m.set(`water_${f}`, water(f));
+  for (let f = 0; f < LAVA_FRAMES; f++) m.set(`lava_${f}`, lava(f));
+  m.set('cinderstone', cinderstone(R('cinderstone')));
+  m.set('spawner', spawnerCage(R('spawner')));
   destroyStages().forEach((t, i) => m.set(`destroy_${i}`, t));
   for (const n of TEXTURE_NAMES) if (!m.has(n)) m.set(n, missing());
   return m;

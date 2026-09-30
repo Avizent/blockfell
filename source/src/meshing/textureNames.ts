@@ -7,6 +7,7 @@
 import { DYE_COLORS } from '../world/dyes';
 
 export const WATER_FRAMES = 8;
+export const LAVA_FRAMES = 8;
 export const DESTROY_STAGES = 10;
 
 const base = [
@@ -37,11 +38,14 @@ const base = [
   'ladder', 'trapdoor', 'glass_pane_edge', 'flower_blue', 'flower_white',
   'lantern_side', 'lantern_hang_side', 'lantern_top', 'chain', 'flower_pot', 'flower_pot_top',
   ...DYE_COLORS.filter((c) => c !== 'white').map((c) => `wool_${c}`),
+  // 1.7: lava and dungeons
+  'cinderstone', 'spawner',
 ];
 
 export const TEXTURE_NAMES: string[] = [
   ...base,
   ...Array.from({ length: WATER_FRAMES }, (_, i) => `water_${i}`),
+  ...Array.from({ length: LAVA_FRAMES }, (_, i) => `lava_${i}`),
   ...Array.from({ length: DESTROY_STAGES }, (_, i) => `destroy_${i}`),
 ];
 
@@ -55,4 +59,5 @@ export function textureLayer(name: string): number {
 }
 
 export const WATER_LAYER = textureLayer('water_0');
+export const LAVA_LAYER = textureLayer('lava_0');
 export const DESTROY_LAYER = textureLayer('destroy_0');
