@@ -2,48 +2,78 @@ import * as B from './BlockRegistry';
 import { World, UNLOADED, posKey } from './World';
 
 /**
- * FLOWING WATER
- * -------------
- * Water is stored as ordinary block ids: a source (level 0), flowing water that
- * gets weaker with distance (levels 1..7) and falling water (level 8). Changes are
- * event driven: whenever a block next to water changes, that water is scheduled
- * for an update 5 ticks later (a quarter of a second), like the reference game.
+ * FLOWING WATER AND LAVA
+ * ----------------------
+ * Fluids are stored as ordinary block ids: a source (level 0), flowing fluid that
+ * gets weaker with distance and falling fluid (level 8). Changes are event driven:
+ * whenever a block next to a fluid changes, that fluid is scheduled for an update
+ * a little later (water 5 ticks, lava 30 ticks: lava is slow).
  *
  * An update:
- *  - recomputes a flowing cell's level from its neighbours (strongest neighbour + 1,
- *    falling if there is water above, gone if nothing feeds it), so removing a
- *    source makes the stream recede;
- *  - turns a flowing cell with two or more source neighbours into a new source
- *    (the classic "infinite water" trick);
- *  - spreads: straight down first, otherwise sideways one level weaker, preferring
- *    the directions that lead to the nearest drop within 4 blocks.
- * Plants and torches in the way are washed out and drop as items.
+ *  - recomputes a flowing cell's level from its neighbours (strongest neighbour +
+ *    one step, falling if the same fluid is above, gone if nothing feeds it), so
+ *    removing a source makes the stream recede;
+ *  - turns a flowing water cell with two or more source neighbours into a new
+ *    source (the classic "infinite water" trick; lava never does this);
+ *  - spreads: straight down first, otherwise sideways one step weaker, preferring
+ *    the directions that lead to the nearest drop (within 4 blocks for water, 2
+ *    for lava). Water steps 1 level per block (7 blocks), lava 2 (3 blocks).
+ * Plants and torches in the way are washed out (water: they drop) or burnt (lava).
+ *
+ * Lava meeting water cools: a lava SOURCE touched by water on a side or from above
+ * becomes Cinderstone, flowing or falling lava becomes cobblestone, and lava
+ * flowing down onto water turns that water into stone.
  */
 
 const DIRS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const MAX_UPDATES_PER_TICK = 400;
 export const FLOW_DELAY = 5;
+export const LAVA_DELAY = 30;
+/** Delay before lava reacts to water that has just reached it. */
+const REACT_DELAY = 2;
+
+interface FluidKind {
+  is: Uint8Array;
+  source: number;
+  flow: number[];
+  falling: number;
+  step: number;
+  delay: number;
+  infinite: boolean;
+  reach: number;
+}
+const WATER_KIND: FluidKind = { is: B.IS_WATER, source: B.WATER, flow: B.WATER_FLOW, falling: B.WATER_FALLING, step: 1, delay: FLOW_DELAY, infinite: true, reach: 4 };
+const LAVA_KIND: FluidKind = { is: B.IS_LAVA, source: B.LAVA, flow: B.LAVA_FLOW, falling: B.LAVA_FALLING, step: 2, delay: LAVA_DELAY, infinite: false, reach: 2 };
+
+function kindOf(id: number): FluidKind | null {
+  return B.IS_WATER[id] ? WATER_KIND : B.IS_LAVA[id] ? LAVA_KIND : null;
+}
 
 function washable(id: number): boolean {
   const r = B.RENDER[id];
   return r === B.RENDER_CROSS || r === B.RENDER_TORCH || r === B.RENDER_WALL_TORCH;
 }
 
-/** Strength used for spreading: sources and falling water feed at full strength. */
+/** Strength used for spreading: sources and falling fluid feed at full strength. */
 function strength(id: number): number {
   const l = B.FLUID_LEVEL[id];
   return l === 8 ? 0 : l;
 }
 
+const SIDES_AND_TOP: [number, number, number][] = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]];
+const ALL6: [number, number, number][] = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0], [0, -1, 0]];
+
 export class FluidSystem {
   private due = new Map<number, string[]>();
   private pending = new Map<string, number>();
   updates = 0;
+  /** Called when lava and water meet and a block forms (sound, smoke, advancement). */
+  onReact?: (x: number, y: number, z: number, formed: number) => void;
 
   constructor(
     private world: World,
-    /** Called before a washable block is replaced by water (drop its item). */
-    private wash: (x: number, y: number, z: number, id: number) => void,
+    /** Called before a washable block is replaced by a fluid (water: drop its item; lava: burn it). */
+    private wash: (x: number, y: number, z: number, id: number, lava: boolean) => void,
   ) {}
 
   get queued(): number {
@@ -61,12 +91,22 @@ export class FluidSystem {
     list.push(k);
   }
 
-  /** Schedules the water at and around a changed position. */
+  /** Schedules the fluids at and around a changed position. */
   onBlockChanged(x: number, y: number, z: number, now: number): void {
     const w = this.world;
-    if (B.IS_WATER[w.getBlock(x, y, z)]) this.schedule(x, y, z, now);
-    for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0], [0, -1, 0]]) {
-      if (B.IS_WATER[w.getBlock(x + dx, y + dy, z + dz)]) this.schedule(x + dx, y + dy, z + dz, now);
+    const here = w.getBlock(x, y, z);
+    const hk = kindOf(here);
+    if (hk) {
+      // new lava next to water reacts at once
+      let d = hk.delay;
+      if (hk === LAVA_KIND) for (const [dx, dy, dz] of ALL6) if (B.IS_WATER[w.getBlock(x + dx, y + dy, z + dz)]) { d = REACT_DELAY; break; }
+      this.schedule(x, y, z, now, d);
+    }
+    for (const [dx, dy, dz] of ALL6) {
+      const n = w.getBlock(x + dx, y + dy, z + dz);
+      const k = kindOf(n);
+      if (!k) continue;
+      this.schedule(x + dx, y + dy, z + dz, now, k === LAVA_KIND && B.IS_WATER[here] ? REACT_DELAY : k.delay);
     }
   }
 
@@ -97,97 +137,117 @@ export class FluidSystem {
     return this.world.getBlock(x, y, z);
   }
 
-  /** Can water of the given level move into this cell? */
-  private canEnter(id: number, level: number): boolean {
+  /** Can fluid of a kind and level move into this cell? (Never into the other fluid.) */
+  private canEnter(id: number, level: number, kind: FluidKind): boolean {
     if (id === UNLOADED) return false;
     if (id === B.AIR || washable(id)) return true;
-    if (B.IS_WATER[id]) {
+    if (B.IS_FLUID[id]) {
+      if (!kind.is[id]) return false;
       const l = B.FLUID_LEVEL[id];
       return l !== 0 && l !== 8 && l > level;
     }
     return B.getBlock(id).replaceable && !B.IS_SOLID[id];
   }
 
-  private put(x: number, y: number, z: number, id: number): void {
+  private put(x: number, y: number, z: number, id: number, kind: FluidKind): void {
     const old = this.get(x, y, z);
-    if (washable(old)) this.wash(x, y, z, old);
+    if (washable(old)) this.wash(x, y, z, old, kind === LAVA_KIND);
     this.world.setBlock(x, y, z, id, 'fluid');
   }
 
   update(x: number, y: number, z: number, now: number): void {
     const id = this.get(x, y, z);
-    if (id === UNLOADED || !B.IS_WATER[id]) return;
+    if (id === UNLOADED) return;
+    const kind = kindOf(id);
+    if (!kind) return;
+    if (kind === LAVA_KIND && this.react(x, y, z, id)) return;
     const level = B.FLUID_LEVEL[id];
 
     if (level !== 0) {
       // ---- recompute a flowing / falling cell from what feeds it
       let next: number;
-      if (B.IS_WATER[this.get(x, y + 1, z)]) next = 8;
+      if (kind.is[this.get(x, y + 1, z)]) next = 8;
       else {
         let best = 99, sources = 0;
         for (const [dx, dz] of DIRS) {
           const n = this.get(x + dx, y, z + dz);
-          if (!B.IS_WATER[n]) continue;
+          if (!kind.is[n]) continue;
           if (B.FLUID_LEVEL[n] === 0) sources++;
           best = Math.min(best, strength(n));
         }
-        next = best + 1;
+        next = best + kind.step;
         const below = this.get(x, y - 1, z);
-        if (sources >= 2 && (B.IS_SOLID[below] || B.FLUID_LEVEL[below] === 0)) next = 0;
-      }
-      if (next > 7 && next !== 8 || (next === 8 && !B.IS_WATER[this.get(x, y + 1, z)])) {
-        this.world.setBlock(x, y, z, B.AIR, 'fluid');
-        return;
+        if (kind.infinite && sources >= 2 && (B.IS_SOLID[below] || (kind.is[below] && B.FLUID_LEVEL[below] === 0))) next = 0;
+        if (next > 7) {
+          this.world.setBlock(x, y, z, B.AIR, 'fluid');
+          return;
+        }
       }
       if (next !== level) {
-        this.world.setBlock(x, y, z, next === 8 ? B.WATER_FALLING : B.WATER_FLOW[next], 'fluid');
+        this.world.setBlock(x, y, z, next === 8 ? kind.falling : kind.flow[next], 'fluid');
         return; // the change schedules this cell again; it spreads on that update
       }
     }
-    this.spread(x, y, z, level);
+    this.spread(x, y, z, level, kind);
     void now;
   }
 
-  private spread(x: number, y: number, z: number, level: number): void {
-    const below = this.get(x, y - 1, z);
-    if (y > 0 && this.canEnter(below, 7)) {
-      this.put(x, y - 1, z, B.WATER_FALLING);
-      if (level !== 0) return;
-    } else if (B.IS_WATER[below] && level !== 0) {
-      return; // resting on water: merges instead of spreading over it
+  /** Lava touching water cools into Cinderstone / cobblestone, or turns the water below to stone. */
+  private react(x: number, y: number, z: number, id: number): boolean {
+    for (const [dx, dy, dz] of SIDES_AND_TOP) {
+      if (!B.IS_WATER[this.get(x + dx, y + dy, z + dz)]) continue;
+      const formed = B.FLUID_LEVEL[id] === 0 ? B.CINDERSTONE : B.COBBLESTONE;
+      this.world.setBlock(x, y, z, formed, 'fluid');
+      this.onReact?.(x, y, z, formed);
+      return true;
     }
-    const next = level === 0 || level === 8 ? 1 : level + 1;
+    if (y > 0 && B.IS_WATER[this.get(x, y - 1, z)]) {
+      this.world.setBlock(x, y - 1, z, B.STONE, 'fluid');
+      this.onReact?.(x, y - 1, z, B.STONE);
+    }
+    return false;
+  }
+
+  private spread(x: number, y: number, z: number, level: number, kind: FluidKind): void {
+    const below = this.get(x, y - 1, z);
+    if (y > 0 && this.canEnter(below, 7, kind)) {
+      this.put(x, y - 1, z, kind.falling, kind);
+      if (level !== 0) return;
+    } else if (kind.is[below] && level !== 0) {
+      return; // resting on the same fluid: merges instead of spreading over it
+    }
+    const next = level === 0 || level === 8 ? kind.step : level + kind.step;
     if (next > 7) return;
-    for (const [dx, dz] of this.flowDirections(x, y, z, next)) {
+    for (const [dx, dz] of this.flowDirections(x, y, z, next, kind)) {
       const n = this.get(x + dx, y, z + dz);
-      if (this.canEnter(n, next)) this.put(x + dx, y, z + dz, B.WATER_FLOW[next]);
+      if (this.canEnter(n, next, kind)) this.put(x + dx, y, z + dz, kind.flow[next], kind);
     }
   }
 
-  /** Directions leading to the closest drop within 4 blocks (all open directions if none). */
-  private flowDirections(x: number, y: number, z: number, level: number): [number, number][] {
+  /** Directions leading to the closest drop within reach (all open directions if none). */
+  private flowDirections(x: number, y: number, z: number, level: number, kind: FluidKind): [number, number][] {
     let best = 1000;
     const out: [number, number][] = [];
     for (const [dx, dz] of DIRS) {
       const n = this.get(x + dx, y, z + dz);
-      if (!this.canEnter(n, level) && !(B.IS_WATER[n] && B.FLUID_LEVEL[n] !== 0)) continue;
-      const d = this.holeDistance(x + dx, y, z + dz, -dx, -dz, 1);
+      if (!this.canEnter(n, level, kind) && !(kind.is[n] && B.FLUID_LEVEL[n] !== 0)) continue;
+      const d = this.holeDistance(x + dx, y, z + dz, -dx, -dz, 1, kind);
       if (d < best) { best = d; out.length = 0; }
       if (d === best) out.push([dx, dz]);
     }
     return out;
   }
 
-  private holeDistance(x: number, y: number, z: number, bx: number, bz: number, depth: number): number {
+  private holeDistance(x: number, y: number, z: number, bx: number, bz: number, depth: number, kind: FluidKind): number {
     const below = this.get(x, y - 1, z);
-    if (this.canEnter(below, 7) || (B.IS_WATER[below] && B.FLUID_LEVEL[below] !== 0)) return depth;
-    if (depth >= 4) return 1000;
+    if (this.canEnter(below, 7, kind) || (kind.is[below] && B.FLUID_LEVEL[below] !== 0)) return depth;
+    if (depth >= kind.reach) return 1000;
     let best = 1000;
     for (const [dx, dz] of DIRS) {
       if (dx === bx && dz === bz) continue;
       const n = this.get(x + dx, y, z + dz);
-      if (!this.canEnter(n, 7) && !B.IS_WATER[n]) continue;
-      best = Math.min(best, this.holeDistance(x + dx, y, z + dz, -dx, -dz, depth + 1));
+      if (!this.canEnter(n, 7, kind) && !kind.is[n]) continue;
+      best = Math.min(best, this.holeDistance(x + dx, y, z + dz, -dx, -dz, depth + 1, kind));
     }
     return best;
   }

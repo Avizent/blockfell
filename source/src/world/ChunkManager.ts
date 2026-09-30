@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Chunk } from './Chunk';
 import { World } from './World';
 import { CHUNK_SIZE, chunkKeyNum } from './constants';
-import { CHEST } from './BlockRegistry';
+import { CHEST, SPAWNER } from './BlockRegistry';
 import { WorkerPool } from '../workers/WorkerPool';
 import type { MeshBuffers } from '../meshing/MeshBuilder';
 import type { WorkerResponse } from '../workers/protocol';
@@ -168,6 +168,12 @@ export class ChunkManager {
           const pk = cont.x + ',' + cont.y + ',' + cont.z;
           if (!world.blockEntities.has(pk) && CHEST.includes(world.getBlock(cont.x, cont.y, cont.z))) {
             world.blockEntities.set(pk, { type: 'chest', items: new Array(27).fill(null), loot: cont.loot });
+          }
+        }
+        for (const sp of res.spawners ?? []) {
+          const pk = sp.x + ',' + sp.y + ',' + sp.z;
+          if (!world.blockEntities.has(pk) && world.getBlock(sp.x, sp.y, sp.z) === SPAWNER) {
+            world.blockEntities.set(pk, { type: 'spawner', mob: sp.mob, delay: 20 + Math.floor(Math.random() * 100) });
           }
         }
         this.onChunkLoaded?.(chunk);

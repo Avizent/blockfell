@@ -3,17 +3,21 @@ import { hash4, hashFloat, mulberry32, randInt } from '../core/rng';
 import { CHUNK_SIZE, CHUNK_VOLUME, SEA_LEVEL, WORLD_HEIGHT, localIndex } from './constants';
 import * as B from './BlockRegistry';
 import { VillagePlanner } from './Villages';
+import { placeDungeon, placeLavaLake } from './Dungeons';
 import {
   BIOMES, BIOME_BADLANDS, BIOME_BEACH, BIOME_BIRCH, BIOME_DESERT, BIOME_FOREST, BIOME_MOUNTAINS, BIOME_OCEAN, BIOME_PLAINS,
   BIOME_RIVER, BIOME_SNOWY, BIOME_TAIGA,
 } from './BiomeSystem';
 
 /** Newest terrain version. Worlds remember theirs so saved landscapes never change. */
-export const GEN_VERSION = 4;
+export const GEN_VERSION = 5;
 
 export interface GenOptions {
   structures: boolean;
-  /** 1 = the original 1.0 landscape; 2 adds Birch Forest, Taiga, Badlands, cacti, spruce and birch trees; 3 adds villages. */
+  /**
+   * 1 = the original 1.0 landscape; 2 adds Birch Forest, Taiga, Badlands, cacti, spruce and birch trees;
+   * 3 adds villages; 4 wild Skybells and Moon Daisies; 5 lava (caves below height 11, buried lava lakes) and dungeons.
+   */
   version?: number;
 }
 
@@ -27,12 +31,19 @@ export interface ColumnInfo {
 /** A generated structure that owns a container (chest) whose loot is created lazily. */
 export interface GeneratedContainer {
   x: number; y: number; z: number;
-  loot: 'ruin' | 'village';
+  loot: 'ruin' | 'village' | 'dungeon';
+}
+
+/** A Monster Cage placed by generation and the creature it makes. */
+export interface GeneratedSpawner {
+  x: number; y: number; z: number;
+  mob: string;
 }
 
 export interface GeneratedChunk {
   blocks: Uint8Array;
   containers: GeneratedContainer[];
+  spawners: GeneratedSpawner[];
 }
 
 const CAVE_STEP = 4;               // cave noise lattice spacing (world aligned)
@@ -369,6 +380,7 @@ export class TerrainGenerator {
   generateChunk(cx: number, cz: number): GeneratedChunk {
     const blocks = new Uint8Array(CHUNK_VOLUME);
     const containers: GeneratedContainer[] = [];
+    const spawners: GeneratedSpawner[] = [];
     const x0 = cx * CHUNK_SIZE, z0 = cz * CHUNK_SIZE;
 
     // heights for an 18x18 area so slopes can be evaluated at the border
@@ -425,6 +437,7 @@ export class TerrainGenerator {
 
     // caves: interpolate the world-aligned lattice
     const cvv = this.cv;
+    const lavaCaves = this.version >= 5;
     // villages keep a solid crust: no cave mouths opening among the houses and streets
     const villageHere = !!this.villages && this.villages.near(cx * 16 + 8, cz * 16 + 8, 22).length > 0;
     for (let lz = 0; lz < 16; lz++) {
@@ -443,8 +456,8 @@ export class TerrainGenerator {
           const idx = localIndex(lx, y, lz);
           const b = blocks[idx];
           if (b === B.BEDROCK || b === B.WATER) continue;
-          blocks[idx] = y < 11 ? B.AIR : B.AIR;
-          // exposed dirt below an opened surface becomes grass again
+          // version 5: caves fill with lava below height 11 - the great underground lava lakes
+          blocks[idx] = y <= 10 && lavaCaves ? B.LAVA : B.AIR;
         }
       }
     }
@@ -461,11 +474,18 @@ export class TerrainGenerator {
 
     this.placeOres(blocks, rng);
     this.placeRuneOre(cx, cz, blocks);
+    if (this.version >= 5) {
+      // buried lava lakes, then dungeons (hidden in rock beside caves); both stay inside this chunk
+      let minSurface = WORLD_HEIGHT;
+      for (const c of cols) minSurface = Math.min(minSurface, c.height);
+      placeLavaLake(this.seed, cx, cz, blocks, minSurface);
+      if (this.opts.structures) placeDungeon(this.seed, cx, cz, blocks, minSurface, containers, spawners);
+    }
     this.placeTrees(cx, cz, blocks);
     this.placePlants(cx, cz, blocks, cols);
     if (this.villages) this.villages.stampChunk(cx, cz, blocks, containers);
     if (this.opts.structures && !this.villages?.inVillage(cx * 16 + 8, cz * 16 + 8, 24)) this.placeRuin(cx, cz, blocks, cols, containers);
-    return { blocks, containers };
+    return { blocks, containers, spawners };
   }
 
   private blob(blocks: Uint8Array, rng: () => number, x: number, y: number, z: number, size: number, block: number, replace: number[]): void {

@@ -652,6 +652,30 @@ export function potPlant(id: number): string | null {
   return null;
 }
 
+// ======================================================================
+// Version 1.7 blocks: lava and dungeons. Appended only.
+// ======================================================================
+// ---- lava: a source, flowing lava at levels 2, 4 and 6 (it spreads 3 blocks), and
+// falling lava. It glows (light 15), flows slowly and burns what it touches.
+const LAVA_OPTS: Opts = {
+  render: RENDER_LIQUID, opaque: false, solid: false, liquid: true, replaceable: true, lightOpacity: 1,
+  lightEmission: 15, hardness: -1, drops: [], item: null, tex: 'lava_0', selection: [0, 0, 0, 0, 0, 0],
+};
+export const LAVA = reg('lava', 'Lava', { ...LAVA_OPTS, fluidLevel: 0 }).id;
+/** Lava ids by level: index 0 is the source; 2, 4 and 6 are flowing lava (other indices unused). */
+export const LAVA_FLOW: number[] = [LAVA];
+for (const l of [2, 4, 6]) LAVA_FLOW[l] = reg(`lava_flow_${l}`, 'Lava', { ...LAVA_OPTS, fluidLevel: l }).id;
+export const LAVA_FALLING = reg('lava_falling', 'Lava', { ...LAVA_OPTS, fluidLevel: 8 }).id;
+/** Cinderstone: water poured on a lava source. The hardest block to mine (needs an iron pickaxe). */
+export const CINDERSTONE = reg('cinderstone', 'Cinderstone', {
+  tex: 'cinderstone', hardness: 36, tool: 'pickaxe', requiresTool: true, minTier: 2,
+}).id;
+/** Monster Cage: the spawner at the heart of a dungeon. */
+export const SPAWNER = reg('spawner', 'Monster Cage', {
+  tex: 'spawner', opaque: false, cutout: true, lightOpacity: 1, hardness: 5, tool: 'pickaxe', requiresTool: true,
+  drops: [], xp: [15, 43],
+}).id;
+
 export const BLOCK_COUNT = defs.length;
 export const BLOCKS: ReadonlyArray<BlockDef> = defs;
 
@@ -669,6 +693,9 @@ export function facingVariant(base: string, facing: Facing): number {
 
 // ---- dense lookup tables for hot loops (meshing, lighting, physics, raycasting) ----
 export const IS_WATER = new Uint8Array(256);
+export const IS_LAVA = new Uint8Array(256);
+/** Water or lava. */
+export const IS_FLUID = new Uint8Array(256);
 export const FLUID_LEVEL = new Int8Array(256).fill(-1);
 export const NEIGHBOR_LIGHT = new Uint8Array(256);
 export const TOP_ROT = new Uint8Array(256);
@@ -694,7 +721,11 @@ for (const d of defs) {
   IS_CUTOUT[d.id] = d.cutout ? 1 : 0;
   CULL_SAME[d.id] = d.cullSame ? 1 : 0;
   for (let f = 0; f < 6; f++) FACE_LAYER[d.id * 6 + f] = d.faces[f];
-  if (d.fluidLevel >= 0) { IS_WATER[d.id] = 1; FLUID_LEVEL[d.id] = d.fluidLevel; }
+  if (d.fluidLevel >= 0) {
+    FLUID_LEVEL[d.id] = d.fluidLevel;
+    IS_FLUID[d.id] = 1;
+    if (d.key.startsWith('lava')) IS_LAVA[d.id] = 1; else IS_WATER[d.id] = 1;
+  }
   NEIGHBOR_LIGHT[d.id] = d.neighborLight ? 1 : 0;
   TOP_ROT[d.id] = d.topRot;
   if (d.model) MODEL[d.id] = Int8Array.from(d.model);

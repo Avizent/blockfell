@@ -26,7 +26,12 @@ export interface SignEntity {
   rot?: number;             // standing signs: 0..15 sixteenths of a turn
   color?: string;           // dye colour of the text
 }
-export type BlockEntity = ChestEntity | FurnaceEntity | SignEntity;
+export interface SpawnerEntity {
+  type: 'spawner';
+  mob: string;              // the creature this Monster Cage makes
+  delay: number;            // ticks until its next attempt
+}
+export type BlockEntity = ChestEntity | FurnaceEntity | SignEntity | SpawnerEntity;
 
 export interface WorldEvents extends Record<string, unknown> {
   blockChanged: { x: number; y: number; z: number; old: number; id: number; cause: string };
