@@ -154,7 +154,17 @@ export class Engine implements EngineServices {
     this.audio.volumes.master = this.options.masterVolume;
     this.audio.volumes.music = this.options.musicVolume;
     this.audio.volumes.sfx = this.options.soundVolume;
+    this.audio.setMusic(this.options.music);
+    this.audio.setEnabled(this.options.sound);
     this.audio.applyVolumes();
+  }
+
+  /** The Sound switch (Options, pause menu, M key in a world). */
+  toggleSound(announce = false): void {
+    const on = !this.options.sound;
+    this.setOption('sound', on);
+    if (on) this.audio.play('click', undefined, undefined, undefined, 0.5);
+    if (announce) pushChat(on ? 'Sound on' : 'Sound off - press M to turn it back on');
   }
 
   setOption<K extends keyof Options>(key: K, value: Options[K]): void {
@@ -166,7 +176,7 @@ export class Engine implements EngineServices {
       case 'simulationDistance': if (g) g.entities.simulationDistance = (value as number) * 16; break;
       case 'guiScale': this.applyGuiScale(); break;
       case 'renderScale': this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2) * (value as number)); break;
-      case 'masterVolume': case 'musicVolume': case 'soundVolume': this.applyAudio(); break;
+      case 'masterVolume': case 'musicVolume': case 'soundVolume': case 'sound': case 'music': this.applyAudio(); break;
       case 'greedyMeshing': if (g) { g.chunks.greedy = value as boolean; g.chunks.invalidateAll(); } break;
       case 'touchControls': this.applyTouchMode(); break;
     }
@@ -428,6 +438,7 @@ export class Engine implements EngineServices {
     }
     if (code === 'F3') { if (!e.repeat) ui.set({ showDebug: !s.showDebug }); if (!s.showDebug) this.updateDebug(this.game); return true; }
     if (code === 'F1') { ui.set({ hideHud: !s.hideHud }); return true; }
+    if (code === 'KeyM') { this.toggleSound(true); return true; }
     return false;
   }
 
@@ -467,6 +478,7 @@ export class Engine implements EngineServices {
       mem ? `JS heap: ${(mem.usedJSHeapSize / 1048576).toFixed(0)} / ${(mem.jsHeapSizeLimit / 1048576).toFixed(0)} MB` : 'JS heap: n/a (browser)',
       `Generated: ${cs.totalGenerated}  Meshed: ${cs.totalMeshed}`,
       `Render scale: ${r.gl.getPixelRatio().toFixed(2)}  ${window.innerWidth}x${window.innerHeight}`,
+      (() => { const a = this.audio.status(); return `Sound: ${a.enabled ? 'on' : 'off'}, music ${a.music ? 'on' : 'off'} (audio ${a.state}, ${a.played} sounds)`; })(),
       t ? `Targeted: ${B.getBlock(t.block).name} @ ${t.x} ${t.y} ${t.z}` : 'Targeted: -',
       t ? `Face: ${['east', 'west', 'up', 'down', 'south', 'north'][t.face] ?? '-'}  dist ${t.dist.toFixed(2)}` : '',
     ];
