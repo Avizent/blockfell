@@ -39,6 +39,9 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   { id: 'painting', title: 'Art Lover', description: 'Hang a painting', icon: 'painting' },
   { id: 'boat', title: 'Set Sail', description: 'Row a boat across the water', icon: 'boat' },
   { id: 'fish', title: 'Catch of the Day', description: 'Catch a fish', icon: 'raw_trout', parent: 'boat' },
+  { id: 'cinder', title: 'Cooling Off', description: 'Pour water on lava to make Cinderstone', icon: 'cinderstone', parent: 'deep' },
+  { id: 'dungeon', title: 'Dungeon Delver', description: 'Open a chest in a dungeon', icon: 'mossy_cobblestone', parent: 'deep' },
+  { id: 'spawner', title: 'Cage Breaker', description: 'Break a Monster Cage', icon: 'spawner', parent: 'dungeon' },
 ];
 
 export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = [
@@ -64,6 +67,7 @@ export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = 
   ['hounds_tamed', 'Fellhounds Tamed', 'count'],
   ['boat', 'Distance by Boat', 'cm'],
   ['fish_caught', 'Fish Caught', 'count'],
+  ['spawners_broken', 'Monster Cages Broken', 'count'],
 ];
 
 export function formatStat(v: number, kind: 'count' | 'cm' | 'ticks' | 'hp'): string {

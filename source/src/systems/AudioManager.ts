@@ -171,6 +171,10 @@ export class AudioManager {
       case 'arrow_hit': this.tone(dest, t, 0.08, 400, 200, 'triangle', 0.3); break;
       case 'tool_break': this.noiseBurst(dest, t, 0.2, 3000, 1, 'highpass', 0.5); this.tone(dest, t, 0.2, 900, 300, 'square', 0.15); break;
       case 'splash': this.noiseBurst(dest, t, 0.4, 1200 * pitch, 0.5, 'lowpass', 0.5); break;
+      case 'fizz': this.noiseBurst(dest, t, 0.55, 5200 * pitch, 0.6, 'highpass', 0.35); this.noiseBurst(dest, t + 0.05, 0.4, 2400 * pitch, 1.2, 'bandpass', 0.2); break;
+      case 'lava_pop': this.tone(dest, t, 0.06, 180 * pitch, 520 * pitch, 'sine', 0.3); this.noiseBurst(dest, t, 0.05, 900 * pitch, 2, 'bandpass', 0.25); break;
+      case 'lava_fill': this.noiseBurst(dest, t, 0.35, 500, 0.7, 'lowpass', 0.5); this.tone(dest, t, 0.3, 160, 320, 'sine', 0.14); break;
+      case 'lava_empty': this.noiseBurst(dest, t, 0.4, 420, 0.6, 'lowpass', 0.55); this.tone(dest, t, 0.3, 300, 120, 'sine', 0.14); break;
       case 'cast': this.noiseBurst(dest, t, 0.18, 2200 * pitch, 0.7, 'bandpass', 0.35); this.tone(dest, t, 0.16, 900 * pitch, 380 * pitch, 'triangle', 0.08); break;
       case 'reel': for (let i = 0; i < 5; i++) this.tone(dest, t + i * 0.035, 0.03, 1500 * pitch, 1300 * pitch, 'square', 0.06); break;
       case 'chest_open': this.tone(dest, t, 0.25, 180, 260, 'triangle', 0.25); this.noiseBurst(dest, t, 0.2, 500, 1, 'bandpass', 0.2); break;
