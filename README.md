@@ -7,6 +7,8 @@ An original browser voxel sandbox: explore a generated world, mine, craft, build
 - **Computer:** Chrome, Edge, Firefox or Safari. Click the game to capture the mouse; WASD to move, mouse to look, E for the inventory, Esc to pause.
 - **iPhone / iPad (iOS 15 or later):** open the link in Safari, hold the device sideways, and use the on-screen controls. Tap **Share › Add to Home Screen** to play full screen with its own icon.
 
+**New in 1.6:** boats and fishing; a **Continue** button (and the game reopens the world you were in if it was closed mid-game); after the first visit it works with **no internet**, and the title screen offers **Restart** when a newer version has been published here.
+
 Worlds are saved in the browser you play in. Use **Export World** / **Import World** in the world list to move a world between devices.
 
-`index.html` is the complete game in one file (built from the Blockfell source with `npm run build:single`).
+`index.html` is the complete game in one file (built from the Blockfell source with `npm run build:single`); `sw.js` is the small service worker that keeps an offline copy of it.
