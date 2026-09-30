@@ -14,10 +14,19 @@ export class AudioManager {
   volumes = { master: 0.8, sfx: 1, music: 0.5 };
   listener = { x: 0, y: 0, z: 0, yaw: 0 };
   private musicTimer = 25;
+  /** The Sound switch (Options, pause menu, M): off = silent, and the audio engine is suspended. */
+  enabled = true;
+  /** The Music switch: off = no music, sound effects carry on. */
   musicEnabled = true;
+  /** Sound effects actually started (for tests and the debug overlay). */
+  played = 0;
 
-  /** Must be called from a user gesture (browser autoplay rules). */
+  /**
+   * Must be called from a user gesture (browser autoplay rules). With Sound switched
+   * off it does nothing: no audio engine is started or woken.
+   */
   unlock(): void {
+    if (!this.enabled) return;
     if (this.ctx) {
       // iOS reports 'interrupted' (not 'suspended') after a call or switching apps
       if (this.ctx.state !== 'running' && this.ctx.state !== 'closed') void this.ctx.resume();
@@ -47,9 +56,44 @@ export class AudioManager {
 
   applyVolumes(): void {
     if (!this.ctx) return;
-    this.master.gain.value = this.volumes.master;
+    this.master.gain.value = this.enabled ? this.volumes.master : 0;
     this.sfx.gain.value = this.volumes.sfx;
-    this.music.gain.value = this.volumes.music * 0.35;
+    this.music.gain.value = this.musicEnabled ? this.volumes.music * 0.35 : 0;
+  }
+
+  /**
+   * Switches all sound on or off. Off: silenced at once and the audio engine is
+   * suspended (no synthesis, no CPU). On: woken again - switching on is a tap or a
+   * key press, which is the user gesture browsers need to start sound.
+   */
+  setEnabled(on: boolean): void {
+    if (on === this.enabled) return;
+    this.enabled = on;
+    if (!on) {
+      if (this.ctx) {
+        this.applyVolumes();
+        this.stopWeather();
+        void this.ctx.suspend().catch(() => undefined);
+      }
+      return;
+    }
+    this.unlock();
+    this.applyVolumes();
+  }
+
+  /** Switches the music on or off (a phrase already playing is silenced at once). */
+  setMusic(on: boolean): void {
+    this.musicEnabled = on;
+    if (!on) this.musicTimer = Math.max(this.musicTimer, 20);
+    this.applyVolumes();
+  }
+
+  /** What the audio engine is doing, for tests and the debug overlay. */
+  status(): { enabled: boolean; music: boolean; state: string; master: number; musicGain: number; played: number } {
+    return {
+      enabled: this.enabled, music: this.musicEnabled, state: this.ctx?.state ?? 'none',
+      master: this.ctx ? this.master.gain.value : 0, musicGain: this.ctx ? this.music.gain.value : 0, played: this.played,
+    };
   }
 
   private impulse(seconds: number): AudioBuffer {
@@ -150,9 +194,10 @@ export class AudioManager {
 
   /** Plays a named sound effect, optionally positioned in the world. */
   play(name: string, x?: number, y?: number, z?: number, volume = 1, pitch = 1): void {
-    if (!this.ctx || this.ctx.state !== 'running') return;
+    if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
     const dest = this.out(x, y, z, volume);
     if (!dest) return;
+    this.played++;
     const t = this.ctx.currentTime;
     const [kind, mat] = name.split(':');
     switch (kind) {
@@ -232,7 +277,7 @@ export class AudioManager {
    * level follows the weather. Under a roof it is quieter and duller.
    */
   setWeather(level: number, sheltered: boolean, snow: boolean): void {
-    if (!this.ctx || this.ctx.state !== 'running') return;
+    if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
     const ctx = this.ctx;
     if (!this.rainNodes) {
       if (level <= 0.001) return;
@@ -268,7 +313,7 @@ export class AudioManager {
 
   /** A thunderclap: a sharp crack followed by a long, rolling rumble. */
   thunder(volume: number, delay = 0): void {
-    if (!this.ctx || this.ctx.state !== 'running') return;
+    if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
     const ctx = this.ctx;
     const g = ctx.createGain();
     g.gain.value = Math.max(0, Math.min(1, volume));
@@ -284,7 +329,7 @@ export class AudioManager {
 
   /** Called ~once a second: occasionally plays a short generative ambient phrase. */
   updateMusic(dt: number, night: boolean): void {
-    if (!this.ctx || this.ctx.state !== 'running' || !this.musicEnabled || this.volumes.music <= 0) return;
+    if (!this.enabled || !this.ctx || this.ctx.state !== 'running' || !this.musicEnabled || this.volumes.music <= 0) return;
     this.musicTimer -= dt;
     if (this.musicTimer > 0) return;
     this.musicTimer = 60 + Math.random() * 120;

@@ -14,6 +14,10 @@ export interface Options {
   masterVolume: number;
   musicVolume: number;
   soundVolume: number;
+  /** All sound on or off (1.7.1; the volume sliders keep their levels). Also the M key and the pause menu. */
+  sound: boolean;
+  /** Music on or off (1.7.1): sound effects carry on without it. */
+  music: boolean;
   showFps: boolean;
   greedyMeshing: boolean;
   /** On-screen controls for phones and tablets. */
@@ -36,6 +40,8 @@ export const DEFAULT_OPTIONS: Options = {
   masterVolume: 0.8,
   musicVolume: 0.5,
   soundVolume: 1,
+  sound: true,
+  music: true,
   showFps: false,
   greedyMeshing: true,
   touchControls: 'auto',
