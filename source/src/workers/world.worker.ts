@@ -26,7 +26,7 @@ self.onmessage = (ev: MessageEvent<WorkerRequest>) => {
       const res = gen.generateChunk(msg.cx, msg.cz);
       const out: WorkerResponse = {
         type: 'gen', id: msg.id, cx: msg.cx, cz: msg.cz, blocks: res.blocks,
-        containers: res.containers, ms: performance.now() - t0,
+        containers: res.containers, spawners: res.spawners, ms: performance.now() - t0,
       };
       self.postMessage(out, [res.blocks.buffer]);
     } else if (msg.type === 'mesh') {
