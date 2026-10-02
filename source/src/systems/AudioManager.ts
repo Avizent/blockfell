@@ -222,6 +222,16 @@ export class AudioManager {
       case 'lava_empty': this.noiseBurst(dest, t, 0.4, 420, 0.6, 'lowpass', 0.55); this.tone(dest, t, 0.3, 300, 120, 'sine', 0.14); break;
       case 'cast': this.noiseBurst(dest, t, 0.18, 2200 * pitch, 0.7, 'bandpass', 0.35); this.tone(dest, t, 0.16, 900 * pitch, 380 * pitch, 'triangle', 0.08); break;
       case 'reel': for (let i = 0; i < 5; i++) this.tone(dest, t + i * 0.035, 0.03, 1500 * pitch, 1300 * pitch, 'square', 0.06); break;
+      case 'bell': {
+        // a cast bell: a strike, then inharmonic partials ringing away at different rates
+        const f = 523 * pitch;
+        this.noiseBurst(dest, t, 0.05, 2600, 1.2, 'bandpass', 0.35);
+        for (const [ratio, g, dur] of [[0.5, 0.16, 4.2], [1, 0.22, 3.4], [1.19, 0.12, 2.6], [1.5, 0.09, 2.2], [2, 0.08, 1.8], [2.51, 0.05, 1.3], [3.01, 0.03, 0.9]] as const) {
+          this.tone(dest, t, dur, f * ratio, f * ratio * 0.998, 'sine', g, 0.003);
+        }
+        break;
+      }
+      case 'page': this.noiseBurst(dest, t, 0.12, 3200 * pitch, 0.8, 'bandpass', 0.25); this.noiseBurst(dest, t + 0.09, 0.1, 2400 * pitch, 0.8, 'bandpass', 0.18); break;
       case 'chest_open': this.tone(dest, t, 0.25, 180, 260, 'triangle', 0.25); this.noiseBurst(dest, t, 0.2, 500, 1, 'bandpass', 0.2); break;
       case 'chest_close': this.tone(dest, t, 0.15, 220, 140, 'triangle', 0.3); this.noiseBurst(dest, t + 0.1, 0.06, 400, 1, 'lowpass', 0.4); break;
       case 'fall': this.noiseBurst(dest, t, 0.12, 300, 1, 'lowpass', 0.8); break;

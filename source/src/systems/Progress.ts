@@ -42,6 +42,8 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   { id: 'cinder', title: 'Cooling Off', description: 'Pour water on lava to make Cinderstone', icon: 'cinderstone', parent: 'deep' },
   { id: 'dungeon', title: 'Dungeon Delver', description: 'Open a chest in a dungeon', icon: 'mossy_cobblestone', parent: 'deep' },
   { id: 'spawner', title: 'Cage Breaker', description: 'Break a Monster Cage', icon: 'spawner', parent: 'dungeon' },
+  { id: 'born', title: 'A Growing Village', description: 'See a child born in a village', icon: 'bread', parent: 'trade' },
+  { id: 'map', title: 'X Marks the Spot', description: 'Follow a map to the place it shows', icon: 'dungeon_map', parent: 'trade' },
 ];
 
 export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = [
@@ -68,6 +70,8 @@ export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = 
   ['boat', 'Distance by Boat', 'cm'],
   ['fish_caught', 'Fish Caught', 'count'],
   ['spawners_broken', 'Monster Cages Broken', 'count'],
+  ['bells_rung', 'Bells Rung', 'count'],
+  ['maps_followed', 'Maps Followed', 'count'],
 ];
 
 export function formatStat(v: number, kind: 'count' | 'cm' | 'ticks' | 'hp'): string {

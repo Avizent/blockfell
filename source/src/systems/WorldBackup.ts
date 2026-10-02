@@ -32,6 +32,8 @@ export interface BackupFile {
   extra: WorldExtra | null;
   /** chunk key "cx,cz" -> base64 of little-endian uint32 (localIndex << 8 | blockId) values */
   chunks: Record<string, string>;
+  /** The device that wrote it, e.g. "iPad (Safari)" (1.9: Dropbox sync). */
+  savedBy?: string;
 }
 
 /** Summary of a backup file found in the backup folder. */
@@ -98,7 +100,7 @@ async function decompress(blob: Blob): Promise<string> {
   return blob.text();
 }
 
-export async function createBackup(saves: SaveManager, worldId: string): Promise<{ blob: Blob; backup: BackupFile }> {
+export async function createBackup(saves: SaveManager, worldId: string, savedBy?: string): Promise<{ blob: Blob; backup: BackupFile }> {
   const world = await saves.getWorld(worldId);
   if (!world) throw new Error('World not found');
   const deltas = await saves.loadDeltas(worldId);
@@ -108,6 +110,7 @@ export async function createBackup(saves: SaveManager, worldId: string): Promise
     format: FORMAT, formatVersion: FORMAT_VERSION, exported: Date.now(), gameVersion: GAME_VERSION,
     world, extra: (await saves.getExtra(worldId)) ?? null, chunks,
   };
+  if (savedBy) backup.savedBy = savedBy;
   return { blob: await compress(JSON.stringify(backup)), backup };
 }
 
@@ -131,7 +134,7 @@ function newWorldId(): string {
  * Writes a backup into the local save store.
  * 'replace' overwrites the world with the same id; 'copy' imports it as a new world.
  */
-export async function importBackup(saves: SaveManager, b: BackupFile, mode: 'replace' | 'copy'): Promise<string> {
+export async function importBackup(saves: SaveManager, b: BackupFile, mode: 'replace' | 'copy', opts: { keepLastPlayed?: boolean } = {}): Promise<string> {
   const deltas = new Map<string, Map<number, number>>();
   for (const [k, v] of Object.entries(b.chunks)) deltas.set(k, unpackChunk(v)); // validate everything before touching saves
   const id = mode === 'copy' ? newWorldId() : b.world.id;
@@ -143,7 +146,7 @@ export async function importBackup(saves: SaveManager, b: BackupFile, mode: 'rep
   } else {
     await saves.deleteWorld(id);
   }
-  await saves.putWorld({ ...b.world, id, name, lastPlayed: Date.now() });
+  await saves.putWorld({ ...b.world, id, name, lastPlayed: opts.keepLastPlayed ? b.world.lastPlayed : Date.now() });
   await saves.putDeltas(id, deltas, deltas.keys());
   if (b.extra) await saves.putExtra(id, b.extra);
   return id;
