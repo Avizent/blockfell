@@ -61,6 +61,9 @@ shaped([' I ', 'CFC', 'CCC'], { I: 'iron_ingot', C: 'cobblestone', F: 'furnace' 
 shaped([' I ', 'SSS'], { I: 'iron_ingot', S: 'stone' }, 'mason_bench');
 shaped(['FL', 'PP', 'PP'], { F: 'feather', L: 'leather', P: 'planks' }, 'scribe_desk');
 shaped(['F F', 'PPP'], { F: 'flint', P: 'planks' }, 'fletching_bench');
+// ---- 1.8: village life
+shaped(['SPS', 'SIS', ' I '], { S: 'stick', P: 'planks', I: 'iron_ingot' }, 'bell');
+shaped(['CC', 'PP', 'PP'], { C: 'coal', P: 'planks' }, 'map_table');
 
 // ---- 1.4: decoration
 shaped(['PSP', 'PSP'], { P: 'planks', S: 'stick' }, 'oak_fence', 3);
