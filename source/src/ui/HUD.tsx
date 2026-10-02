@@ -122,6 +122,40 @@ function Debug() {
   );
 }
 
+/** 1.8: who the villager under the crosshair is, what they're doing, and how their village sees you. */
+function VillagerCardView() {
+  const c = useStore(ui, (s) => s.villagerCard);
+  const raid = useStore(ui, (s) => !!s.raid);
+  if (!c) return null;
+  return (
+    <div className="villager-card" data-testid="villager-card" style={{ top: raid ? '34rem' : '14rem' }}>
+      <div className="vc-name" data-testid="vc-name">{c.name}</div>
+      <div className="vc-title" data-testid="vc-title">{c.title}</div>
+      <div className="vc-line" data-testid="vc-activity">{c.activity}{!c.home && !c.child ? ' - no bed' : ''}</div>
+      {c.village && (
+        <div className={'vc-line vc-' + c.standingKey} data-testid="vc-standing">{c.village}: {c.standing} ({c.rep > 0 ? '+' : ''}{c.rep})</div>
+      )}
+    </div>
+  );
+}
+
+/** 1.8: a held explorer map shows which way to go. */
+function MapCompass() {
+  const m = useStore(ui, (s) => s.mapHud);
+  if (!m) return null;
+  return (
+    <div className="map-compass" data-testid="map-compass">
+      <div className="mc-dial">
+        {m.arrow !== null ? <div className="mc-arrow" style={{ transform: `rotate(${m.arrow}deg)` }} data-testid="map-arrow" /> : <div className="mc-here">X</div>}
+      </div>
+      <div className="mc-text">
+        <div className="mc-label">{m.label}{m.found ? ' (found)' : ''}</div>
+        <div data-testid="map-text">{m.text}</div>
+      </div>
+    </div>
+  );
+}
+
 /** Night raid bar at the top of the screen. */
 function RaidBar() {
   const raid = useStore(ui, (s) => s.raid);
@@ -157,6 +191,8 @@ export function HUD() {
           <HeldName />
           <Chat />
           <RaidBar />
+          {overlay === null && <VillagerCardView />}
+          {overlay === null && <MapCompass />}
         </>
       )}
       {debug && <Debug />}

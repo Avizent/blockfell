@@ -6,6 +6,7 @@ import { Button, ItemIcon, Slider, Title } from './widgets';
 import { ADVANCEMENTS, STAT_LABELS, formatStat } from '../systems/Progress';
 import type { Difficulty } from '../player/Player';
 import type { WeatherKind } from '../systems/WeatherSystem';
+import { mapImage, MAP_PX, MAP_SCALE, compassName } from '../render/mapImage';
 
 const WEATHER_NAMES: Record<WeatherKind, string> = { clear: 'Clear', rain: 'Rain', thunder: 'Thunderstorm' };
 
@@ -79,6 +80,8 @@ export function OptionsScreen() {
         <Button size="small" testId="btn-reopen-last" title="If Blockfell closes while you are in a world, open straight back into it next time"
           onClick={() => set('reopenLastWorld', !o.reopenLastWorld)}>Reopen Last World: {onOff(o.reopenLastWorld)}</Button>
         <Button size="small" onClick={() => setControls(true)}>Controls...</Button>
+        {!inGame && <Button size="small" testId="btn-options-dropbox" title="Keep your worlds in Dropbox and play them on your other devices"
+          onClick={() => ui.set({ screen: 'cloud', cloudReturn: 'options' })}>Dropbox Sync...</Button>}
         {g && (
           <>
             <Button size="small" onClick={() => { g.difficulty = diffs[(diffs.indexOf(g.difficulty) + 1) % 4]; ui.set((s) => ({ optionsVersion: s.optionsVersion + 1 })); }}>
@@ -179,6 +182,51 @@ export function SignEditor() {
       <div className="sign-post" style={short ? { height: '6rem' } : undefined} />
       <div style={{ flex: 1 }} />
       <div className="menu-footer" style={{ position: 'relative' }}><Button testId="btn-sign-done" onClick={() => engine.closeOverlay()}>Done</Button></div>
+    </div>
+  );
+}
+
+/** 1.8: looking at an explorer map: the land round the cross, and where you are. */
+export function MapScreen() {
+  const g = engine.game;
+  const [, setTick] = useState(0);
+  useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 250); return () => clearInterval(t); }, []);
+  const held = g && g.mapSlot >= 0 ? g.inventory.get(g.mapSlot) : null;
+  const t = held?.map;
+  const holder = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!g || !t || !holder.current) return;
+    const c = mapImage(g.world.generator, t);
+    c.style.width = '160rem'; c.style.height = '160rem';
+    c.setAttribute('data-testid', 'map-canvas');
+    holder.current.replaceChildren(c);
+  }, [t?.x, t?.z]);
+  if (!g || !held || !t) return null;
+  const p = g.player;
+  const half = (MAP_PX / 2) * MAP_SCALE;
+  const fx = (p.x - (t.x - half)) / (2 * half), fz = (p.z - (t.z - half)) / (2 * half);
+  const inside = fx >= 0 && fx <= 1 && fz >= 0 && fz <= 1;
+  const cx = Math.max(0, Math.min(1, fx)), cz = Math.max(0, Math.min(1, fz));
+  const dist = Math.round(Math.hypot(t.x - p.x, t.z - p.z));
+  const kind = t.kind === 'village' ? `Map to ${t.name ?? 'a village'}` : t.kind === 'dungeon' ? 'Dungeon Map' : 'Ruin Map';
+  const by = t.kind === 'village' ? '' : t.name ? `Drawn by the Mapmaker of ${t.name}` : 'An explorer map';
+  return (
+    <div className="screen" data-testid="map-screen">
+      <div className="overlay-dim" />
+      <div style={{ flex: 1 }} />
+      <div className="map-screen-panel">
+        <div className="ms-title">{kind}{t.found ? ' (found)' : ''}</div>
+        {by && <div className="ms-sub">{by}</div>}
+        <div style={{ position: 'relative', width: '160rem', height: '160rem' }}>
+          <div ref={holder} />
+          <div className="ms-you" data-testid="map-you" style={{ left: `${cx * 160}rem`, top: `${cz * 160}rem`, opacity: inside ? 1 : 0.55 }} />
+        </div>
+        <div className="ms-sub" data-testid="map-screen-text">
+          {dist < 5 ? 'You are at the cross.' : `The cross is ${dist} blocks ${compassName(t.x - p.x, t.z - p.z)} of you${inside ? '' : ' (you are off the edge of the map)'}.`}
+        </div>
+      </div>
+      <div style={{ flex: 1 }} />
+      <div className="menu-footer" style={{ position: 'relative' }}><Button testId="btn-map-done" onClick={() => engine.closeOverlay()}>Done</Button></div>
     </div>
   );
 }

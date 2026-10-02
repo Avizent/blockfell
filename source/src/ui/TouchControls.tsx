@@ -21,7 +21,7 @@ import type { Game } from '../game/Game';
  *  - Tap a hotbar slot to select it; hold it to drop one item.
  * All of it feeds the same input state as the keyboard and mouse (InputManager).
  */
-const CONTAINERS = new Set(['inventory', 'creative', 'crafting', 'furnace', 'chest', 'runes', 'trade']);
+const CONTAINERS = new Set(['inventory', 'creative', 'crafting', 'furnace', 'chest', 'runes', 'trade', 'map']);
 /** Finger pixels -> mouse-movement units for turning. */
 const LOOK_SPEED = 1.6;
 /** A touch held this long without moving mines instead of tapping. */

@@ -1,7 +1,17 @@
 import { Store } from '../core/store';
+import type { CloudUi } from '../systems/CloudSync';
 
-export type Screen = 'title' | 'worlds' | 'create' | 'edit' | 'loading' | 'game' | 'quit' | 'options' | 'import';
-export type Overlay = null | 'pause' | 'inventory' | 'crafting' | 'furnace' | 'chest' | 'creative' | 'death' | 'options' | 'advancements' | 'stats' | 'sleep' | 'runes' | 'trade' | 'sign';
+export type Screen = 'title' | 'worlds' | 'create' | 'edit' | 'loading' | 'game' | 'quit' | 'options' | 'import' | 'cloud';
+export type Overlay = null | 'pause' | 'inventory' | 'crafting' | 'furnace' | 'chest' | 'creative' | 'death' | 'options' | 'advancements' | 'stats' | 'sleep' | 'runes' | 'trade' | 'sign' | 'map';
+
+/** 1.8: the card shown when looking at a villager (or a Sentinel). */
+export interface VillagerCard {
+  name: string; title: string; activity: string;
+  village: string; standing: string; standingKey: string; rep: number;
+  home: boolean; child: boolean;
+}
+/** 1.8: the compass of a held explorer map. */
+export interface MapHud { label: string; text: string; arrow: number | null; found: boolean }
 
 export interface HudState {
   health: number;
@@ -49,6 +59,8 @@ export interface UIState {
   update: { version: string } | null;
   toasts: Toast[];
   chat: ChatLine[];
+  villagerCard: VillagerCard | null;
+  mapHud: MapHud | null;
   debug: DebugInfo | null;
   showDebug: boolean;
   hideHud: boolean;
@@ -68,6 +80,12 @@ export interface UIState {
   raid: { label: string; progress: number } | null;
   /** On-screen touch controls are on. */
   touch: boolean;
+  /** Dropbox sync (1.9). */
+  cloud: CloudUi;
+  /** A world that can't be opened until the player decides (changed on two devices, or saved by a newer version). */
+  syncPrompt: { id: string; kind: 'conflict' | 'newer' } | null;
+  /** Where the Dropbox Sync screen returns to. */
+  cloudReturn: Screen;
 }
 
 export const ui = new Store<UIState>({
@@ -83,6 +101,8 @@ export const ui = new Store<UIState>({
   heldName: null,
   update: null,
   toasts: [],
+  villagerCard: null,
+  mapHud: null,
   chat: [],
   debug: null,
   showDebug: false,
@@ -100,6 +120,12 @@ export const ui = new Store<UIState>({
   furnace: { burn: 0, cook: 0 },
   raid: null,
   touch: false,
+  cloud: {
+    available: false, why: '', hasKey: false, builtInKey: false, linked: false, account: '', busy: false, offline: false,
+    relink: false, lastSync: 0, message: '', worlds: {}, remoteOnly: [],
+  },
+  syncPrompt: null,
+  cloudReturn: 'worlds',
 });
 
 let toastId = 1;

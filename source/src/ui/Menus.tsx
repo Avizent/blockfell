@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { engine } from '../engine/Engine';
 import { useStore } from '../core/store';
 import { ui, pushToast } from './uiStore';
@@ -8,7 +8,8 @@ import type { WorldRecord, GameRules } from '../systems/SaveManager';
 import { DEFAULT_RULES } from '../systems/SaveManager';
 import type { Difficulty, GameMode } from '../player/Player';
 import { GAME_VERSION } from '../world/constants';
-import { restartForUpdate } from '../engine/offline';
+import { restartForUpdate, checkForUpdate } from '../engine/offline';
+import { CloudSync } from '../systems/CloudSync';
 import {
   backups, embedded, createBackup, downloadBlob, backupFileName, readBackup, importBackup, pickBackupFile,
   type BackupEntry, type BackupFile,
@@ -73,19 +74,24 @@ export function UpdateBanner() {
   );
 }
 
-function formatDate(t: number): string {
+function formatDate(t: number, seconds = false): string {
   const d = new Date(t);
   const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}${seconds ? ':' + p(d.getSeconds()) : ''}`;
 }
 
 export function WorldSelect() {
   const version = useStore(ui, (s) => s.worldsVersion);
   const selected = useStore(ui, (s) => s.selectedWorld);
+  const cloud = useStore(ui, (s) => s.cloud);
+  const prompt = useStore(ui, (s) => s.syncPrompt);
   const [worlds, setWorlds] = useState<WorldRecord[] | null>(null);
   const [filter, setFilter] = useState('');
   const [confirm, setConfirm] = useState<WorldRecord | null>(null);
+  const [deleting, setDeleting] = useState('');
   const lastClick = useRef({ id: '', t: 0 });
+  // opening the world list syncs with Dropbox: worlds played on other devices come in
+  useEffect(() => { void engine.cloud.syncAll(); }, []);
 
   useEffect(() => {
     let live = true;
@@ -103,15 +109,43 @@ export function WorldSelect() {
   const shown = (worlds ?? []).filter((w) => w.name.toLowerCase().includes(filter.toLowerCase()));
   useEffect(() => { document.querySelector('.world-entry.selected')?.scrollIntoView({ block: 'nearest' }); }, [worlds]);
 
+  if (prompt) return <SyncPrompt id={prompt.id} kind={prompt.kind} />;
+
   if (confirm) {
+    const inDropbox = cloud.linked && !!engine.cloud.state(confirm.id)?.rev && !engine.cloud.state(confirm.id)?.gone;
+    const del = async (everywhere: boolean) => {
+      setDeleting('');
+      try {
+        await engine.deleteWorld(confirm.id, everywhere);
+        setConfirm(null);
+      } catch (e) {
+        setDeleting(`Could not delete it from Dropbox: ${errText(e)}. Nothing was deleted.`);
+      }
+    };
     return (
-      <div className="screen dirt-bg" style={{ justifyContent: 'center', gap: '8rem' }}>
+      <div className="screen dirt-bg" style={{ justifyContent: 'center', gap: '8rem' }} data-testid="delete-confirm">
         <Title>Are you sure you want to delete this world?</Title>
-        <Title><span className="gray">'{confirm.name}' will be lost forever! (A long time!)</span></Title>
-        <div className="row" style={{ marginTop: '20rem' }}>
-          <Button size="small" testId="btn-confirm-delete" onClick={() => { void engine.deleteWorld(confirm.id); setConfirm(null); }}>Delete</Button>
-          <Button size="small" onClick={() => setConfirm(null)}>Cancel</Button>
-        </div>
+        {inDropbox ? (
+          <div className="gray" style={{ maxWidth: '320rem', textAlign: 'center', whiteSpace: 'normal' }}>
+            '{confirm.name}' is also in your Dropbox. Delete Here Only keeps the Dropbox copy (it comes back if it is played on another device).
+            Delete Everywhere removes it from Dropbox too (Dropbox keeps deleted files for a while).
+          </div>
+        ) : <Title><span className="gray">'{confirm.name}' will be lost forever! (A long time!)</span></Title>}
+        {deleting && <div className="yellow" style={{ maxWidth: '320rem', textAlign: 'center', whiteSpace: 'normal' }}>{deleting}</div>}
+        {inDropbox ? (
+          <>
+            <div className="row" style={{ marginTop: '20rem' }}>
+              <Button size="small" testId="btn-confirm-delete" onClick={() => void del(false)}>Delete Here Only</Button>
+              <Button size="small" testId="btn-delete-everywhere" onClick={() => void del(true)}>Delete Everywhere</Button>
+            </div>
+            <Button size="small" onClick={() => { setConfirm(null); setDeleting(''); }}>Cancel</Button>
+          </>
+        ) : (
+          <div className="row" style={{ marginTop: '20rem' }}>
+            <Button size="small" testId="btn-confirm-delete" onClick={() => void del(false)}>Delete</Button>
+            <Button size="small" onClick={() => { setConfirm(null); setDeleting(''); }}>Cancel</Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -129,7 +163,7 @@ export function WorldSelect() {
         {shown.map((w) => (
           <div
             key={w.id}
-            className={'world-entry' + (w.id === selected ? ' selected' : '')}
+            className={'world-entry' + (w.id === selected ? ' selected' : '') + (cloud.worlds[w.id] ? ' with-cloud' : '')}
             data-testid="world-entry"
             onClick={() => {
               const now = Date.now();
@@ -143,26 +177,33 @@ export function WorldSelect() {
               <div>{w.name}</div>
               <div className="gray">{formatDate(w.lastPlayed)}</div>
               <div className="gray">{w.gameMode === 'creative' ? 'Creative' : 'Survival'} Mode, {cap(w.difficulty)}, v{w.version}</div>
+              {cloud.worlds[w.id] && (
+                <div className={'cloud-line ' + (cloud.worlds[w.id].warn ? 'warn' : cloud.worlds[w.id].kind)} data-testid="cloud-status">{cloud.worlds[w.id].text}</div>
+              )}
             </div>
           </div>
         ))}
       </div>
       <div className="menu-footer">
-        {sel && !embedded && <BackupNote w={sel} />}
+        {cloud.linked || cloud.relink
+          ? <div className="tip" data-testid="cloud-summary" style={{ textAlign: 'center', color: cloud.relink || cloud.message ? '#ffcc55' : undefined }}>{CloudSync.summary(cloud)}</div>
+          : sel && !embedded && <BackupNote w={sel} />}
         <div className="row">
           <Button size="small" testId="btn-play-selected" disabled={!sel} onClick={() => sel && void engine.playWorld(sel.id)}>Play Selected World</Button>
           <Button size="small" testId="btn-create-new" onClick={() => ui.set({ screen: 'create' })}>Create New World</Button>
         </div>
         <div className="row">
           <Button size="third" disabled={!sel} onClick={() => sel && ui.set({ screen: 'edit', editWorld: sel.id })}>Edit</Button>
-          <Button size="third" disabled={!sel} onClick={() => sel && setConfirm(sel)}>Delete</Button>
+          <Button size="third" testId="btn-delete-world" disabled={!sel} onClick={() => sel && setConfirm(sel)}>Delete</Button>
           <Button size="third" disabled={!sel} onClick={() => sel && recreate(sel)}>Re-Create</Button>
           <Button size="third" onClick={() => ui.set({ screen: 'title' })}>Cancel</Button>
         </div>
         <div className="row">
-          <Button size="small" testId="btn-export-world" disabled={!sel} onClick={() => sel && void exportWorld(sel)}
+          <Button size="half" testId="btn-export-world" disabled={!sel} onClick={() => sel && void exportWorld(sel)}
             title={backups.supported ? 'Save a backup of this world into your backup folder' : 'Download a backup file of this world'}>Export World</Button>
-          <Button size="small" testId="btn-import-world" onClick={() => ui.set({ screen: 'import' })}>Import World...</Button>
+          <Button size="half" testId="btn-import-world" onClick={() => ui.set({ screen: 'import' })}>Import World...</Button>
+          <Button size="half" testId="btn-dropbox" title="Keep your worlds in Dropbox and play them on your other devices"
+            onClick={() => ui.set({ screen: 'cloud', cloudReturn: 'worlds' })}>Dropbox...</Button>
         </div>
       </div>
     </div>
@@ -258,6 +299,7 @@ export function ImportWorld() {
     setBusy(true);
     try {
       const id = await importBackup(engine.saves, b, mode);
+      engine.cloud.markDirty(id);
       pushToast({ kind: 'info', icon: 'chest', title: 'World imported', desc: b.world.name });
       ui.set((s) => ({ screen: 'worlds', selectedWorld: id, worldsVersion: s.worldsVersion + 1 }));
     } catch (e) {
@@ -465,7 +507,11 @@ export function EditWorld() {
       </div>
       <div className="menu-footer">
         <div className="row">
-          <Button size="small" onClick={async () => { await engine.saves.putWorld({ ...rec, name: name.trim() || rec.name }); back(); }}>Save</Button>
+          <Button size="small" onClick={async () => {
+            await engine.saves.putWorld({ ...rec, name: name.trim() || rec.name });
+            engine.cloud.markDirty(rec.id);
+            back();
+          }}>Save</Button>
           <Button size="small" onClick={back}>Cancel</Button>
         </div>
       </div>
@@ -536,6 +582,190 @@ export function QuitScreen() {
       <Title>Thanks for playing Blockfell!</Title>
       <div className="gray">Your worlds are saved in this browser. You can close this tab now.</div>
       <Button onClick={() => ui.set({ screen: 'title' })}>Back to Title Screen</Button>
+    </div>
+  );
+}
+
+// ======================================================================= Dropbox sync (1.9)
+
+/**
+ * A world that can't be opened as it is: changed on this device and on another one
+ * (the player picks a copy), or last saved by a newer Blockfell (update first).
+ */
+function SyncPrompt({ id, kind }: { id: string; kind: 'conflict' | 'newer' }) {
+  const [info, setInfo] = useState<Awaited<ReturnType<typeof engine.cloud.conflictInfo>> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
+  const load = () => { setInfo(null); void engine.cloud.conflictInfo(id).then(setInfo); };
+  useEffect(load, [id]);
+  const close = () => ui.set((s) => ({ syncPrompt: null, worldsVersion: s.worldsVersion + 1 }));
+  const choose = async (c: 'mine' | 'theirs' | 'both') => {
+    setBusy(true);
+    const { out } = await engine.cloud.resolve(id, c);
+    setBusy(false);
+    if (out === 'offline') { setNote('Dropbox could not be reached. Try again when you are online.'); return; }
+    if (out === 'conflict') { setNote('It was just saved on another device again. Look at the two copies once more.'); load(); return; }
+    if (out === 'error' || out === 'relink') { setNote(`That didn't work: ${ui.get().cloud.message || 'link Dropbox again'}`); return; }
+    pushToast({ kind: 'info', icon: 'chest', title: c === 'mine' ? 'Kept this copy' : c === 'theirs' ? 'Using the Dropbox copy' : 'Kept both copies', desc: info?.local?.name ?? '' });
+    close();
+  };
+  const update = async () => {
+    setBusy(true);
+    const v = await checkForUpdate(true);
+    setBusy(false);
+    if (v) restartForUpdate();
+    else setNote('No newer version found yet. Connect to the internet and try again, or reload Blockfell.');
+  };
+  const local = info?.local, remote = info?.remote;
+  const device = info?.device ?? 'this device';
+  const short = device.replace(/ \(.*\)$/, '');
+  return (
+    <div className="screen dirt-bg" style={{ justifyContent: 'center', gap: '6rem' }} data-testid="sync-prompt">
+      {!info && <Title>Checking Dropbox...</Title>}
+      {info && kind === 'conflict' && (
+        <>
+          <Title>'{local?.name ?? remote?.world.name ?? 'This world'}' was changed on two devices</Title>
+          <div className="gray" data-testid="conflict-local">On this {short}: last played {local ? formatDate(local.lastPlayed, true) : '-'}</div>
+          <div className="gray" data-testid="conflict-remote">{remote ? `In Dropbox${remote.savedBy ? ` (from ${remote.savedBy})` : ''}: last played ${formatDate(remote.world.lastPlayed, true)}` : 'In Dropbox: could not be read just now'}</div>
+          <div className="tip" style={{ maxWidth: '330rem', textAlign: 'center', whiteSpace: 'normal' }}>
+            Keep This Copy sends this {short}&apos;s world to Dropbox. Use Dropbox Copy replaces it here. Keep Both keeps this one as &apos;{local?.name} ({short} copy)&apos;.
+          </div>
+          <div className="row" style={{ marginTop: '10rem' }}>
+            <Button size="small" testId="btn-keep-mine" disabled={busy} onClick={() => void choose('mine')}>Keep This Copy</Button>
+            <Button size="small" testId="btn-use-dropbox" disabled={busy || !remote} onClick={() => void choose('theirs')}>Use Dropbox Copy</Button>
+          </div>
+          <Button size="small" testId="btn-keep-both" disabled={busy || !remote} onClick={() => void choose('both')}>Keep Both</Button>
+        </>
+      )}
+      {info && kind === 'newer' && (
+        <>
+          <Title>A newer Blockfell saved this world</Title>
+          <div className="gray" style={{ maxWidth: '330rem', textAlign: 'center', whiteSpace: 'normal' }}>
+            {remote ? `'${remote.world.name}' was saved by Blockfell ${remote.gameVersion}${remote.savedBy ? ` on ${remote.savedBy}` : ''}. ` : ''}
+            This {short} has Blockfell {GAME_VERSION}. Update Blockfell here to carry on with the latest copy.
+          </div>
+          <Button testId="btn-update-blockfell" disabled={busy} onClick={() => void update()}>Update Blockfell</Button>
+        </>
+      )}
+      {note && <div className="yellow" data-testid="sync-note" style={{ maxWidth: '320rem', textAlign: 'center', whiteSpace: 'normal' }}>{note}</div>}
+      <Button size="small" testId="btn-sync-cancel" onClick={close}>Cancel</Button>
+    </div>
+  );
+}
+
+const NOT_HERE: Record<string, string> = {
+  file: 'Dropbox sync works when Blockfell is opened from its web address (https://avizent.github.io/blockfell/), not from a file. Worlds in a file copy stay on this computer: use Export World to move them.',
+  embedded: 'Dropbox sync is not available inside this page. Open Blockfell from its web address: https://avizent.github.io/blockfell/',
+  insecure: 'Dropbox sync needs a secure (https) web address.',
+  nocrypto: 'This browser is too old for Dropbox sync.',
+};
+
+/** Options for Dropbox sync: link, unlink, sync now, and worlds kept in Dropbox only. */
+export function CloudScreen() {
+  const c = useStore(ui, (s) => s.cloud);
+  const ret = useStore(ui, (s) => s.cloudReturn);
+  const [key, setKey] = useState('');
+  const [codeUrl, setCodeUrl] = useState('');
+  const [code, setCode] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { void engine.cloud.refreshUi(); }, []);
+  const back = () => ui.set((s) => ({ screen: ret, worldsVersion: s.worldsVersion + 1 }));
+  const run = async (fn: () => Promise<void>) => {
+    setErr(''); setBusy(true);
+    try { await fn(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
+  const linkCode = () => run(async () => {
+    const url = await engine.cloud.dbx.beginCodeLink();
+    setCodeUrl(url);
+    window.open(url, '_blank', 'noopener');
+  });
+  const finishCode = () => run(async () => {
+    await engine.cloud.dbx.finishCodeLink(code);
+    await engine.cloud.onLinked();
+    setCodeUrl(''); setCode('');
+    await engine.cloud.syncAll();
+  });
+  const text = { maxWidth: '330rem', textAlign: 'center' as const, whiteSpace: 'normal' as const };
+  let body: ReactNode;
+  if (!c.available) {
+    body = <div className="gray" style={text} data-testid="cloud-unavailable">{NOT_HERE[c.why] ?? 'Dropbox sync is not available here.'}</div>;
+  } else if (!c.hasKey) {
+    body = (
+      <>
+        <div className="gray" style={text}>One-time setup: paste the App key of your Blockfell app from the Dropbox App Console (see the guide, &apos;Dropbox sync&apos;).</div>
+        <input className="field" data-testid="dropbox-app-key" placeholder="App key" value={key} onChange={(e) => setKey(e.target.value)} style={{ width: '200rem' }} />
+        <Button size="small" testId="btn-save-app-key" disabled={!/^[a-z0-9]{8,32}$/i.test(key.trim())} onClick={() => { engine.cloud.dbx.setAppKey(key); void engine.cloud.refreshUi(); }}>Save</Button>
+      </>
+    );
+  } else if (!c.linked) {
+    body = (
+      <>
+        {c.relink && <div className="yellow" style={text} data-testid="cloud-relink">The link to Dropbox has expired or was switched off. Link again to carry on syncing.</div>}
+        <div className="gray" style={text}>
+          Keep your worlds in your Dropbox so you can carry on playing on another device, such as a Mac and an iPad.
+          Blockfell only gets its own folder (Dropbox &gt; Apps &gt; Blockfell); it never sees the rest of your Dropbox.
+        </div>
+        {!codeUrl && !c.builtInKey && (
+          <div className="tip">App key: {engine.cloud.dbx.appKey} <a className="yellow" href="#" data-testid="btn-change-key" onClick={(e) => { e.preventDefault(); engine.cloud.dbx.setAppKey(''); void engine.cloud.refreshUi(); }}>change</a></div>
+        )}
+        {!codeUrl && (
+          <div className="row" style={{ marginTop: '8rem' }}>
+            <Button size="small" testId="btn-link-dropbox" disabled={busy} onClick={() => void run(() => engine.cloud.dbx.beginLink())}>Link to Dropbox</Button>
+            <Button size="small" testId="btn-link-code" disabled={busy} onClick={() => void linkCode()}>Link With a Code...</Button>
+          </div>
+        )}
+        {codeUrl && (
+          <>
+            <div className="gray" style={text}>Dropbox has opened in another tab (or <a href={codeUrl} target="_blank" rel="noopener" className="yellow">open it here</a>). Choose Allow, copy the code it shows, come back and paste it here:</div>
+            <input className="field" data-testid="dropbox-code" placeholder="Code from Dropbox" value={code} onChange={(e) => setCode(e.target.value)} style={{ width: '220rem' }} />
+            <div className="row">
+              <Button size="small" testId="btn-finish-code" disabled={busy || code.trim().length < 8} onClick={() => void finishCode()}>Finish Linking</Button>
+              <Button size="small" onClick={() => { setCodeUrl(''); setCode(''); }}>Back</Button>
+            </div>
+          </>
+        )}
+      </>
+    );
+  } else {
+    body = (
+      <>
+        <div className="shadow" data-testid="cloud-account">Linked to {c.account || 'your Dropbox'}</div>
+        <div className="tip" data-testid="cloud-state" style={{ ...text, color: c.relink || c.message ? '#ffcc55' : undefined }}>{CloudSync.summary(c)}</div>
+        <div className="gray" style={text}>
+          Your worlds are kept in Dropbox &gt; Apps &gt; Blockfell. They sync when you open the world list, every 2 minutes while you play,
+          when you switch away from Blockfell and when you Save and Quit. Link this Dropbox on your other devices too.
+        </div>
+        {c.remoteOnly.length > 0 && (
+          <div className="col" style={{ gap: '3rem', marginTop: '4rem' }} data-testid="cloud-remote-only">
+            <div className="shadow">In Dropbox, not on this device:</div>
+            {c.remoteOnly.map((r) => (
+              <div key={r.id} className="row" style={{ alignItems: 'center', gap: '6rem' }}>
+                <span className="gray">{r.name} · {formatDate(r.lastPlayed)}{r.newer ? ` · needs Blockfell ${r.newer}` : ''}</span>
+                <Button size="third" testId="btn-download-world" disabled={busy || !!r.newer} onClick={() => void run(async () => {
+                  const out = await engine.cloud.downloadWorld(r.id);
+                  if (out === 'downloaded') pushToast({ kind: 'info', icon: 'chest', title: 'World downloaded', desc: r.name });
+                  else if (out === 'offline') setErr('Dropbox could not be reached');
+                })}>Download</Button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="row" style={{ marginTop: '8rem' }}>
+          <Button size="small" testId="btn-sync-now" disabled={busy || c.busy} onClick={() => void run(() => engine.cloud.syncAll())}>{c.busy ? 'Syncing...' : 'Sync Now'}</Button>
+          <Button size="small" testId="btn-unlink-dropbox" disabled={busy} onClick={() => void run(() => engine.cloud.unlink())}>Unlink</Button>
+        </div>
+      </>
+    );
+  }
+  return (
+    <div className="screen dirt-bg" data-testid="cloud-screen">
+      <div className="menu-header"><Title>Dropbox Sync</Title></div>
+      <div className="col" style={{ flex: 1, gap: '6rem', justifyContent: 'center', overflowY: 'auto', width: '100%' }}>
+        {body}
+        {err && <div className="yellow" style={text} data-testid="cloud-error">{err}</div>}
+      </div>
+      <div className="menu-footer"><Button testId="btn-cloud-done" onClick={back}>Done</Button></div>
     </div>
   );
 }

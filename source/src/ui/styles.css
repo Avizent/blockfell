@@ -182,6 +182,10 @@ body {
 .world-entry .thumb { width: 32rem; height: 32rem; flex-shrink: 0; image-rendering: pixelated; background-size: cover; }
 .world-entry .meta { display: flex; flex-direction: column; overflow: hidden; }
 .world-entry .meta div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 11rem; }
+.world-entry.with-cloud { height: 46rem; }
+.world-entry .meta .cloud-line { font-size: 8rem; line-height: 11rem; color: var(--muted); }
+.world-entry .meta .cloud-line.synced { color: #8fd16a; }
+.world-entry .meta .cloud-line.warn { color: #ffcc55; }
 
 .update-banner {
   position: absolute; top: calc(4rem + env(safe-area-inset-top)); right: calc(4rem + env(safe-area-inset-right)); z-index: 20;
@@ -472,3 +476,28 @@ html.touch .chat { bottom: max(40rem, 170px); left: calc(2rem + env(safe-area-in
 html.touch .hotbar-wrap, html.touch .tc-hotbar { bottom: calc(env(safe-area-inset-bottom) * 0.6); }
 /* drags on these never scroll the page (a finger dragging a slider or an item) */
 .slider, .slot, .tab, .scrollbar-thumb, .overlay-dim, .panel { touch-action: none; }
+
+/* ---- 1.8 village life: villager info card, map compass, map screen */
+.villager-card { position: absolute; left: 50%; transform: translateX(-50%); background: rgba(20, 14, 8, 0.62); border: 1rem solid rgba(255, 236, 190, 0.28);
+  padding: 3rem 7rem 4rem; text-align: center; pointer-events: none; min-width: 110rem; line-height: 10rem; }
+.villager-card .vc-name { color: #ffe9a8; font-size: 10rem; line-height: 12rem; text-shadow: 1rem 1rem 0 #3a2a10; }
+.villager-card .vc-title { color: #e8e2d4; }
+.villager-card .vc-line { color: #bdb6a8; font-size: 7rem; line-height: 9rem; }
+.villager-card .vc-honoured { color: #8fe07a; } .villager-card .vc-friendly { color: #b8e07a; }
+.villager-card .vc-distrustful { color: #f0b060; } .villager-card .vc-hostile { color: #ff7060; }
+.map-compass { position: absolute; left: 4rem; top: 4rem; display: flex; gap: 5rem; align-items: center; pointer-events: none;
+  background: rgba(40, 30, 16, 0.55); border: 1rem solid rgba(226, 210, 168, 0.45); padding: 3rem 6rem 3rem 3rem; }
+.map-compass .mc-dial { width: 22rem; height: 22rem; border-radius: 50%; background: #e2d2a8; border: 1rem solid #705434; position: relative; }
+.map-compass .mc-arrow { position: absolute; left: 50%; top: 50%; width: 0; height: 0; margin-left: -4rem; margin-top: -8rem;
+  border-left: 4rem solid transparent; border-right: 4rem solid transparent; border-bottom: 14rem solid #b4201a; transform-origin: 4rem 8rem; }
+.map-compass .mc-here { position: absolute; inset: 0; text-align: center; line-height: 20rem; color: #b4201a; font-size: 12rem; }
+.map-compass .mc-text { color: #f4ecd8; font-size: 7rem; line-height: 9rem; text-shadow: 1rem 1rem 0 #2a1e10; }
+.map-compass .mc-label { color: #ffe9a8; font-size: 8rem; }
+.map-screen-panel { position: relative; background: #e6d6ac; border: 2rem solid #705434; padding: 6rem; display: flex; flex-direction: column; align-items: center; gap: 4rem;
+  box-shadow: 0 0 0 1rem #3a2a16; color: #4a3420; }
+.map-screen-panel canvas { image-rendering: pixelated; }
+.map-screen-panel .ms-title { font-size: 10rem; color: #5a3a1c; }
+.map-screen-panel .ms-sub { font-size: 7rem; color: #7a5a38; }
+.map-screen-panel .ms-you { position: absolute; width: 6rem; height: 6rem; margin: -3rem 0 0 -3rem; background: #ffffff; border: 1rem solid #2a2a2a; transform: rotate(45deg); }
+/* (on a phone the Pause button sits in the top-left corner: the map compass moves over) */
+html.touch .map-compass { left: calc(62px + env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top)); }

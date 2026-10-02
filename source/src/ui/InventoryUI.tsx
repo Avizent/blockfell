@@ -484,8 +484,8 @@ export function TradeScreen() {
             );
           })}
         </div>
-        <div className="label" style={{ position: 'absolute', left: '112rem', top: '5rem' }} data-testid="trade-title">
-          {PROFESSION_NAMES[v.job]} - {LEVEL_NAMES[lvl - 1]}
+        <div className="label" style={{ position: 'absolute', left: '112rem', top: '5rem', width: '160rem', whiteSpace: 'nowrap', overflow: 'hidden', fontSize: `${v.name.length + LEVEL_NAMES[lvl - 1].length + PROFESSION_NAMES[v.job].length > 24 ? 7 : 8}rem` }} data-testid="trade-title">
+          {v.name}, {LEVEL_NAMES[lvl - 1]} {PROFESSION_NAMES[v.job]}
         </div>
         <div className="trade-xp" style={{ left: '112rem', top: '17rem', width: '100rem' }}><div style={{ width: `${Math.round(Math.max(0, Math.min(1, xpFrac)) * 100)}rem` }} /></div>
         <div className="label" style={{ position: 'absolute', left: '112rem', top: '27rem', fontSize: '7rem', lineHeight: '10rem', width: '158rem' }}>
@@ -496,7 +496,11 @@ export function TradeScreen() {
               <div style={{ color: '#555' }}>{hov.uses >= hov.maxUses ? 'Sold out until restocked' : `${hov.maxUses - hov.uses} left`}</div>
             </>
           ) : <div style={{ color: '#555' }}>Hover over an offer to see it. Click to trade.</div>}
-          {disc > 0 && <div style={{ color: '#2f7a1f' }}>Hero of the Village: {Math.round(disc * 100)}% off</div>}
+          {disc !== 0 && (
+            <div style={{ color: disc > 0 ? '#2f7a1f' : '#9a2a1a' }} data-testid="trade-standing">
+              {g.villages.name(v.villageId)} sees you as {g.villages.standing(v.villageId).name}: prices {Math.round(Math.abs(disc) * 100)}% {disc > 0 ? 'lower' : 'higher'}
+            </div>
+          )}
         </div>
         <div className="label" style={{ position: 'absolute', left: '112rem', top: '72rem' }}>Inventory</div>
         <PlayerSlots c={c} y={83} x={109} />
