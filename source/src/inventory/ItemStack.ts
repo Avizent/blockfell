@@ -9,6 +9,18 @@ export interface ItemStack {
   damage?: number;
   /** Runes inscribed at a Rune Table: rune id -> rank. */
   ench?: Record<string, number>;
+  /** Explorer maps (1.8): the place the map leads to. */
+  map?: MapTarget;
+}
+
+/** Where an explorer map leads (a dungeon, a ruin or another village). */
+export interface MapTarget {
+  kind: 'dungeon' | 'ruin' | 'village';
+  x: number; y: number; z: number;
+  /** The village a map leads to, or the village whose Mapmaker drew it. */
+  name?: string;
+  /** Set once the player has reached the spot. */
+  found?: boolean;
 }
 
 export type Slot = ItemStack | null;
@@ -20,7 +32,7 @@ export function makeStack(id: string, count = 1, damage?: number): ItemStack {
 }
 
 export function cloneStack(s: Slot): Slot {
-  return s ? { ...s, ...(s.ench ? { ench: { ...s.ench } } : {}) } : null;
+  return s ? { ...s, ...(s.ench ? { ench: { ...s.ench } } : {}), ...(s.map ? { map: { ...s.map } } : {}) } : null;
 }
 
 function sameRunes(a: ItemStack, b: ItemStack): boolean {
@@ -32,5 +44,5 @@ function sameRunes(a: ItemStack, b: ItemStack): boolean {
 
 /** Two stacks can merge if they are the same item with no per-item state. */
 export function stacksMatch(a: Slot, b: Slot): boolean {
-  return !!a && !!b && a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && sameRunes(a, b);
+  return !!a && !!b && a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && sameRunes(a, b) && !a.map && !b.map;
 }

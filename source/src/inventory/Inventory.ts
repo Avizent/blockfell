@@ -1,3 +1,4 @@
+import type { MapTarget } from './ItemStack';
 import { ItemStack, Slot, cloneStack, makeStack, stacksMatch } from './ItemStack';
 import { wearChance } from './Enchantments';
 import { getItem, maxStackOf } from './ItemRegistry';
@@ -72,7 +73,7 @@ export class Container {
     if (!data) return;
     for (let i = 0; i < this.slots.length; i++) {
       const s = data[i];
-      this.slots[i] = s && s.id && s.count > 0 ? { id: s.id, count: s.count, ...(s.damage ? { damage: s.damage } : {}), ...(cleanRunes(s.ench) ?? {}) } : null;
+      this.slots[i] = s && s.id && s.count > 0 ? { id: s.id, count: s.count, ...(s.damage ? { damage: s.damage } : {}), ...(cleanRunes(s.ench) ?? {}), ...(cleanMap(s.map) ?? {}) } : null;
     }
     this.changed();
   }
@@ -84,6 +85,15 @@ function cleanRunes(e: unknown): { ench: Record<string, number> } | undefined {
   const out: Record<string, number> = {};
   for (const [k, v] of Object.entries(e as Record<string, unknown>)) if (typeof v === 'number' && v > 0) out[k] = Math.min(3, Math.floor(v));
   return Object.keys(out).length ? { ench: out } : undefined;
+}
+
+/** Validated copy of a saved explorer map's target (1.8). */
+function cleanMap(m: unknown): { map: MapTarget } | undefined {
+  if (!m || typeof m !== 'object') return undefined;
+  const o = m as Record<string, unknown>;
+  if (o.kind !== 'dungeon' && o.kind !== 'ruin' && o.kind !== 'village') return undefined;
+  if (![o.x, o.y, o.z].every((v) => typeof v === 'number' && Number.isFinite(v))) return undefined;
+  return { map: { kind: o.kind, x: o.x as number, y: o.y as number, z: o.z as number, ...(typeof o.name === 'string' ? { name: o.name.slice(0, 40) } : {}), ...(o.found === true ? { found: true } : {}) } };
 }
 
 const range = (a: number, b: number) => Array.from({ length: b - a }, (_, i) => a + i);

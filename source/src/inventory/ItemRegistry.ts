@@ -129,6 +129,14 @@ blockItem('flower_white', 'natural');
 // ---- 1.7 lava and dungeons
 blockItem('cinderstone', 'building');
 blockItem('spawner', 'functional', { maxStack: 16 });
+// ---- 1.8 village life
+blockItem('bell', 'functional');
+blockItem('map_table', 'functional', { fuel: 300 });
+add({ id: 'dungeon_map', name: 'Dungeon Map', maxStack: 1, category: 'tools' });
+add({ id: 'ruin_map', name: 'Ruin Map', maxStack: 1, category: 'tools' });
+add({ id: 'village_map', name: 'Village Map', maxStack: 1, category: 'tools' });
+/** Explorer maps: hold one to see which way to go; right-click to look at it. */
+export const MAP_ITEMS: Record<string, 'dungeon' | 'ruin' | 'village'> = { dungeon_map: 'dungeon', ruin_map: 'ruin', village_map: 'village' };
 
 // ---- ingredients
 add({ id: 'stick', name: 'Stick', category: 'ingredients', fuel: 100 });
