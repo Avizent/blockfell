@@ -17,7 +17,7 @@ export const RENDER_WALL_TORCH = 6; // torch leaning out of a wall
 export type ToolType = 'pickaxe' | 'axe' | 'shovel' | 'sword' | null;
 export type SoundType = 'stone' | 'wood' | 'grass' | 'gravel' | 'sand' | 'glass' | 'wool' | 'snow';
 export type Facing = 'n' | 'e' | 's' | 'w';
-export type Interaction = 'crafting' | 'furnace' | 'chest' | 'runes' | 'door' | 'bed' | 'gate' | 'trapdoor' | 'sign' | 'pot' | null;
+export type Interaction = 'crafting' | 'furnace' | 'chest' | 'runes' | 'door' | 'bed' | 'gate' | 'trapdoor' | 'sign' | 'pot' | 'bell' | null;
 export type Shape = 'slab' | 'stairs' | 'door' | 'bed' | 'wall_torch'
   | 'fence' | 'pane' | 'gate' | 'ladder' | 'trapdoor' | 'sign' | 'wall_sign' | 'lantern' | 'pot' | null;
 
@@ -494,7 +494,8 @@ export const PATH = reg('path', 'Village Path', {
 export const HAY_BALE = reg('hay_bale', 'Hay Bale', { top: 'hay_top', side: 'hay_side', hardness: 0.5, sound: 'grass' }).id;
 
 // ---- villager workstations (each one gives a villager its job)
-export type Profession = 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher';
+export type Profession = 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker';
+/** (The Mapmaker, 1.8, is added with its Map Table further down.) */
 export const PROFESSIONS: Profession[] = ['farmer', 'smith', 'mason', 'scribe', 'fletcher'];
 export const GRAIN_BIN = reg('grain_bin', 'Grain Bin', {
   top: 'grain_bin_top', side: 'grain_bin_side', bottom: 'planks', hardness: 2, tool: 'axe', sound: 'wood',
@@ -511,9 +512,9 @@ export const SCRIBE_DESK = reg('scribe_desk', "Scribe's Desk", {
 export const FLETCHING_BENCH = reg('fletching_bench', 'Fletching Bench', {
   top: 'fletch_top', side: 'fletch_side', bottom: 'planks', hardness: 2.5, tool: 'axe', sound: 'wood',
 }).id;
-export const WORKSTATION: Record<Profession, number> = {
+export const WORKSTATION = {
   farmer: GRAIN_BIN, smith: FORGE, mason: MASON_BENCH, scribe: SCRIBE_DESK, fletcher: FLETCHING_BENCH,
-};
+} as Record<Profession, number>;
 export function professionOfBlock(id: number): Profession | null {
   for (const p of PROFESSIONS) if (WORKSTATION[p] === id) return p;
   return null;
@@ -675,6 +676,31 @@ export const SPAWNER = reg('spawner', 'Monster Cage', {
   tex: 'spawner', opaque: false, cutout: true, lightOpacity: 1, hardness: 5, tool: 'pickaxe', requiresTool: true,
   drops: [], xp: [15, 43],
 }).id;
+
+// ======================================================================
+// Version 1.8 blocks: village life. Appended only.
+// ======================================================================
+/**
+ * Village Bell: a bronze bell hanging from a little wooden frame. Ringing it sends
+ * the villagers indoors and shows up nearby monsters. Villagers gather round it at
+ * midday. (New villages have one on the well; it can be crafted and put anywhere.)
+ */
+const BELL_WOOD = ['log_side', 'log_side', 'log_top', 'log_top', 'log_side', 'log_side'];
+const BELL_BEAM = ['planks', 'planks', 'planks', 'planks', 'planks', 'planks'];
+const BELL_IRON = ['bell_mount', 'bell_mount', 'bell_mount', 'bell_mount', 'bell_mount', 'bell_mount'];
+export const BELL = reg('bell', 'Village Bell', {
+  tex: 'bell', render: RENDER_MODEL, opaque: false, lightOpacity: 0, hardness: 3, tool: 'pickaxe', sound: 'stone',
+  interact: 'bell',
+  model: [1, 0, 6, 3, 16, 10, 13, 0, 6, 15, 16, 10, 3, 14, 7, 13, 16, 9, 7, 12, 7, 9, 14, 9, 5, 5, 5, 11, 12, 11, 4, 3, 4, 12, 5, 12],
+  modelFaces: [BELL_WOOD, BELL_WOOD, BELL_BEAM, BELL_IRON, null, null],
+  collision: [1, 0, 1, 15, 16, 15],
+}).id;
+/** Map Table: the Mapmaker's workstation. */
+export const MAP_TABLE = reg('map_table', 'Map Table', {
+  top: 'map_table_top', side: 'map_table_side', bottom: 'planks', hardness: 2.5, tool: 'axe', sound: 'wood',
+}).id;
+WORKSTATION.mapmaker = MAP_TABLE;
+PROFESSIONS.push('mapmaker');
 
 export const BLOCK_COUNT = defs.length;
 export const BLOCKS: ReadonlyArray<BlockDef> = defs;

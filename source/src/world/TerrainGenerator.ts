@@ -10,7 +10,8 @@ import {
 } from './BiomeSystem';
 
 /** Newest terrain version. Worlds remember theirs so saved landscapes never change. */
-export const GEN_VERSION = 5;
+/** (5 = 1.7 lava and dungeons; 6 = 1.8 a Village Bell on the well and a Mapmaker in new villages.) */
+export const GEN_VERSION = 6;
 
 export interface GenOptions {
   structures: boolean;
@@ -574,6 +575,16 @@ export class TerrainGenerator {
         blocks[i] = B.TALL_GRASS;
       }
     }
+  }
+
+  /** Could this chunk hold a ruin? (The cheap first test of placeRuin: 1 chunk in 42.) */
+  ruinCandidate(cx: number, cz: number): boolean {
+    return this.opts.structures && hashFloat(this.seed, cx, cz, 0x5a1) < 1 / 42;
+  }
+
+  /** Are structures (villages, ruins, dungeons) generated in this world? */
+  get structures(): boolean {
+    return this.opts.structures;
   }
 
   /** Small abandoned cobblestone ruin with a loot chest ("Generate Structures"). */

@@ -71,6 +71,11 @@ export function placeLavaLake(seed: number, cx: number, cz: number, blocks: Uint
   return true;
 }
 
+/** Can this chunk hold a dungeon at all? (The cheap first test of placeDungeon: 1 chunk in 5.) */
+export function dungeonCandidate(seed: number, cx: number, cz: number): boolean {
+  return mulberry32(hash4(seed, cx, cz, 0xd0d6e))() < 0.2;
+}
+
 /** A dungeon room (maybe). Returns the room's centre if one was placed. */
 export function placeDungeon(seed: number, cx: number, cz: number, blocks: Uint8Array, minSurface: number,
   containers: GeneratedContainer[], spawners: GeneratedSpawner[]): { x: number; y: number; z: number } | null {

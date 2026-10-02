@@ -231,6 +231,8 @@ export class VillagePlanner {
 
     // plots along both sides of each street
     const jobs: Profession[] = ['farmer', 'smith', 'mason', 'scribe', 'fletcher', 'farmer'];
+    // terrain version 6 (1.8): villages have a Mapmaker too
+    if ((this.gen.version ?? 0) >= 6) jobs.push('mapmaker');
     jobs.sort(() => rng() - 0.5);
     let farms = 0, houses = 0;
     for (const a of arms) {
@@ -370,6 +372,8 @@ export class VillagePlanner {
         }
         for (const [lx, lz] of [[0, 0], [4, 0], [0, 4], [4, 4]]) { put(lx, 1, lz, pal.post); put(lx, 2, lz, pal.post); }
         for (let lz = 0; lz < 5; lz++) for (let lx = 0; lx < 5; lx++) put(lx, 3, lz, pal.wellSlab);
+        // terrain version 6 (1.8): the Village Bell, set in the middle of the well's roof
+        if ((this.gen.version ?? 0) >= 6) put(2, 3, 2, B.BELL);
         break;
       }
       case 'lamp': {
