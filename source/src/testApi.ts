@@ -1,3 +1,4 @@
+import { toWorld } from './world/Villages';
 import { rollCatch } from './entities/Fishing';
 import { checkForUpdate, BUILD_ID } from './engine/offline';
 import { engine } from './engine/Engine';
@@ -183,6 +184,33 @@ export function exposeTestApi(): void {
       }
       const px = g.player.x, pz = g.player.z;
       return out.sort((a, b) => Math.hypot(a.x - px, a.z - pz) - Math.hypot(b.x - px, b.z - pz));
+    },
+    /** 1.8: the villages near the player, with their saved state. */
+    villages(margin = 200) {
+      const g = engine.game;
+      if (!g || !g.world.generator.villages) return [];
+      const p = g.player;
+      return g.world.generator.villages.near(p.x, p.z, margin).map((plan) => ({
+        id: plan.id, name: g.villages.name(plan.id), x: plan.x, y: plan.y, z: plan.z, radius: plan.radius,
+        beds: plan.buildings.filter((b) => b.bed).length, farms: plan.buildings.filter((b) => b.kind === 'farm').length,
+        state: { ...(g.villages.states.get(plan.id) ?? {}) }, bell: g.villages.bellOf(plan), meeting: g.villages.meetingPoint(plan.id),
+      }));
+    },
+    /** 1.8: the field cells (crop height) of a village's farms. */
+    farmCells(id: string) {
+      const g = engine.game;
+      const plan = g?.villages.plan(id);
+      if (!plan) return [];
+      const out: [number, number, number][] = [];
+      for (const b of plan.buildings) {
+        if (b.kind !== 'farm') continue;
+        for (let lz = 1; lz < b.d - 1; lz++) for (let lx = 1; lx < b.w - 1; lx++) {
+          if (lz === (b.d >> 1)) continue;      // the water channel
+          const [x, z] = toWorld(b, lx, lz);
+          out.push([x, b.y + 1, z]);
+        }
+      }
+      return out;
     },
     spawnerInfo() {
       const g = engine.game;
