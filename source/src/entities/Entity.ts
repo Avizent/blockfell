@@ -44,7 +44,7 @@ export interface EntityHost {
   onArrowHit(): void;
   /** Plunder rune level of the player's held weapon (extra creature drops). */
   plunderLevel(): number;
-  onMobKilled(type: string, byPlayer: boolean): void;
+  onMobKilled(type: string, byPlayer: boolean, mob?: Mob): void;
   spawnItem(stack: ItemStack, x: number, y: number, z: number, throwVel?: [number, number, number]): void;
   spawnXp(value: number, x: number, y: number, z: number): void;
   spawnArrow(x: number, y: number, z: number, vx: number, vy: number, vz: number, fromPlayer: boolean, damage: number, shooter?: Mob | null): void;
@@ -61,8 +61,21 @@ export interface EntityHost {
   isClaimed(x: number, y: number, z: number, by: Entity): boolean;
   /** Villager hurt by the player: nearby Sentinels turn on the player. */
   alertSentinels(x: number, z: number): void;
-  /** Hero-of-the-village discount (0..1) for a villager's village. */
+  /** Price discount (-0.3..0.3) from the player's standing in a villager's village. */
   discount(villageId: string | null): number;
+  // ---- village life (1.8)
+  /** The player's standing in a village (-100..100). */
+  villageStanding?(villageId: string | null): number;
+  /** Where the village meets at midday (its bell, or its well). */
+  meetingPoint?(villageId: string | null): { x: number; y: number; z: number } | null;
+  /** The player hurt (or killed) a villager or a Sentinel. */
+  folkHurt?(m: Mob, villageId: string | null, killed: boolean): void;
+  /** A villager died (for the message saying who it was). */
+  villagerDied?(v: Mob, byPlayer: boolean, killer: Mob | null): void;
+  /** A harvest (or a gift) for the village food store. */
+  addVillageFood?(villageId: string | null, n: number): void;
+  /** A villager child has grown up. */
+  villagerGrewUp?(v: Mob): void;
   // ---- companions
   /** What the player's companions should fight: whatever the player hit or was hit by lately. */
   ownerFightTarget(): Mob | null;

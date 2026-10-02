@@ -5,7 +5,7 @@ import { BuiltModel, PartDef, buildModel } from './BoxModel';
  * feet centre is the origin and it faces +Z.
  */
 export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound';
-export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher';
+export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker';
 
 const quad = (name: string, x: number, z: number, h: number, w: number, base: string, paint?: PartDef['paint']): PartDef => ({
   name, size: [w, h, w], pivot: [x, h, z], from: [-w / 2, -h, -w / 2], base, paint,
@@ -241,6 +241,7 @@ function villager(look: VillagerLook): PartDef[] {
     mason: { skin: '#dcae88', tunic: '#8f8f8a', trim: '#4d6a92', pants: '#5a5650', hair: '#8a8580' },
     scribe: { skin: '#e8c0a0', tunic: '#6b4a8f', trim: '#d8b04a', pants: '#3e2d52', hair: '#c8c4bc' },
     fletcher: { skin: '#d7a27a', tunic: '#7a5a3a', trim: '#3f6b3a', pants: '#4a4034', hair: '#a0522d' },
+    mapmaker: { skin: '#e0b090', tunic: '#2f6670', trim: '#d8c48a', pants: '#3a3f48', hair: '#6a4a2a' },
   };
   const o = outfit[look];
   const extra: PartDef[] = [];
@@ -258,6 +259,7 @@ function villager(look: VillagerLook): PartDef[] {
     p.px('front', 3, 6, '#8a4a3a', 2, 1);                                          // mouth
     if (look === 'smith') p.px('front', 1, 6, '#2e241e', 6, 2);                    // beard
     if (look === 'scribe') { p.px('front', 1, 3, '#caa84a', 2, 1); p.px('front', 5, 3, '#caa84a', 2, 1); p.px('front', 3, 3, '#caa84a', 2, 1); } // spectacles
+    if (look === 'mapmaker') { p.px('front', 5, 2, '#c9a640', 3, 3); p.px('front', 6, 3, '#ffffff'); p.px('front', 7, 5, '#c9a640', 1, 2); } // monocle on a chain
   };
   const tunic = (p: FacePainterLike) => {
     p.px('front', 0, 7, o.trim, 8, 1); p.px('back', 0, 7, o.trim, 8, 1);            // belt
@@ -285,6 +287,13 @@ function villager(look: VillagerLook): PartDef[] {
     extra.push({ name: 'hood', size: [9, 4, 9], pivot: [0, 0, 0], from: [-4.5, 6, -4.5], base: o.tunic, parent: 'head',
       paint: (p) => { p.px('front', 0, 3, o.trim, 9, 1); } });
     extra.push({ name: 'hoodTip', size: [5, 3, 5], pivot: [0, 0, 0], from: [-2.5, 10, -3], base: o.tunic, parent: 'head' });
+  } else if (look === 'mapmaker') {
+    // a broad felt hat with a brass band, and a map case slung on the back
+    extra.push({ name: 'brim', size: [10, 1, 10], pivot: [0, 0, 0], from: [-5, 7, -5], base: '#2b3a40', parent: 'head' });
+    extra.push({ name: 'crown', size: [8, 3, 8], pivot: [0, 0, 0], from: [-4, 8, -4], base: '#34474e', parent: 'head',
+      paint: (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 2, '#c9a640', 8, 1); } });
+    extra.push({ name: 'mapCase', size: [3, 11, 3], pivot: [0, 24, -2], from: [-1.5, -12, -2], base: '#7a5230', parent: 'body',
+      paint: (p) => { p.px('back', 0, 0, '#d8c48a', 3, 1); p.px('back', 0, 10, '#d8c48a', 3, 1); } });
   } else if (look === 'fletcher') {
     extra.push({ name: 'hood', size: [9, 3, 9], pivot: [0, 0, 0], from: [-4.5, 7, -4.5], base: o.trim, parent: 'head' });
     extra.push({ name: 'feather', size: [1, 5, 2], pivot: [0, 0, 0], from: [3, 9, -2], base: '#f4f4f0', parent: 'head',

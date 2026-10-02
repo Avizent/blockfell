@@ -96,6 +96,9 @@ export class Mob extends Entity implements Hurtable {
   protected parts: Map<string, THREE.Object3D>;
   protected material: THREE.MeshLambertMaterial;
   protected bow: THREE.Object3D | null = null;
+  /** 1.8: ticks left glowing (a village bell was rung nearby): bright, and seen through walls. */
+  glowTicks = 0;
+  private glowing = false;
 
   constructor(type: MobType, host?: EntityHost, model?: BuiltModel) {
     super();
@@ -133,6 +136,7 @@ export class Mob extends Entity implements Hurtable {
     this.object.add(inst.root);
     this.parts = inst.parts;
     this.material = inst.material;
+    this.glowing = false;
   }
 
   /** How strongly knockback moves this creature (0..1). */
@@ -212,7 +216,7 @@ export class Mob extends Entity implements Hurtable {
   protected die(host: EntityHost, byPlayer: boolean): void {
     this.deathTime = 1;
     host.sound(this.spec.sound + '_death', this.x, this.y + 0.5, this.z, 0.7, 1);
-    host.onMobKilled(this.mobType, byPlayer);
+    host.onMobKilled(this.mobType, byPlayer, this);
     if (!byPlayer && !this.spec.hostile) return;
     for (const [item, min, max, chance] of this.spec.drops) {
       if (chance !== undefined && Math.random() > chance) continue;
@@ -260,6 +264,7 @@ export class Mob extends Entity implements Hurtable {
     if (this.hurtTime > 0) this.hurtTime--;
     if (this.invulnerable > 0) this.invulnerable--;
     if (this.attackAnim > 0) this.attackAnim--;
+    if (this.glowTicks > 0) this.glowTicks--;
     if (this.deathTime === 0) this.tickFire(host);
     if (this.deathTime > 0) {
       this.deathTime++;
@@ -503,6 +508,17 @@ export class Mob extends Entity implements Hurtable {
     const b = host.brightnessAt(this.x, this.y + this.height * 0.7, this.z);
     tmpColor.setScalar(b);
     if (this.hurtTime > 0 || this.deathTime > 0) tmpColor.setRGB(Math.min(1, b * 1.4 + 0.3), b * 0.45, b * 0.45);
+    // glowing (1.8): lit up and drawn over walls, so the player can see where it lurks
+    const glow = this.glowTicks > 0 && this.deathTime === 0;
+    if (glow !== this.glowing) {
+      this.glowing = glow;
+      this.material.depthTest = !glow;
+      this.material.transparent = glow;
+      this.material.opacity = glow ? 0.85 : 1;
+      this.object.traverse((o) => { o.renderOrder = glow ? 20 : 0; });
+      this.material.needsUpdate = true;
+    }
+    if (glow) tmpColor.setRGB(Math.max(b, 0.95), Math.max(b, 0.92) * 0.95, Math.max(b, 0.7) * 0.75);
     this.material.color.copy(tmpColor);
   }
 
