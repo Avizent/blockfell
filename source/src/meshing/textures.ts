@@ -247,6 +247,59 @@ function spawnerCage(rng: () => number): PixelTex {
   return t;
 }
 
+/** Village Bell (1.8): cast bronze, darker towards the rim, with a bright vertical highlight. */
+function bellBronze(rng: () => number): PixelTex {
+  const t = new PixelTex();
+  const n = tileNoise(rng, 4);
+  for (let y = 0; y < TEX; y++) for (let x = 0; x < TEX; x++) {
+    const band = x % 6 === 2 ? 1.28 : x % 6 === 3 ? 1.12 : x % 6 === 5 ? 0.82 : 1;
+    const rim = y >= 13 ? 0.78 : y === 12 ? 1.18 : 1;
+    const f = band * rim * (0.92 + n[y * TEX + x] * 0.16) * (1 + (rng() - 0.5) * 0.06);
+    t.set(x, y, shade([196, 148, 62], f));
+  }
+  return t;
+}
+
+/** The dark iron yoke the bell hangs from. */
+function bellMount(rng: () => number): PixelTex {
+  const t = noisy([70, 72, 80], rng, 0.05, 4, 0.08);
+  for (let x = 0; x < TEX; x++) { t.set(x, 0, [96, 98, 108]); t.set(x, 15, [44, 46, 52]); }
+  return t;
+}
+
+/** Map Table (1.8): a sheet of parchment with a drawn coast, a dotted route and a red cross, on a wooden frame. */
+function mapTable(rng: () => number, top: boolean): PixelTex {
+  const t = planks(rng);
+  if (top) {
+    const paper: RGB = [226, 210, 168];
+    for (let y = 1; y < 15; y++) for (let x = 1; x < 15; x++) t.set(x, y, shade(paper, 0.94 + rng() * 0.1));
+    for (let i = 1; i < 15; i++) { t.set(i, 1, [196, 176, 130]); t.set(1, i, [196, 176, 130]); }
+    // a coastline: sea (blue-grey) on the left of a wavy line
+    for (let y = 2; y < 14; y++) {
+      const edge = 4 + Math.round(Math.sin(y * 0.9) * 1.5 + (y > 8 ? 1 : 0));
+      for (let x = 2; x < edge; x++) t.set(x, y, [150, 170, 172]);
+      t.set(edge, y, [96, 84, 60]);
+    }
+    // a dotted route to a red cross
+    for (const [x, y] of [[7, 12], [8, 11], [9, 10], [9, 8], [10, 7], [11, 6]]) t.set(x, y, [120, 70, 40]);
+    paint(t, ['r.r', '.r.', 'r.r'], { r: [190, 40, 34] }, 11, 3);
+    // little trees
+    for (const [x, y] of [[7, 4], [8, 5], [6, 8]]) { t.set(x, y, [70, 110, 60]); t.set(x, y + 1, [96, 84, 60]); }
+    return t;
+  }
+  // front: a rack of rolled maps under the table top
+  for (let x = 0; x < 16; x++) { t.set(x, 0, [96, 70, 40]); t.set(x, 3, [96, 70, 40]); t.set(x, 15, [96, 70, 40]); }
+  for (let row = 0; row < 2; row++) {
+    for (let k = 0; k < 4; k++) {
+      const x0 = 1 + k * 4, y0 = 5 + row * 5;
+      const paper: RGB = row ? [214, 196, 150] : [230, 214, 172];
+      paint(t, ['.pp.', 'pPPp', 'pPPp', '.pp.'], { p: shade(paper, 0.82), P: paper }, x0, y0);
+      t.set(x0 + 1, y0 + 1, [170, 60, 50]);
+    }
+  }
+  return t;
+}
+
 function ore(rng: () => number, cols: RGB[], clusters: number): PixelTex {
   const t = stone(rng);
   for (let i = 0; i < clusters; i++) {
@@ -1273,6 +1326,10 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   for (let f = 0; f < LAVA_FRAMES; f++) m.set(`lava_${f}`, lava(f));
   m.set('cinderstone', cinderstone(R('cinderstone')));
   m.set('spawner', spawnerCage(R('spawner')));
+  m.set('bell', bellBronze(R('bell')));
+  m.set('bell_mount', bellMount(R('bell_mount')));
+  m.set('map_table_top', mapTable(R('map_t'), true));
+  m.set('map_table_side', mapTable(R('map_s'), false));
   destroyStages().forEach((t, i) => m.set(`destroy_${i}`, t));
   for (const n of TEXTURE_NAMES) if (!m.has(n)) m.set(n, missing());
   return m;

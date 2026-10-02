@@ -40,6 +40,8 @@ const base = [
   ...DYE_COLORS.filter((c) => c !== 'white').map((c) => `wool_${c}`),
   // 1.7: lava and dungeons
   'cinderstone', 'spawner',
+  // 1.8: village life
+  'bell', 'bell_mount', 'map_table_top', 'map_table_side',
 ];
 
 export const TEXTURE_NAMES: string[] = [
