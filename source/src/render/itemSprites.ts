@@ -347,6 +347,24 @@ SPRITES.lava_bucket = {
   ],
   pal: { o: [60, 60, 66], M: [150, 150, 158], L: [210, 210, 216], D: [120, 120, 128], R: [232, 100, 22], Y: [255, 214, 96] },
 };
+// ---- 1.8: explorer maps - a parchment sheet with a coast, a dotted route and a mark for the goal
+const MAP_SHEET = [
+  '................', '..oooooooooooo..', '..oPPPPPPPPPPo..', '..oBBPPPPPPPPo..', '..oBBBPPPPPPPo..',
+  '..oBBPPPrPPPPo..', '..oBPPPrPPPPPo..', '..oBBPrPPPPPPo..', '..oBBPPrPPPPPo..', '..oBPPPPrPPPPo..',
+  '..oBBPPPPPrPPo..', '..oBBBPPPPPPPo..', '..oPPPPPPPPPPo..', '..oooooooooooo..', '................', '................',
+];
+const mapSprite = (mark: string[], markPal: Record<string, [number, number, number]>): SpriteDef => {
+  const rows = MAP_SHEET.map((r) => r.split(''));
+  mark.forEach((r, y) => { for (let x = 0; x < r.length; x++) if (r[x] !== '.') rows[3 + y][9 + x] = r[x]; });
+  return {
+    map: rows.map((r) => r.join('')),
+    pal: { o: [112, 84, 52], P: [228, 212, 168], B: [146, 168, 172], r: [120, 84, 50], ...markPal },
+  };
+};
+SPRITES.dungeon_map = mapSprite(['M.M', '.M.', 'M.M'], { M: [190, 36, 30] });
+SPRITES.ruin_map = mapSprite(['WW.', 'W.W', 'WWW'], { W: [124, 104, 80] });
+SPRITES.village_map = mapSprite(['.R.', 'RRR', 'HDH'], { R: [170, 70, 50], H: [222, 196, 140], D: [110, 76, 40] });
+
 SPRITES.rune_shard = {
   map: [
     '................', '................', '.........oo.....', '........oLVo....', '.......oLVVDo...',
