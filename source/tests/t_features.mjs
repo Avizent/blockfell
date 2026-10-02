@@ -439,7 +439,7 @@ if (run('save')) {
   const sword = await ev(() => window.__bf.game.inventory.get(5));
   check('runes on items are saved', sword?.ench?.keen === 2 && sword?.ench?.plunder === 1, sword);
   const gv = await ev(() => window.__bf.game.world.genVersion);
-  check('new worlds use the newest terrain version', gv === 5, gv);
+  check('new worlds use the newest terrain version', gv === 6, gv);
 }
 
 // old worlds keep their terrain version

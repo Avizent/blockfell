@@ -246,7 +246,7 @@ if (V && run('population')) {
   check('each villager has its own bed', new Set(vs.map((v) => v.home && `${v.home.x},${v.home.y},${v.home.z}`)).size === vs.length, vs.map((v) => v.home));
   check('a Sentinel guards the village', ss.length === 1, ss);
   // populating is remembered: reloading the chunk does not add more villagers
-  await ev((id) => { const g = window.__bf.game, p = g.villages.plan(id); g.villages.onChunkLoaded(Math.floor(p.x / 16), Math.floor(p.z / 16)); }, V.id);
+  await ev((id) => { const g = window.__bf.game, p = g.villages.plan(id); g.villages.onChunkLoaded(g.world.getChunk(Math.floor(p.x / 16), Math.floor(p.z / 16))); }, V.id);
   check('a village is only populated once', (await vill()).length === V.beds && (await sentinels()).length === 1);
 }
 
@@ -373,7 +373,7 @@ if (run('trading')) {
   const ov = await ev(() => window.__bf.state().overlay);
   check('right-clicking a villager with a job opens its trades', ov === 'trade', ov);
   const title = ov === 'trade' ? await page.textContent('[data-testid=trade-title]') : '';
-  check('the trade screen shows profession and level', /Smith - Novice/.test(title), title);
+  check('the trade screen shows profession and level', /Novice Smith/.test(title), title);
   await shot('v_trade');
   // make both offers affordable and trade offer 0 once
   v = await vget();
@@ -540,18 +540,18 @@ if (V && run('raid')) {
       for (let i = 0; i < 130; i++) g.tick();
     }
     const st = g.villages.states.get(id);
-    return { over: !g.villages.raid, hero: g.progress.done.has('hero'), heroUntil: st.heroUntil > g.tickCount, disc: g.discount(id), won: g.progress.stats.raids_won };
+    return { over: !g.villages.raid, hero: g.progress.done.has('hero'), rep: st.rep ?? 0, disc: g.discount(id), won: g.progress.stats.raids_won };
   }, V.id);
   check('defeating every wave wins the raid', won.over && won.won === 1, won);
-  check('winning a raid grants "Hero of the Village"', won.hero && won.heroUntil, won);
+  check('winning a raid grants "Hero of the Village" (and a big rise in standing, 1.8)', won.hero && won.rep >= 30, won);
   check('heroes get a discount from that village', won.disc > 0, won);
   const cost = await ev((id) => {
     const g = window.__bf.game;
     const v = g.entities.list.find((e) => e.mobType === 'villager' && e.villageId === id && e.job);
-    const t = v.trades.find((t) => t.cost[0] === 'amber') ?? { cost: ['amber', 10], result: ['stone', 1] };
+    const t = { cost: ['amber', 10], result: ['stone', 1] };
     return { base: t.cost[1], now: g.tradeCost(v, t).cost[1] };
   }, V.id);
-  check('amber prices are lower for a hero', cost.now < cost.base || cost.base === 1, cost);
+  check('amber prices are lower for a hero', cost.now < cost.base, cost);
   const bar2 = await ev(() => window.__bf.ui.get().raid);
   check('the raid bar goes away after the raid', bar2 === null, bar2);
 }
@@ -579,7 +579,7 @@ if (V && run('save')) {
     const vs = g.entities.list.filter((e) => e.mobType === 'villager' && e.villageId === id);
     const smith = g.entities.list.find((e) => e.mobType === 'villager' && !e.villageId && e.job === 'smith');
     const st = g.villages.states.get(id);
-    return { n: vs.length, jobs: vs.map((v) => v.job).sort().join(','), smith: smith ? { level: smith.level, xp: smith.tradeXp, trades: smith.trades.length, work: smith.work } : null, populated: st?.populated, hero: (st?.heroUntil ?? 0) > g.tickCount, sentinels: g.entities.list.filter((e) => e.mobType === 'sentinel' && e.villageId === id).length };
+    return { n: vs.length, jobs: vs.map((v) => v.job).sort().join(','), smith: smith ? { level: smith.level, xp: smith.tradeXp, trades: smith.trades.length, work: smith.work } : null, populated: st?.populated, hero: (st?.rep ?? 0) >= 30, sentinels: g.entities.list.filter((e) => e.mobType === 'sentinel' && e.villageId === id).length };
   }, V.id);
   check('villagers are saved with the world', again.n === snap.n && again.jobs === snap.jobs, { snap, again });
   check('professions, levels and trades are saved', !!again.smith && JSON.stringify(again.smith) === JSON.stringify(snap.smith), { snap: snap.smith, again: again.smith });

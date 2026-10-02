@@ -312,7 +312,7 @@ if (run('gen') || run('dungeon') || run('save')) {
     }
     return { version: w.genVersion, caveLava, lowAir };
   });
-  check('new worlds use terrain version 5', gen.version === 5, gen);
+  check('new worlds use terrain version 5 or later', gen.version >= 5, gen);
   check('caves fill with lava below height 11 (lava lakes, no open air down there)', gen.caveLava > 500 && gen.lowAir === 0, gen);
   const lakes = await ev(() => window.__bf.lavaLakes(7));
   check('buried lava lakes lie higher up (about one chunk in 14)', lakes.length >= 2, { n: lakes.length, first: lakes[0] });
