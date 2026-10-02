@@ -12,6 +12,7 @@ import { ItemModels } from '../render/ItemModels';
 import { Game } from '../game/Game';
 import { ui, pushChat, pushToast, Overlay } from '../ui/uiStore';
 import { backups } from '../systems/WorldBackup';
+import { CloudSync } from '../systems/CloudSync';
 import { GAME_VERSION, SAVE_FORMAT, WORLD_HEIGHT } from '../world/constants';
 import { seedFromString } from '../core/rng';
 import type { Difficulty, GameMode } from '../player/Player';
@@ -66,6 +67,14 @@ export class Engine implements EngineServices {
   icons!: ItemIcons;
   models!: ItemModels;
   saves = new SaveManager();
+  /** Dropbox sync (1.9). */
+  cloud = new CloudSync({
+    saves: this.saves,
+    openWorldId: () => this.game?.record.id ?? this.openingWorld,
+    ignored: (rec) => rec.name === BENCH_WORLD,
+  });
+  /** A world being checked against Dropbox before it loads. */
+  private openingWorld: string | null = null;
   loop!: GameLoop;
   game: Game | null = null;
   panorama: MenuPanorama | null = null;
@@ -104,7 +113,8 @@ export class Engine implements EngineServices {
         for (const w of await this.saves.listWorlds()) if (w.name === BENCH_WORLD) await this.saves.deleteWorld(w.id);
       }
       ui.set((s) => ({ worldsVersion: s.worldsVersion + 1 }));
-      await this.resumeLastWorld();
+      await this.cloud.init();
+      if (!(await this.resumeLastWorld())) void this.cloud.syncAll();
     });
     // Chunk streaming must not depend on the frame rate: when the page is occluded
     // or rendering is slow, keep feeding the workers from a timer as well.
@@ -112,7 +122,7 @@ export class Engine implements EngineServices {
     window.addEventListener('beforeunload', () => { if (this.game) void this.game.save(); });
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden || !this.game) return;
-      void this.game.save();
+      void this.game.save({ urgent: true });   // and straight up to Dropbox, if linked
       // switching apps on a phone pauses the game, like losing the mouse on a computer
       const s = ui.get();
       if (this.input.touchMode && s.screen === 'game' && s.overlay === null && !this.game.player.dead) this.openOverlay('pause');
@@ -277,8 +287,22 @@ export class Engine implements EngineServices {
     if (this.busy) return;
     this.busy = true;
     try {
-      const rec = await this.saves.getWorld(id);
+      let rec = await this.saves.getWorld(id);
       if (!rec) return;
+      if (this.cloud.active && rec.name !== BENCH_WORLD) {
+        // bring the world up to date from Dropbox first (it may have been played on another device)
+        this.openingWorld = id;   // (until the game exists: a background sync must not replace it meanwhile)
+        ui.set({ screen: 'loading', overlay: null, loading: { title: 'Loading world', stage: 'Checking Dropbox', progress: -1, detail: rec.name } });
+        const out = await this.cloud.prepareToPlay(id);
+        if (out === 'conflict' || out === 'newer') {
+          ui.set({ screen: 'worlds', selectedWorld: id, syncPrompt: { id, kind: out } });
+          return;
+        }
+        if (out === 'offline') pushToast({ kind: 'info', icon: 'bedrock', title: 'Dropbox not reached', desc: 'Playing the copy on this device' });
+        if (out === 'downloaded') pushToast({ kind: 'info', icon: 'chest', title: 'Updated from Dropbox', desc: rec.name });
+        rec = await this.saves.getWorld(id);
+        if (!rec) return;
+      }
       ui.set({ screen: 'loading', overlay: null, loading: { title: 'Loading world', stage: 'Reading save data', progress: -1, detail: rec.name } });
       this.panorama?.dispose();
       this.panorama = null;
@@ -290,6 +314,7 @@ export class Engine implements EngineServices {
       (window as unknown as Record<string, unknown>).__game = this.game;
     } finally {
       this.busy = false;
+      this.openingWorld = null;
     }
   }
 
@@ -301,7 +326,7 @@ export class Engine implements EngineServices {
     this.input.releaseAll();
     this.updateFocus();
     if (!g.player.dead) this.input.requestLock();
-    void g.save();
+    void g.save({ quiet: true });
     if (g.record.name !== BENCH_WORLD) writeResume(g.record.id);
     requestPersistentStorage();
   }
@@ -317,6 +342,17 @@ export class Engine implements EngineServices {
     this.input.exitLock();
     writeResume(null);   // quit on purpose: the next start shows the title screen
     await g.save();
+    if (this.cloud.active && g.record.name !== BENCH_WORLD) {
+      ui.set((s) => ({ loading: { ...s.loading, stage: 'Saving to Dropbox' } }));
+      const out = await Promise.race([
+        this.cloud.pushWorld(g.record.id, false),
+        new Promise<'slow'>((r) => setTimeout(() => r('slow'), 25000)),
+      ]);
+      if (out === 'offline' || out === 'slow') pushToast({ kind: 'info', icon: 'bedrock', title: 'Saved on this device', desc: 'It will go to Dropbox when you are back online' });
+      else if (out === 'conflict') pushToast({ kind: 'info', icon: 'bedrock', title: 'Not sent to Dropbox', desc: 'Changed on another device too: choose a copy in the world list' });
+      else if (out === 'relink') pushToast({ kind: 'info', icon: 'bedrock', title: 'Not sent to Dropbox', desc: 'The Dropbox link has expired: link again' });
+      else if (out === 'error') pushToast({ kind: 'info', icon: 'bedrock', title: 'Dropbox upload failed', desc: 'Saved on this device; it will try again' });
+    }
     if (backupWanted) {
       if (await backupAllowed) {
         ui.set((s) => ({ loading: { ...s.loading, stage: `Backing up to ${backups.folderName}` } }));
@@ -339,12 +375,22 @@ export class Engine implements EngineServices {
     this.panorama = new MenuPanorama(this.renderer, this.pool);
     ui.set((s) => ({ screen: 'title', overlay: null, worldsVersion: s.worldsVersion + 1 }));
     this.updateFocus();
+    void this.cloud.refreshUi();
   }
 
-  async deleteWorld(id: string): Promise<void> {
+  /** Deletes a world here, or here and in Dropbox (`everywhere`; throws if Dropbox can't be reached). */
+  async deleteWorld(id: string, everywhere = false): Promise<void> {
+    if (this.cloud.active || everywhere) await this.cloud.deleteWorld(id, everywhere);
     if (readResume() === id) writeResume(null);
     await this.saves.deleteWorld(id);
     ui.set((s) => ({ worldsVersion: s.worldsVersion + 1, selectedWorld: null }));
+    void this.cloud.refreshUi();
+  }
+
+  /** The game saved its world (autosave, leaving the app, Save and Quit). */
+  worldSaved(id: string, urgent: boolean): void {
+    if (this.game?.record.name === BENCH_WORLD) return;
+    this.cloud.noteSaved(id, urgent);
   }
 
   // ------------------------------------------------------------------ overlays & focus
@@ -421,7 +467,7 @@ export class Engine implements EngineServices {
     if (s.screen !== 'game' || !this.game) return false;
     if (e.repeat && code !== 'F3') return false;
     const o = s.overlay;
-    const containerOpen = o === 'inventory' || o === 'creative' || o === 'crafting' || o === 'furnace' || o === 'chest' || o === 'runes' || o === 'trade';
+    const containerOpen = o === 'inventory' || o === 'creative' || o === 'crafting' || o === 'furnace' || o === 'chest' || o === 'runes' || o === 'trade' || o === 'map';
     if (code === 'Escape') {
       if (o === 'death') return true;
       // the Esc press that released pointer lock already opened the pause menu

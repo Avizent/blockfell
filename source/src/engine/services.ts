@@ -22,5 +22,8 @@ export interface EngineServices {
   openTrade(v: import('../entities/Villager').Villager): void;
   openSignEditor(x: number, y: number, z: number): void;
   closeOverlay(): void;
+  openOverlay(o: import('../ui/uiStore').Overlay): void;
   updateDebug(game: Game): void;
+  /** The game saved its world on this device (1.9: Dropbox sync uploads it). */
+  worldSaved?(id: string, urgent: boolean): void;
 }
