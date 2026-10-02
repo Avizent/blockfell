@@ -39,8 +39,11 @@ import { BlockOutline, CrackOverlay, Particles, EffectKind } from '../render/Eff
 import { ui, pushChat, pushToast, Overlay } from '../ui/uiStore';
 import type { EngineServices } from '../engine/services';
 import { mulberry32, hash4 } from '../core/rng';
-import { VillageManager } from './VillageManager';
+import { VillageManager, GIFT_FOOD } from './VillageManager';
 import { Villager } from '../entities/Villager';
+import { Sentinel } from '../entities/Sentinel';
+import { MAP_ITEMS } from '../inventory/ItemRegistry';
+import { compassName } from '../render/mapImage';
 import { Hound, HOUND_FOOD, HOUND_TAMING_FOOD } from '../entities/Hound';
 import type { Trade } from '../entities/Trades';
 import type { VillagePlan } from '../world/Villages';
@@ -170,7 +173,7 @@ export class Game implements EntityHost, PrecipSource {
     this.villages = new VillageManager(this);
     this.villages.load(extra?.villages);
     // water the player changed keeps flowing when its chunk is loaded again; villages get their people
-    this.chunks.onChunkLoaded = (c) => { this.wakeWater(c); this.villages.onChunkLoaded(c.cx, c.cz); this.spawners.scanChunk(c); };
+    this.chunks.onChunkLoaded = (c) => { this.wakeWater(c); this.villages.onChunkLoaded(c); this.spawners.scanChunk(c); };
     this.chunks.greedy = engine.options.greedyMeshing;
     r.scene.add(this.chunks.group);
     r.scene.add(this.entities.group);
@@ -264,11 +267,14 @@ export class Game implements EntityHost, PrecipSource {
     this.player.addXp(n);
     if (this.player.xpLevel > before && this.player.xpLevel % 5 === 0) this.sound('levelup');
   }
-  onMobKilled(type: string, byPlayer: boolean): void {
+  onMobKilled(type: string, byPlayer: boolean, mob?: Mob): void {
     if (!byPlayer) return;
     this.progress.add('mobs_killed');
     const m = type as MobType;
-    if (MOB_SPECS[m]?.hostile) this.progress.grant('kill');
+    if (MOB_SPECS[m]?.hostile) {
+      this.progress.grant('kill');
+      if (mob) this.villages.onHostileKilled(mob.x, mob.z);   // defending a village earns standing there
+    }
   }
   spawnItem(stack: ItemStack, x: number, y: number, z: number, vel?: [number, number, number]): void {
     this.entities.spawnItem(stack, x, y, z, vel);
@@ -285,6 +291,16 @@ export class Game implements EntityHost, PrecipSource {
   isClaimed(x: number, y: number, z: number, by: import('../entities/Entity').Entity): boolean { return this.villages.isClaimed(x, y, z, by); }
   alertSentinels(x: number, z: number): void { this.villages.alertSentinels(x, z); }
   discount(id: string | null): number { return this.villages.discount(id); }
+  // ---- village life (1.8)
+  villageStanding(id: string | null): number { return this.villages.rep(id); }
+  meetingPoint(id: string | null): { x: number; y: number; z: number } | null { return this.villages.meetingPoint(id); }
+  folkHurt(m: Mob, villageId: string | null, killed: boolean): void { this.villages.onFolkHurt(m, villageId, killed); }
+  villagerDied(v: Mob, byPlayer: boolean, killer: Mob | null): void { if (v instanceof Villager) this.villages.onVillagerDied(v, byPlayer, killer); }
+  addVillageFood(id: string | null, n: number): void { this.villages.addFood(id, n); }
+  villagerGrewUp(v: Mob): void {
+    const p = this.player;
+    if (v instanceof Villager && Math.hypot(v.x - p.x, v.z - p.z) < 64) pushChat(`${v.name} of ${this.villages.name(v.villageId)} has grown up.`);
+  }
 
   // ---- companions
   private lastAttacked: { mob: Mob; tick: number } | null = null;
@@ -462,7 +478,8 @@ export class Game implements EntityHost, PrecipSource {
    * one more so nothing changed during the first save is missed. Chunk keys whose
    * write failed are re-queued.
    */
-  async save(): Promise<number> {
+  /** `urgent`: upload to Dropbox now (leaving the app); `quiet`: the save made on opening the world, which changes nothing worth uploading. */
+  async save(opts: { urgent?: boolean; quiet?: boolean } = {}): Promise<number> {
     // a new world that is still loading has nothing to save yet; saving it now would
     // mark it as started and skip the spawn fix-up and starting items on the next load
     if (!this.started) return 0;
@@ -476,6 +493,7 @@ export class Game implements EntityHost, PrecipSource {
         const n = await saves.putDeltas(record.id, this.world.deltas, dirty);
         await saves.putExtra(record.id, extra);
         await saves.putWorld(record);
+        if (!opts.quiet) this.engine.worldSaved?.(record.id, !!opts.urgent);
         return n;
       } catch (e) {
         for (const k of dirty) this.world.dirtyDeltaChunks.add(k);
@@ -588,6 +606,96 @@ export class Game implements EntityHost, PrecipSource {
     ui.set({ overlay: kind });
   }
 
+  // ======================================================================= village life (1.8)
+  /** A gift for a villager: food goes to the village store; it all raises the player's standing. */
+  giveGift(v: Villager): void {
+    const held = this.inventory.selectedStack;
+    if (!held || !this.villages.gift(v, held.id)) return;
+    const name = getItem(held.id).name;
+    if (!this.player.creative) this.consume(this.inventory.selected);
+    this.hand.swing();
+    this.useDelay = 4;
+    this.effect('heart', v.x, v.y + v.height + 0.3, v.z, 3);
+    this.sound('villager_yes', v.x, v.y + v.height * 0.82, v.z, 0.6, v.isChild ? 1.5 : 1.15);
+    pushChat(`${v.name} thanks you for the ${name.toLowerCase()}.`);
+  }
+
+  /**
+   * Right-clicking with an explorer map looks at it. A map from the Creative
+   * catalogue (not drawn yet) is drawn first, to the nearest place of its kind.
+   */
+  useMap(slot: number): void {
+    const held = this.inventory.get(slot);
+    if (!held) return;
+    const kind = MAP_ITEMS[held.id];
+    if (!held.map) {
+      const p = this.player;
+      const t = this.villages.findMapTarget(kind, p.x, p.z, null);
+      if (!t) { pushChat(`There ${kind === 'village' ? 'are no other villages' : `are no ${kind}s`} near here to map.`); return; }
+      held.map = t;
+      this.inventory.changed();
+      this.sound('page', p.x, p.eyeY, p.z, 0.6, 1);
+    }
+    this.mapSlot = slot;
+    this.engine.openOverlay('map');
+  }
+  /** The hotbar slot of the map being looked at (map screen). */
+  mapSlot = -1;
+
+  /** Info card for the villager (or Sentinel) under the crosshair, and the compass of a held map. */
+  private updateVillageUi(): void {
+    const p = this.player;
+    // ---- the info card: the villager (or Sentinel) within 8 blocks under the crosshair
+    let card: import('../ui/uiStore').VillagerCard | null = null;
+    if (!p.dead && ui.get().overlay === null) {
+      const fx = -Math.sin(p.yaw) * Math.cos(p.pitch), fy = Math.sin(p.pitch), fz = -Math.cos(p.yaw) * Math.cos(p.pitch);
+      const hit = this.entities.rayHitMob(p.x, p.eyeY, p.z, fx, fy, fz, 8);
+      const blocked = hit && this.target && this.target.dist < hit.t;
+      const m = hit && !blocked ? hit.mob : null;
+      if (m instanceof Villager || m instanceof Sentinel) {
+        const vid = m.villageId;
+        const rep = this.villages.rep(vid);
+        const st = this.villages.standing(vid);
+        const village = vid ? this.villages.name(vid) : '';
+        card = m instanceof Villager
+          ? { name: m.name, title: m.title, activity: m.activity, village, standing: st.name, standingKey: st.key, rep, home: !!m.home, child: m.isChild }
+          : { name: 'Sentinel', title: vid ? `Guardian of ${village}` : 'Guardian', activity: m.angry > 0 ? 'Angry with you' : 'On guard', village, standing: st.name, standingKey: st.key, rep, home: true, child: false };
+      }
+    }
+    const cur = ui.get().villagerCard;
+    if (JSON.stringify(cur) !== JSON.stringify(card)) ui.set({ villagerCard: card });
+    // ---- a held map: which way, how far, and whether you're there
+    const held = this.inventory.selectedStack;
+    let mh: import('../ui/uiStore').MapHud | null = null;
+    if (held && MAP_ITEMS[held.id]) {
+      const t = held.map;
+      if (!t) mh = { label: getItem(held.id).name, text: 'Not drawn yet: right-click to draw it', arrow: null, found: false };
+      else {
+        const dx = t.x + 0.5 - p.x, dz = t.z + 0.5 - p.z, dist = Math.hypot(dx, dz), dy = t.y - p.y;
+        const label = t.kind === 'village' ? `Village of ${t.name ?? '?'}` : t.kind === 'dungeon' ? 'Dungeon' : 'Ruin';
+        const reached = dist < 5 && Math.abs(dy) < 4;
+        if (reached && !t.found) {
+          t.found = true;
+          this.inventory.changed();
+          pushChat(t.kind === 'village' ? `You have reached ${t.name}.` : `You found the ${t.kind} marked on your map!`);
+          this.progress.grant('map');
+          this.progress.add('maps_followed');
+          this.sound('levelup', p.x, p.y, p.z, 0.5, 1.4);
+        }
+        let text: string;
+        if (t.found && dist < 24) text = t.kind === 'village' ? 'You are here' : 'Found: this is the place';
+        else if (dist < 6 && dy < -3) text = `Right below you: dig down about ${Math.round(-dy)} blocks`;
+        else text = `${Math.round(dist)} blocks ${compassName(dx, dz)}${t.kind === 'dungeon' && dist < 40 ? `, ${Math.max(0, Math.round(-dy))} down` : ''}`;
+        // the arrow: the target's direction relative to where the player is facing
+        // (CSS turns clockwise: a target to the right of the view gives +90)
+        const arrow = dist < 2 ? null : Math.round((((p.yaw - Math.atan2(-dx, -dz)) * 180) / Math.PI % 360 + 720) % 360);
+        mh = { label, text, arrow, found: !!t.found };
+      }
+    }
+    const curM = ui.get().mapHud;
+    if (JSON.stringify(curM) !== JSON.stringify(mh)) ui.set({ mapHud: mh });
+  }
+
   /** Right-clicking a villager with a job opens its trades. */
   openTrade(v: Villager): void {
     const h = this.makeHandler();
@@ -601,10 +709,14 @@ export class Game implements EntityHost, PrecipSource {
     ui.set({ overlay: 'trade' });
   }
 
-  /** Amber price after the hero discount. */
+  /**
+   * What a trade costs the player, after the village's view of them (1.8): from 30%
+   * less when Honoured to 30% more when Hostile - on Amber they pay and on goods the
+   * villager buys alike.
+   */
   tradeCost(v: Villager, t: Trade): { cost: [string, number]; cost2?: [string, number] } {
-    const d = this.discount(v.villageId);
-    const adj = (c: [string, number]): [string, number] => (c[0] === 'amber' && d > 0 ? [c[0], Math.max(1, Math.floor(c[1] * (1 - d)))] : c);
+    const f = this.villages.priceFactor(v.villageId);
+    const adj = (c: [string, number]): [string, number] => (f === 1 ? c : [c[0], Math.max(1, Math.round(c[1] * f))]);
     return { cost: adj(t.cost), cost2: t.cost2 ? adj(t.cost2) : undefined };
   }
 
@@ -622,11 +734,23 @@ export class Game implements EntityHost, PrecipSource {
     while (this.canTrade(v, i) && (all || done === 0) && done < 64) {
       const t = v.trades[i];
       const { cost, cost2 } = this.tradeCost(v, t);
+      const stack: ItemStack = { id: t.result[0], count: t.result[1], ...(t.ench ? { ench: { ...t.ench } } : {}) };
+      // a map is drawn as it is sold: to the nearest place this village hasn't mapped yet
+      const mapKind = MAP_ITEMS[stack.id];
+      if (mapKind) {
+        const plan = v.villageId ? this.villages.plan(v.villageId) : null;
+        const target = this.villages.findMapTarget(mapKind, plan?.x ?? v.x, plan?.z ?? v.z, v.villageId);
+        if (!target) {
+          pushChat(`${v.name} doesn't know of any ${mapKind === 'village' ? 'other villages' : mapKind + 's'} near here.`);
+          break;
+        }
+        stack.map = { ...target, name: target.name ?? this.villages.name(v.villageId) };
+        this.villages.markMapped(v.villageId, target);
+      }
       if (!this.player.creative) {
         this.inventory.consumeItem(cost[0], cost[1]);
         if (cost2) this.inventory.consumeItem(cost2[0], cost2[1]);
       }
-      const stack = { id: t.result[0], count: t.result[1], ...(t.ench ? { ench: { ...t.ench } } : {}) };
       const left = this.inventory.add(stack);
       if (left > 0) this.dropStack({ ...stack, count: left });
       t.uses++;
@@ -638,6 +762,7 @@ export class Game implements EntityHost, PrecipSource {
     if (done) {
       this.progress.grant('trade');
       this.progress.add('trades', done);
+      this.villages.onTrade(v, done);
       this.sound('villager_yes', v.x, v.y + 1.6, v.z, 0.7, 1);
       this.inventory.changed();
     } else this.sound('villager_no', v.x, v.y + 1.6, v.z, 0.6, 1);
@@ -765,6 +890,7 @@ export class Game implements EntityHost, PrecipSource {
     if (B.getBlock(old).interact === 'furnace' && B.getBlock(id).interact !== 'furnace') this.furnaces.delete(posKey(x, y, z));
     if (B.getBlock(old).interact === 'sign' || B.getBlock(id).interact === 'sign') this.signs.refresh();
     if (id === B.SPAWNER || old === B.SPAWNER) this.spawners.onBlockChanged(x, y, z, old, id, cause);
+    if (id === B.BELL || old === B.BELL) this.villages.onBlockChanged(x, y, z, old, id);
   }
 
   private runScheduled(): void {
@@ -1022,6 +1148,7 @@ export class Game implements EntityHost, PrecipSource {
     if (this.riding) this.carryRider();
     this.tickFishing();
     this.villages.tick();
+    if (this.tickCount % 4 === 0) this.updateVillageUi();
     // the trade screen closes if the villager dies or you walk away
     const tw = this.tradeWith;
     if (tw && ui.get().overlay === 'trade' && (!tw.alive || tw.removed || tw.distanceTo(p.x, p.y, p.z) > 8)) this.engine.closeOverlay();
@@ -1341,14 +1468,24 @@ export class Game implements EntityHost, PrecipSource {
       }
     }
 
-    // ---- villagers: trade (or a shake of the head from those without a job)
-    if (rmbPress && this.targetMob instanceof Villager && this.targetMob.alive && !p.sneaking) {
+    // ---- villagers: a gift (food or a flower: sneak, or to a child or a villager without a job),
+    // a trade, or a shake of the head (no job, too young, or the village distrusts you)
+    if (rmbPress && this.targetMob instanceof Villager && this.targetMob.alive) {
       const v = this.targetMob;
-      this.hand.swing();
-      this.useDelay = 4;
-      if (v.job && v.trades.length) this.engine.openTrade(v);
-      else { this.sound('villager_no', v.x, v.y + 1.6, v.z, 0.6, 1); pushChat('This villager has no job yet. Put a workstation near it.'); }
-      return;
+      const held = this.inventory.selectedStack;
+      const giftable = !!held && GIFT_FOOD[held.id] !== undefined;
+      if (giftable && (p.sneaking || v.isChild || !v.job)) { this.giveGift(v); return; }
+      if (!p.sneaking) {
+        this.hand.swing();
+        this.useDelay = 4;
+        const st = this.villages.standing(v.villageId);
+        const eyes = v.y + v.height * 0.82;
+        if (v.isChild) { this.sound('villager', v.x, eyes, v.z, 0.6, 1.5); pushChat(`${v.name} is too young to trade.`); }
+        else if (st.key === 'distrustful' || st.key === 'hostile') { this.sound('villager_no', v.x, eyes, v.z, 0.6, 1); pushChat(`${v.name} won't trade with you. (Your standing in ${this.villages.name(v.villageId)}: ${st.name})`); }
+        else if (v.job && v.trades.length) this.engine.openTrade(v);
+        else { this.sound('villager_no', v.x, eyes, v.z, 0.6, 1); pushChat(`${v.name} has no job yet. Put a workstation near them.`); }
+        return;
+      }
     }
 
     // ---- functional blocks take priority over item use (bow, food...)
@@ -1554,6 +1691,11 @@ export class Game implements EntityHost, PrecipSource {
         if (this.placeBoat(slotIndex)) { this.hand.swing(); return; }
         continue;
       }
+      if (MAP_ITEMS[held.id] && pressed && slotIndex !== OFFHAND) {
+        this.useMap(slotIndex);
+        this.hand.swing();
+        return;
+      }
       if (def.kind === 'rod' && pressed && slotIndex !== OFFHAND) {
         this.useRod(slotIndex);
         this.hand.swing();
@@ -1652,6 +1794,7 @@ export class Game implements EntityHost, PrecipSource {
     else if (kind === 'trapdoor') this.toggleTrapdoor(x, y, z);
     else if (kind === 'sign') this.useSign(x, y, z);
     else if (kind === 'pot') this.usePot(x, y, z);
+    else if (kind === 'bell') this.villages.ring(x, y, z);
     else this.engine.openBlockScreen(x, y, z, kind);
   }
 
