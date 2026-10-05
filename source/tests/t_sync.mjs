@@ -424,10 +424,11 @@ check('Unlink revokes the token in Dropbox and forgets it here; the worlds stay'
 const single = '/home/claude/blockfell/dist-single/index.html';
 if (fs.existsSync(single) && fs.readFileSync(single, 'utf8').includes('cloud-unavailable')) {
   const fp = await mac.ctx.newPage();
+  await fp.bringToFront();   // (a background tab gets no animation frames, so clicks there never settle)
   await fp.goto('file://' + single);
   await fp.waitForSelector('[data-testid=btn-singleplayer]', { timeout: 60000 });
-  await fp.click('[data-testid=btn-singleplayer]');
-  await fp.click('[data-testid=btn-dropbox]');
+  await tap(fp, '[data-testid=btn-singleplayer]');
+  await tap(fp, '[data-testid=btn-dropbox]');
   await fp.waitForSelector('[data-testid=cloud-unavailable]');
   check('opened from a file, Dropbox Sync explains it needs the web address', /web address/.test(await fp.textContent('[data-testid=cloud-unavailable]')));
   await fp.close();
