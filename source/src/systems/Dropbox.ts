@@ -19,8 +19,13 @@
  * files/delete_v2, auth/token/revoke.
  */
 
-/** The Blockfell app's key from the Dropbox App Console. Empty: the player pastes it in once (Dropbox Sync screen). */
-export const DROPBOX_APP_KEY_BUILTIN = '';
+/**
+ * The Blockfell app's key from the Dropbox App Console (app "Blockfell Avizent": scoped,
+ * App folder "Blockfell", files.content.read/write, redirect https://avizent.github.io/blockfell/,
+ * public clients (PKCE) allowed). App keys are public; there is no secret in the game.
+ * Empty would make the Dropbox Sync screen ask for a key.
+ */
+export const DROPBOX_APP_KEY_BUILTIN = 'ymfvd4y86isvwu1';
 
 export interface DropboxHosts { api: string; content: string; www: string }
 const REAL_HOSTS: DropboxHosts = { api: 'https://api.dropboxapi.com', content: 'https://content.dropboxapi.com', www: 'https://www.dropbox.com' };
@@ -102,6 +107,8 @@ const isLocalHost = (): boolean => location.hostname === 'localhost' || location
 
 export class Dropbox {
   hosts: DropboxHosts = REAL_HOSTS;
+  /** Talking to a test stand-in (localhost only): the built-in key is not used there. */
+  private testing = false;
   private auth: StoredAuth | null = null;
   private access: { token: string; exp: number } | null = null;
   private refreshing: Promise<string> | null = null;
@@ -111,7 +118,7 @@ export class Dropbox {
   constructor() {
     if (isLocalHost()) {
       const h = lsGet<DropboxHosts>(LS_HOSTS);
-      if (h?.api && h.content && h.www) this.hosts = h;
+      if (h?.api && h.content && h.www) { this.hosts = h; this.testing = true; }
     }
     this.auth = lsGet<StoredAuth>(LS_AUTH);
     if (this.auth && (!this.auth.refreshToken || !this.auth.appKey)) this.auth = null;
@@ -129,10 +136,10 @@ export class Dropbox {
   }
 
   get appKey(): string {
-    return DROPBOX_APP_KEY_BUILTIN || (lsGet<string>(LS_KEY) ?? '');
+    return (this.builtInKey ? DROPBOX_APP_KEY_BUILTIN : '') || (lsGet<string>(LS_KEY) ?? '');
   }
 
-  get builtInKey(): boolean { return !!DROPBOX_APP_KEY_BUILTIN; }
+  get builtInKey(): boolean { return !!DROPBOX_APP_KEY_BUILTIN && !this.testing; }
 
   setAppKey(k: string): void {
     lsSet(LS_KEY, k.trim() || null);
