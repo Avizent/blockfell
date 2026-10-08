@@ -23,6 +23,8 @@ export interface WorldUniforms {
   uSunDir: THREE.IUniform<THREE.Vector3>;
   uSunStrength: THREE.IUniform<number>;
   uAmbient: THREE.IUniform<number>;
+  /** 2.0: colour of the ambient floor (warm in the Cinderdeep). */
+  uAmbientTint: THREE.IUniform<THREE.Color>;
   uGamma: THREE.IUniform<number>;
   uWaterFrame: THREE.IUniform<number>;
   uLavaFrame: THREE.IUniform<number>;
@@ -40,6 +42,7 @@ export function createWorldUniforms(): WorldUniforms {
     uSunDir: { value: new THREE.Vector3(0.3, 1, 0.2).normalize() },
     uSunStrength: { value: 1 },
     uAmbient: { value: 0.045 },
+    uAmbientTint: { value: new THREE.Color(1, 1, 1) },
     uGamma: { value: 0.5 },
     uWaterFrame: { value: 0 },
     uLavaFrame: { value: 0 },
@@ -97,6 +100,7 @@ uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
 uniform float uAmbient;
+uniform vec3 uAmbientTint;
 uniform float uGamma;
 in vec2 vUv;
 flat in float vLayer;
@@ -117,7 +121,7 @@ void main() {
   if (tex.a < 0.5) discard;
 #endif
   vec3 light = max(uSkyColor * curve(vLight.x * uDaylight), uTorchColor * curve(vLight.y));
-  light = max(light, vec3(uAmbient));
+  light = max(light, uAmbient * uAmbientTint);
   vec3 col = tex.rgb * light * vShade;
   float fog = smoothstep(uFogNear, uFogFar, vDist);
   col = mix(col, uFogColor, fog);

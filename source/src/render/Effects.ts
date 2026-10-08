@@ -90,7 +90,7 @@ interface Particle {
  * with ONE InstancedMesh (single draw call). Capacity is fixed; the oldest
  * particles are recycled.
  */
-export type EffectKind = 'poof' | 'smoke' | 'flame' | 'crit' | 'splash' | 'happy' | 'angry' | 'drip' | 'heart';
+export type EffectKind = 'poof' | 'smoke' | 'flame' | 'crit' | 'splash' | 'happy' | 'angry' | 'drip' | 'heart' | 'ash';
 
 export class Particles {
   private mesh: THREE.InstancedMesh;
@@ -157,6 +157,12 @@ export class Particles {
         const k = Math.random();
         this.spawn({ x: x + j() * 0.8, y: y + j() * 0.4, z: z + j() * 0.8, vx: 0, vy: 0.02, vz: 0,
           max: 20 + Math.random() * 10, size: 0.1, r: 1, g: 0.25 + k * 0.2, b: 0.4 + k * 0.1, gravity: 0, glow: true });
+      } else if (kind === 'ash') {
+        // 2.0: flecks of ash and the odd ember drifting in the Cinderdeep's air
+        const ember = Math.random() < 0.25;
+        const g = 0.32 + Math.random() * 0.2;
+        this.spawn({ x: x + j() * 0.6, y, z: z + j() * 0.6, vx: j() * 0.02, vy: ember ? 0.012 : -0.006, vz: j() * 0.02,
+          max: 50 + Math.random() * 40, size: ember ? 0.04 : 0.035, r: ember ? 1 : g * k, g: ember ? 0.5 : g * k, b: ember ? 0.15 : g * k, gravity: 0, glow: ember });
       } else if (kind === 'crit') {
         this.spawn({ x, y, z, vx: j() * 0.3, vy: Math.random() * 0.2, vz: j() * 0.3,
           max: 10, size: 0.06, r: 0.9, g: 0.9, b: 0.95, gravity: 0.02, glow: true });
