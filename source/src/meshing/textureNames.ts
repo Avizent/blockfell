@@ -46,6 +46,8 @@ const base = [
   'cinderstone_bricks',
   // 2.0: the Cinderdeep
   'ashrock', 'ash', 'ember_ore', 'fire_opal_ore', 'glowcap', 'ashrock_bricks', 'ember_lamp', 'deepgate',
+  // 2.0.1
+  'glimmerstone',
 ];
 
 export const TEXTURE_NAMES: string[] = [

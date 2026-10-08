@@ -356,6 +356,34 @@ function deepgate(rng: () => number): PixelTex {
   return t;
 }
 
+/** Glimmerstone (2.0.1): pale gold crystal facets split by fine amber seams, with white glints. */
+function glimmerstone(rng: () => number): PixelTex {
+  const t = new PixelTex();
+  // facets: nearest of a few seed points (wrapping, so the tile repeats seamlessly)
+  const seeds = Array.from({ length: 7 }, () => [rng() * 16, rng() * 16, Math.floor(rng() * 4), rng() * Math.PI * 2] as [number, number, number, number]);
+  const pal: RGB[] = [[255, 241, 200], [247, 216, 140], [232, 186, 98], [226, 208, 240]];
+  const near = (x: number, y: number) => {
+    let best = 0, bd = 1e9, second = 1e9;
+    seeds.forEach(([sx, sy], i) => {
+      const dx = Math.min(Math.abs(x - sx), 16 - Math.abs(x - sx)), dy = Math.min(Math.abs(y - sy), 16 - Math.abs(y - sy));
+      const d = dx * dx + dy * dy;
+      if (d < bd) { second = bd; bd = d; best = i; } else if (d < second) second = d;
+    });
+    return { best, edge: Math.sqrt(second) - Math.sqrt(bd) };
+  };
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const { best, edge } = near(x + 0.5, y + 0.5);
+    const [sx, sy, col, ang] = seeds[best];
+    // each facet catches the light from one side
+    const lit = 0.9 + 0.16 * Math.cos(Math.atan2(y + 0.5 - sy, x + 0.5 - sx) - ang);
+    let c = shade(pal[col], lit + (rng() - 0.5) * 0.05);
+    if (edge < 0.7) c = [176, 120, 64];
+    t.set(x, y, c);
+  }
+  for (let i = 0; i < 6; i++) t.set(Math.floor(rng() * 16), Math.floor(rng() * 16), [255, 255, 250]);
+  return t;
+}
+
 /** Monster Cage: a frame of dark iron bars (the gaps are see-through). */
 function spawnerCage(rng: () => number): PixelTex {
   const t = new PixelTex();
@@ -1458,6 +1486,7 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   m.set('ashrock_bricks', ashrockBricks(R('ashrock_bricks')));
   m.set('ember_lamp', emberLamp(R('ember_lamp')));
   m.set('deepgate', deepgate(R('deepgate')));
+  m.set('glimmerstone', glimmerstone(R('glimmerstone')));
   m.set('spawner', spawnerCage(R('spawner')));
   m.set('bell', bellBronze(R('bell')));
   m.set('bell_mount', bellMount(R('bell_mount')));
