@@ -12,7 +12,7 @@ const gen = new TerrainGenerator(seed, { structures: true, version });
 let chunks = 0, dungeons = 0, chests = 0, lavaCells = 0, lakes = 0, genMs = 0;
 const mobs: Record<string, number> = {};
 const dungeonYs: number[] = [];
-const data = new Map<string, Uint8Array>();
+const data = new Map<string, Uint16Array>();
 for (let cx = -R; cx < R; cx++) for (let cz = -R; cz < R; cz++) {
   const t0 = performance.now();
   const g = gen.generateChunk(cx, cz);
@@ -30,7 +30,7 @@ for (let cx = -R; cx < R; cx++) for (let cz = -R; cz < R; cz++) {
 // meshing cost on a 3x3 block near the origin
 let meshMs = 0, lightMs = 0, n = 0;
 for (let cx = -2; cx <= 1; cx++) for (let cz = -2; cz <= 1; cz++) {
-  const cs: Uint8Array[] = [];
+  const cs: Uint16Array[] = [];
   for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) cs.push(data.get((cx + dx) + ',' + (cz + dz))!);
   const r = meshChunk(cs, true, null);
   meshMs += r.stats.meshMs; lightMs += r.stats.lightMs; n++;

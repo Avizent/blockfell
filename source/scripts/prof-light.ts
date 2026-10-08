@@ -2,10 +2,10 @@ import { TerrainGenerator } from '../src/world/TerrainGenerator';
 import * as L from '../src/meshing/Lighting';
 import { LIGHT_OPACITY } from '../src/world/BlockRegistry';
 const gen = new TerrainGenerator(12345, { structures: true });
-const chunks: Uint8Array[] = [];
+const chunks: Uint16Array[] = [];
 for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) chunks.push(gen.generateChunk(dx, dz).blocks);
 const { PVOL, PLANE, PW, PY } = L;
-const padded = new Uint8Array(PVOL);
+const padded = new Uint16Array(PVOL);
 padded.fill(13, 0, PLANE);
 for (let dz = 0; dz < 3; dz++) for (let dx = 0; dx < 3; dx++) {
   const src = chunks[dz * 3 + dx];
