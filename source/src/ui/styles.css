@@ -316,6 +316,9 @@ body {
 .center-msg { position: absolute; left: 0; right: 0; top: 50%; text-align: center; }
 .underwater { position: absolute; inset: 0; background: rgba(20, 50, 140, 0.18); }
 .in-lava { position: absolute; inset: 0; background: rgba(230, 90, 10, 0.55); }
+/* 2.0: standing in a Deepgate - the glow closes in before you are carried away */
+.deepgate-glow { position: absolute; inset: 0; pointer-events: none; transition: opacity 0.15s;
+  background: radial-gradient(ellipse at center, rgba(255, 150, 50, 0.05) 20%, rgba(255, 110, 30, 0.55) 70%, rgba(110, 18, 0, 0.92) 100%); }
 /* on fire: flickering flames licking up from the bottom of the screen */
 .on-fire {
   position: absolute; left: 0; right: 0; bottom: 0; height: 42%; pointer-events: none;

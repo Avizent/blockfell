@@ -4,7 +4,7 @@ import { useStore } from '../core/store';
 import { ui, pushToast } from './uiStore';
 import { Button, Title } from './widgets';
 import { hudIcons } from './uiAssets';
-import type { WorldRecord, GameRules } from '../systems/SaveManager';
+import type { WorldRecord, GameRules, WorldArchive } from '../systems/SaveManager';
 import { DEFAULT_RULES } from '../systems/SaveManager';
 import type { Difficulty, GameMode } from '../player/Player';
 import { GAME_VERSION } from '../world/constants';
@@ -193,7 +193,7 @@ export function WorldSelect() {
           <Button size="small" testId="btn-create-new" onClick={() => ui.set({ screen: 'create' })}>Create New World</Button>
         </div>
         <div className="row">
-          <Button size="third" disabled={!sel} onClick={() => sel && ui.set({ screen: 'edit', editWorld: sel.id })}>Edit</Button>
+          <Button size="third" testId="btn-edit-world" disabled={!sel} onClick={() => sel && ui.set({ screen: 'edit', editWorld: sel.id })}>Edit</Button>
           <Button size="third" testId="btn-delete-world" disabled={!sel} onClick={() => sel && setConfirm(sel)}>Delete</Button>
           <Button size="third" disabled={!sel} onClick={() => sel && recreate(sel)}>Re-Create</Button>
           <Button size="third" onClick={() => ui.set({ screen: 'title' })}>Cancel</Button>
@@ -484,8 +484,11 @@ export function EditWorld() {
   const id = useStore(ui, (s) => s.editWorld);
   const [rec, setRec] = useState<WorldRecord | null>(null);
   const [name, setName] = useState('');
+  const [archive, setArchive] = useState<WorldArchive | null>(null);
+  const [restoring, setRestoring] = useState(false);
   useEffect(() => {
     if (id) void engine.saves.getWorld(id).then((r) => { if (r) { setRec(r); setName(r.name); } });
+    if (id) void engine.saves.getArchive(id).then((a) => setArchive(a ?? null)).catch(() => setArchive(null));
   }, [id]);
   if (!rec) return <div className="screen dirt-bg" />;
   const back = () => ui.set((s) => ({ screen: 'worlds', worldsVersion: s.worldsVersion + 1 }));
@@ -504,6 +507,24 @@ export function EditWorld() {
           await engine.saves.duplicate(rec, nid, rec.name + ' (backup)');
           back();
         }}>Make Backup Copy</Button>
+        {archive && (
+          <>
+            <Button testId="btn-restore-archive" disabled={restoring} onClick={async () => {
+              setRestoring(true);
+              try {
+                const b = await readBackup(new Blob([archive.bytes as BlobPart]));
+                const nid = await importBackup(engine.saves, b, 'copy', { name: `${rec.name} (before 1.10)` });
+                engine.cloud.markDirty(nid);
+                pushToast({ kind: 'info', icon: 'chest', title: 'Old copy restored', desc: `As it was in Blockfell ${archive.gameVersion}` });
+                ui.set((s) => ({ screen: 'worlds', selectedWorld: nid, worldsVersion: s.worldsVersion + 1 }));
+              } catch (e) {
+                pushToast({ kind: 'info', icon: 'bedrock', title: 'Could not restore', desc: errText(e) });
+                setRestoring(false);
+              }
+            }}>Restore Pre-1.10 Copy</Button>
+            <div className="gray" style={{ maxWidth: '300rem', textAlign: 'center', marginTop: '-3rem' }}>Kept when it was updated on {formatDate(archive.made)}. Restoring adds it as a separate world.</div>
+          </>
+        )}
       </div>
       <div className="menu-footer">
         <div className="row">

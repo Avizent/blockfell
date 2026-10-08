@@ -195,8 +195,8 @@ export function MapScreen() {
   const t = held?.map;
   const holder = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (!g || !t || !holder.current) return;
-    const c = mapImage(g.world.generator, t);
+    if (!g || !t || !holder.current || !g.world.surface) return;
+    const c = mapImage(g.world.surface, t);
     c.style.width = '160rem'; c.style.height = '160rem';
     c.setAttribute('data-testid', 'map-canvas');
     holder.current.replaceChildren(c);

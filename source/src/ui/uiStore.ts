@@ -28,6 +28,8 @@ export interface HudState {
   /** Eyes in lava / on fire (screen overlays). */
   inLava?: boolean;
   burning?: boolean;
+  /** 2.0: 0..1 while standing in a Deepgate (the glow that builds before you are carried away). */
+  gate?: number;
   offhand: boolean;
   saturationShake: boolean;
 }
