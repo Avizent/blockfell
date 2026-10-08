@@ -84,10 +84,12 @@ await page.screenshot({ path: `${SHOTS}/bk_exported.png` });
 const raw1 = await readFolderFile('Backup Test.blockfell');
 check('backup file is gzip-compressed', raw1[0] === 0x1f && raw1[1] === 0x8b, raw1.length + ' bytes');
 const data1 = JSON.parse(zlib.gunzipSync(raw1).toString('utf8'));
+/** The overworld part of a backup (format 2, 1.10) or the whole file (format 1). */
+const land = (d) => d.dims?.overworld ?? { chunks: d.chunks, extra: d.extra };
 check('backup contains world, player, chunk changes and extras',
   data1.format === 'blockfell-world' && data1.world.name === 'Backup Test' && data1.world.seedText === 'backup-seed' && data1.world.player?.inventory?.[0]?.id === 'iron_pickaxe'
-  && Object.keys(data1.chunks).length >= 1 && !!data1.extra,
-  { chunks: Object.keys(data1.chunks).length, bytes: raw1.length });
+  && data1.formatVersion === 2 && Object.keys(land(data1).chunks).length >= 1 && !!land(data1).extra,
+  { chunks: Object.keys(land(data1).chunks).length, bytes: raw1.length, fv: data1.formatVersion });
 
 // ---------------------------------------------------------------- 3. folder is remembered after a reload
 await page.close();
@@ -137,7 +139,7 @@ const after = (await folderFiles())[0];
 const data2 = JSON.parse(zlib.gunzipSync(await readFolderFile('Backup Test.blockfell')).toString('utf8'));
 const t2 = await toasts();
 check('Save and Quit updates the backup automatically', after.modified >= before.modified && data2.exported > data1.exported, { before: before.modified, after: after.modified });
-check('auto backup includes the latest change', JSON.stringify(data2.chunks) !== JSON.stringify(data1.chunks));
+check('auto backup includes the latest change', JSON.stringify(land(data2).chunks) !== JSON.stringify(land(data1).chunks));
 check('auto backup confirmation shown', t2.some((t) => t.startsWith('World backed up|MineCraft/')), t2);
 
 // ---------------------------------------------------------------- 6. importing an existing world: keep both, then replace
