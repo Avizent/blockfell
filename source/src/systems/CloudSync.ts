@@ -29,7 +29,9 @@ import { Dropbox, DropboxError, OfflineError, RelinkError, type FileMeta } from 
 import type { SaveManager, WorldRecord } from './SaveManager';
 import { createBackup, readBackup, importBackup, type BackupFile } from './WorldBackup';
 import { GAME_VERSION } from '../world/constants';
-import { GEN_VERSION } from '../world/TerrainGenerator';
+import { needsNewerGenerator } from '../world/generators';
+import { newerVersion } from '../core/version';
+export { newerVersion };
 import { ui, pushChat, pushToast } from '../ui/uiStore';
 
 export const SYNC_FOLDER = '/worlds';
@@ -89,14 +91,6 @@ export function deviceLabel(): string {
 }
 
 /** a > b for "1.10.2"-style versions. */
-export function newerVersion(a: string, b: string): boolean {
-  const pa = a.split('.').map((n) => parseInt(n, 10) || 0), pb = b.split('.').map((n) => parseInt(n, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const x = pa[i] ?? 0, y = pb[i] ?? 0;
-    if (x !== y) return x > y;
-  }
-  return false;
-}
 
 function hhmm(t: number): string {
   const d = new Date(t);
@@ -293,7 +287,7 @@ export class CloudSync {
     const { b, rev } = await this.fetchRemote(id, r);
     const s = this.st(id);
     const info = { name: b.world.name, lastPlayed: b.world.lastPlayed, savedBy: b.savedBy ?? '', gameVersion: b.gameVersion };
-    if (newerVersion(b.gameVersion, GAME_VERSION) || (b.world.genVersion ?? 1) > GEN_VERSION) {
+    if (newerVersion(b.gameVersion, GAME_VERSION) || needsNewerGenerator(b.world)) {
       s.newer = b.gameVersion;
       s.remote = info;
       return 'newer';

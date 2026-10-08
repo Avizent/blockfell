@@ -44,6 +44,11 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   { id: 'spawner', title: 'Cage Breaker', description: 'Break a Monster Cage', icon: 'spawner', parent: 'dungeon' },
   { id: 'born', title: 'A Growing Village', description: 'See a child born in a village', icon: 'bread', parent: 'trade' },
   { id: 'map', title: 'X Marks the Spot', description: 'Follow a map to the place it shows', icon: 'dungeon_map', parent: 'trade' },
+  // 2.0: the Cinderdeep
+  { id: 'deepgate', title: 'Into the Cinderdeep', description: 'Go through a Deepgate', icon: 'cinderstone', parent: 'cinder' },
+  { id: 'ember', title: 'Embers in the Dark', description: 'Mine Ember Ore', icon: 'ember', parent: 'deepgate' },
+  { id: 'shrine', title: 'Shrine Raider', description: 'Open a chest in an Ember Shrine', icon: 'ashrock_bricks', parent: 'deepgate' },
+  { id: 'charm', title: 'Fireproof', description: 'Make a Cinder Charm', icon: 'cinder_charm', parent: 'shrine' },
 ];
 
 export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = [
@@ -53,6 +58,7 @@ export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = 
   ['items_crafted', 'Items Crafted', 'count'],
   ['mobs_killed', 'Creatures Defeated', 'count'],
   ['deaths', 'Deaths', 'count'],
+  ['deep_visits', 'Trips to the Cinderdeep', 'count'],
   ['jumps', 'Jumps', 'count'],
   ['walk', 'Distance Walked', 'cm'],
   ['sprint', 'Distance Sprinted', 'cm'],

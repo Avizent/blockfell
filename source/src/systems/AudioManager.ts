@@ -243,6 +243,13 @@ export class AudioManager {
       case 'sleep': this.tone(dest, t, 1.2, 330, 220, 'sine', 0.1); break;
       case 'raid_horn': this.tone(dest, t, 2.2, 110, 104, 'sawtooth', 0.22, 0.02); this.tone(dest, t, 2.2, 165, 158, 'triangle', 0.14); this.noiseBurst(dest, t, 1.6, 300, 0.7, 'lowpass', 0.12); break;
       case 'sentinel_hit': this.noiseBurst(dest, t, 0.25, 220, 1, 'lowpass', 0.9); this.tone(dest, t, 0.3, 90, 50, 'square', 0.2); break;
+      // ---- 2.0 the Cinderdeep
+      case 'gate_light': this.noiseBurst(dest, t, 0.9, 900, 0.6, 'lowpass', 0.6); this.tone(dest, t, 1.1, 110, 220, 'sawtooth', 0.12, 0.05); this.tone(dest, t + 0.1, 1.0, 330, 440, 'sine', 0.1); break;
+      case 'gate_hum': this.tone(dest, t, 1.0, 74 * pitch, 78 * pitch, 'sawtooth', 0.08, 0.2); this.tone(dest, t, 1.0, 148 * pitch, 150 * pitch, 'sine', 0.06, 0.2); break;
+      case 'gate_travel': this.noiseBurst(dest, t, 1.6, 400, 0.5, 'lowpass', 0.8, 0.2); this.tone(dest, t, 1.6, 220, 55, 'sawtooth', 0.14, 0.05); this.tone(dest, t, 1.4, 440, 110, 'sine', 0.08); break;
+      case 'ember_throw': this.noiseBurst(dest, t, 0.3, 1600 * pitch, 0.8, 'bandpass', 0.35); this.tone(dest, t, 0.25, 260 * pitch, 520 * pitch, 'triangle', 0.08); break;
+      case 'ember_hit': this.noiseBurst(dest, t, 0.35, 2600 * pitch, 0.7, 'highpass', 0.35); this.noiseBurst(dest, t, 0.2, 500, 1, 'lowpass', 0.4); break;
+      case 'deep_rumble': this.noiseBurst(dest, t, 3.2, 90 * pitch, 0.6, 'lowpass', 0.7, 0.8); this.tone(dest, t, 3, 41 * pitch, 36 * pitch, 'sine', 0.2, 0.6); break;
       default: this.creature(dest, t, name, pitch);
     }
   }
@@ -268,6 +275,8 @@ export class AudioManager {
         else { this.tone(dest, t, 0.3, 200 * p, 250 * p, 'triangle', 0.16, 0.04); this.tone(dest, t + 0.05, 0.25, 400 * p, 480 * p, 'sine', 0.05); }
         break;
       case 'sentinel': this.noiseBurst(dest, t, 0.5, 180 * p, 1.5, 'bandpass', 0.6); this.tone(dest, t, 0.5, 70 * p, 55 * p, 'sawtooth', 0.12); break;
+      case 'cinderling': for (let i = 0; i < 3; i++) this.noiseBurst(dest, t + i * 0.06, 0.06, 3200 * p, 2.5, 'bandpass', 0.3); this.tone(dest, t, 0.18, 700 * p, 1100 * p, 'square', 0.05); break;
+      case 'smoulderer': this.noiseBurst(dest, t, 1.0, 260 * p, 0.8, 'lowpass', 0.4, 0.2); this.tone(dest, t, 0.9, 62 * p, 50 * p, 'sawtooth', 0.12, 0.15); break;
       case 'hound':
         if (what === 'growl') { this.tone(dest, t, 0.7, 95 * p, 80 * p, 'sawtooth', 0.12, 0.05); this.noiseBurst(dest, t, 0.6, 260, 2, 'bandpass', 0.25); }
         else if (what === 'bite') { this.noiseBurst(dest, t, 0.07, 1400, 1, 'bandpass', 0.6); this.tone(dest, t, 0.08, 260, 140, 'square', 0.1); }
@@ -338,15 +347,17 @@ export class AudioManager {
   }
 
   /** Called ~once a second: occasionally plays a short generative ambient phrase. */
-  updateMusic(dt: number, night: boolean): void {
+  updateMusic(dt: number, night: boolean, deep = false): void {
     if (!this.enabled || !this.ctx || this.ctx.state !== 'running' || !this.musicEnabled || this.volumes.music <= 0) return;
     this.musicTimer -= dt;
     if (this.musicTimer > 0) return;
     this.musicTimer = 60 + Math.random() * 120;
-    const scale = night ? [0, 3, 5, 7, 10, 12, 15] : [0, 2, 4, 7, 9, 12, 14];
-    const root = night ? 196 : 220;
+    // the Cinderdeep (2.0): a darker mode, lower, with a slow drone underneath
+    const scale = deep ? [0, 1, 5, 7, 8, 12, 13] : night ? [0, 3, 5, 7, 10, 12, 15] : [0, 2, 4, 7, 9, 12, 14];
+    const root = deep ? 147 : night ? 196 : 220;
     const ctx = this.ctx;
     let t = ctx.currentTime + 0.2;
+    if (deep) this.tone(this.reverb, t, 9, root / 2, root / 2 * 0.98, 'sine', 0.06, 1.5);
     const notes = 8 + Math.floor(Math.random() * 8);
     let deg = Math.floor(Math.random() * 4);
     for (let i = 0; i < notes; i++) {
