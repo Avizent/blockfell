@@ -55,6 +55,7 @@ export function supportOk(world: World, id: number, x: number, y: number, z: num
   const d = B.getBlock(id);
   if (id === B.DEAD_BUSH) return SAND_LIKE.has(below) || B.TERRACOTTA.includes(below);
   if (B.CROP_STAGE[id] >= 0) return B.IS_FARMLAND(below);
+  if (id === B.GLOWCAP) return solidTop(below);   // 2.0: grows on Ashrock, ash - any solid floor
   if (B.RENDER[id] === B.RENDER_CROSS) return below === B.GRASS || below === B.DIRT || below === B.SNOWY_GRASS;
   if (id === B.CACTUS) return below === B.CACTUS || SAND_LIKE.has(below);
   if ((d.shape === 'wall_torch' || d.shape === 'ladder') && d.facing) {
