@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Entity, EntityHost, EntityQueries, Hurtable } from './Entity';
 import { Mob, MOB_SPECS } from './Mob';
 import { Arrow, ItemEntity, XpOrb } from './Drops';
+import { EmberBolt } from './EmberBolt';
 import { Villager } from './Villager';
 import { Sentinel } from './Sentinel';
 import { Hound } from './Hound';
@@ -17,6 +18,7 @@ import { GRASS, IS_FLUID, IS_SOLID, AIR, SNOWY_GRASS, SAND, RED_SAND, STONE, SNO
 import { BIOME_BADLANDS, BIOME_DESERT, BIOME_MOUNTAINS, BIOME_SNOWY, BIOME_TAIGA, BIOME_FOREST, BIOME_BIRCH } from '../world/BiomeSystem';
 import { UNLOADED } from '../world/World';
 import { WORLD_HEIGHT } from '../world/constants';
+import { LAVA_SEA } from '../world/Cinderdeep';
 
 const PASSIVE: MobType[] = ['pig', 'cow', 'sheep', 'chicken'];
 
@@ -98,6 +100,14 @@ export class EntityManager implements EntityQueries {
     a.setPos(x, y, z);
     a.vx = vx; a.vy = vy; a.vz = vz;
     this.add(a);
+  }
+
+  spawnEmber(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob): void {
+    const e = new EmberBolt();
+    e.shooter = shooter;
+    e.setPos(x, y, z);
+    e.vx = vx; e.vy = vy; e.vz = vz;
+    this.add(e);
   }
 
   itemsNear(x: number, y: number, z: number, r: number): Entity[] {
@@ -212,6 +222,7 @@ export class EntityManager implements EntityQueries {
   }
 
   private trySpawn(host: EntityHost): void {
+    if (host.world.dim === 'cinderdeep') { this.trySpawnDeep(host); return; }
     const p = host.player;
     let passive = 0, hostile = 0;
     for (const e of this.list) {
@@ -245,6 +256,33 @@ export class EntityManager implements EntityQueries {
         const type: MobType = r < 0.2 ? 'crawler' : r < 0.62 ? (dry && Math.random() < 0.8 ? 'dustwalker' : 'shambler') : 'skeleton';
         this.spawnMob(type, spot.x, spot.y, spot.z, host);
         break;
+      }
+    }
+  }
+
+  /**
+   * The Cinderdeep (2.0): no animals; Cinderlings and Smoulderers come out of the
+   * shadows between the lava's glow (block light below 12, so not right beside lava).
+   */
+  private trySpawnDeep(host: EntityHost): void {
+    const p = host.player;
+    let hostile = 0;
+    for (const e of this.list) if (e instanceof Mob && e.spec.hostile && Math.hypot(e.x - p.x, e.z - p.z) <= 80) hostile++;
+    const cap = host.difficulty === 'peaceful' ? 0 : host.difficulty === 'easy' ? 5 : host.difficulty === 'normal' ? 8 : 12;
+    if (hostile >= cap) return;
+    for (let tries = 0; tries < 4; tries++) {
+      const a = Math.random() * Math.PI * 2, r = 20 + Math.random() * 24;
+      const x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+      if (!host.world.isLoaded(x, z)) continue;
+      const y0 = LAVA_SEA + 2 + Math.floor(Math.random() * (118 - LAVA_SEA - 2));
+      for (let y = y0; y > LAVA_SEA; y--) {
+        const b = host.world.getBlock(x, y, z);
+        if (b === UNLOADED || !SPAWN_FLOOR[b]) continue;
+        if (host.world.getBlock(x, y + 1, z) !== AIR || host.world.getBlock(x, y + 2, z) !== AIR) continue;
+        if ((host.world.getLight(x, y + 1, z) & 15) >= 12) break;
+        if (Math.abs(y + 1 - p.y) < 3 && Math.hypot(x - p.x, z - p.z) < 24) break;
+        this.spawnMob(Math.random() < 0.62 ? 'cinderling' : 'smoulderer', x + 0.5, y + 1, z + 0.5, host);
+        return;
       }
     }
   }

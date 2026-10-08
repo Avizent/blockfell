@@ -48,6 +48,8 @@ export interface EntityHost {
   spawnItem(stack: ItemStack, x: number, y: number, z: number, throwVel?: [number, number, number]): void;
   spawnXp(value: number, x: number, y: number, z: number): void;
   spawnArrow(x: number, y: number, z: number, vx: number, vy: number, vz: number, fromPlayer: boolean, damage: number, shooter?: Mob | null): void;
+  /** 2.0: a Smoulderer's thrown ember. */
+  spawnEmber(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob): void;
   /** The player hit a creature (companions join in). */
   playerAttacked(mob: Mob): void;
   // ---- villages

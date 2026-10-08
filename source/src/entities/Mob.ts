@@ -24,6 +24,16 @@ interface MobSpec {
   hungerHit?: boolean;    // its hits make the player hungry
   huntsFolk?: boolean;    // attacks villagers too
   folk?: 'villager' | 'sentinel';
+  /** 2.0: lava and fire don't hurt it. */
+  fireproof?: boolean;
+  /** 2.0: glows in the dark (drawn bright, sheds sparks). */
+  glows?: boolean;
+  /** 2.0: its hits set the player alight for this many ticks. */
+  ignites?: number;
+  /** 2.0: leaps at its prey from a few blocks away. */
+  leaps?: boolean;
+  /** 2.0: throws embers instead of shooting arrows (ranged). */
+  embers?: boolean;
 }
 
 export const MOB_SPECS: Record<MobType, MobSpec> = {
@@ -40,6 +50,8 @@ export const MOB_SPECS: Record<MobType, MobSpec> = {
   villager: { name: 'Villager', hostile: false, health: 20, speed: 0.25, width: 0.6, height: 1.95, drops: [], xp: [0, 0], sound: 'villager', folk: 'villager' },
   hound: { name: 'Fellhound', hostile: false, health: 8, speed: 0.3, width: 0.6, height: 0.85, drops: [], xp: [1, 3], attack: 4, sound: 'hound' },
   sentinel: { name: 'Sentinel', hostile: false, health: 100, speed: 0.2, width: 1.4, height: 2.6, drops: [['iron_ingot', 3, 5], ['stone_bricks', 1, 3]], xp: [0, 0], attack: 10, sound: 'sentinel', folk: 'sentinel' },
+  cinderling: { name: 'Cinderling', hostile: true, health: 10, speed: 0.33, width: 0.5, height: 1.0, drops: [['ember', 0, 1]], xp: [3, 5], attack: 2, sound: 'cinderling', fireproof: true, glows: true, ignites: 60, leaps: true },
+  smoulderer: { name: 'Smoulderer', hostile: true, health: 24, speed: 0.2, width: 0.6, height: 2.1, drops: [['ember', 0, 2], ['fire_opal', 1, 1, 0.08]], xp: [8, 8], attack: 3, ranged: true, embers: true, sound: 'smoulderer', fireproof: true, ignites: 40 },
 };
 
 const tmpColor = new THREE.Color();
@@ -98,6 +110,8 @@ export class Mob extends Entity implements Hurtable {
   protected bow: THREE.Object3D | null = null;
   /** 1.8: ticks left glowing (a village bell was rung nearby): bright, and seen through walls. */
   glowTicks = 0;
+  /** 2.0: ticks until a Cinderling may leap again. */
+  protected leapCooldown = 0;
   private glowing = false;
 
   constructor(type: MobType, host?: EntityHost, model?: BuiltModel) {
@@ -281,6 +295,7 @@ export class Mob extends Entity implements Hurtable {
 
   /** Lava burns (2 hearts every half second) and sets creatures alight; water or rain puts the fire out. */
   protected tickFire(host: EntityHost): void {
+    if (this.spec.fireproof) { this.fireTicks = 0; return; }
     if (this.inLava) {
       this.fireTicks = 160;
       if (this.age % 10 === 0) this.hurt(4, host, 0, 0, false);
@@ -330,8 +345,8 @@ export class Mob extends Entity implements Hurtable {
         if (dist > 10 || !this.sawPlayer) forward = 1;
         else if (dist < 5) forward = -0.6;
         if (this.attackCooldown <= 0 && this.sawPlayer && dist < 15) {
-          this.shoot(host, tx, te ? te.y + te.height * 0.6 : p.y + 1.1, tz);
           this.attackCooldown = host.difficulty === 'hard' ? 25 : 40;
+          this.shoot(host, tx, te ? te.y + te.height * 0.6 : p.y + 1.1, tz);
         }
       } else {
         forward = 1;
@@ -344,9 +359,16 @@ export class Mob extends Entity implements Hurtable {
           else {
             host.damagePlayer(dmg, { x: this.x, y: this.y, z: this.z, kind: 'mob', mob: this });
             if (this.spec.hungerHit) p.addExhaustion(3);
+            if (this.spec.ignites && !p.creative && !p.dead) p.fireTicks = Math.max(p.fireTicks, this.spec.ignites);
           }
           this.attackCooldown = 20;
           this.attackAnim = 10;
+        } else if (this.spec.leaps && this.leapCooldown <= 0 && this.onGround && dist > 1.8 && dist < 5 && dy < 1.5 && this.sawPlayer) {
+          // spring at the prey
+          this.vy = 0.42;
+          this.vx += (dx / dist) * 0.32; this.vz += (dz / dist) * 0.32;
+          this.leapCooldown = 50;
+          host.sound(this.spec.sound, this.x, this.y + 0.5, this.z, 0.5, 1.3);
         }
       }
       speedMul = 1.1;
@@ -374,6 +396,7 @@ export class Mob extends Entity implements Hurtable {
       }
     }
     if (this.attackCooldown > 0) this.attackCooldown--;
+    if (this.leapCooldown > 0) this.leapCooldown--;
 
     // ---- obstacle handling
     const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
@@ -422,6 +445,9 @@ export class Mob extends Entity implements Hurtable {
       }
     }
 
+    // ---- glowing creatures shed sparks
+    if (this.spec.glows && this.age % 9 === 0) host.effect('flame', this.x + (Math.random() - 0.5) * this.width, this.y + this.height * (0.4 + Math.random() * 0.6), this.z + (Math.random() - 0.5) * this.width, 1);
+
     // ---- sunlight burns undead
     if (this.spec.burnsInSun && host.isDay() && !this.inWater && host.weatherRain() < 0.3) {
       const light = host.world.getLight(Math.floor(this.x), Math.floor(this.y + this.height), Math.floor(this.z));
@@ -435,6 +461,18 @@ export class Mob extends Entity implements Hurtable {
 
   protected shoot(host: EntityHost, tx: number, ty: number, tz: number): void {
     const sx = this.x, sy = this.y + this.height * 0.8, sz = this.z;
+    if (this.spec.embers) {
+      // a glowing ember, thrown in a shallow arc
+      const dx = tx - sx, dz = tz - sz, dist = Math.hypot(dx, dz);
+      const dy = ty - sy + dist * 0.04;
+      const l = Math.hypot(dx, dy, dz) || 1, speed = 0.9, spread = host.difficulty === 'hard' ? 0.03 : 0.08;
+      host.spawnEmber(sx + (dx / l) * 0.7, sy, sz + (dz / l) * 0.7,
+        (dx / l + (Math.random() - 0.5) * spread) * speed, (dy / l) * speed, (dz / l + (Math.random() - 0.5) * spread) * speed, this);
+      host.sound('ember_throw', sx, sy, sz, 0.7, 0.9 + Math.random() * 0.2);
+      this.attackAnim = 8;
+      this.attackCooldown = host.difficulty === 'hard' ? 35 : 55;
+      return;
+    }
     const dx = tx - sx, dz = tz - sz;
     const dist = Math.hypot(dx, dz);
     const dy = ty - sy + dist * 0.12;
@@ -470,6 +508,11 @@ export class Mob extends Entity implements Hurtable {
         const att = this.attackAnim > 0 ? Math.sin((this.attackAnim / 10) * Math.PI) * 0.6 : 0;
         armL.rotation.x = -Math.PI / 2 + swing * 0.2 - att;
         armR.rotation.x = -Math.PI / 2 - swing * 0.2 - att;
+      } else if (this.mobType === 'smoulderer' && this.chasing) {
+        const att = this.attackAnim > 0 ? Math.sin((this.attackAnim / 8) * Math.PI) : 0;
+        armR.rotation.x = -Math.PI / 2 - att * 0.9;
+        armL.rotation.x = -swing * 0.5;
+        armL.rotation.y = 0;
       } else if (this.mobType === 'skeleton' && this.chasing) {
         armR.rotation.x = -Math.PI / 2;
         armL.rotation.x = -Math.PI / 2 + 0.2;
@@ -505,7 +548,7 @@ export class Mob extends Entity implements Hurtable {
     if (head) { head.rotation.y = this.headYaw; head.rotation.x = this.headPitch; }
     if (this.bow) this.bow.visible = true;
 
-    const b = host.brightnessAt(this.x, this.y + this.height * 0.7, this.z);
+    const b = this.spec.glows ? Math.max(0.92, host.brightnessAt(this.x, this.y + this.height * 0.7, this.z)) : host.brightnessAt(this.x, this.y + this.height * 0.7, this.z);
     tmpColor.setScalar(b);
     if (this.hurtTime > 0 || this.deathTime > 0) tmpColor.setRGB(Math.min(1, b * 1.4 + 0.3), b * 0.45, b * 0.45);
     // glowing (1.8): lit up and drawn over walls, so the player can see where it lurks

@@ -4,7 +4,8 @@ import { BuiltModel, PartDef, buildModel } from './BoxModel';
  * ORIGINAL cuboid creature designs. Coordinates are in model pixels; the model's
  * feet centre is the origin and it faces +Z.
  */
-export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound';
+export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound'
+  | 'cinderling' | 'smoulderer';
 export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker';
 
 const quad = (name: string, x: number, z: number, h: number, w: number, base: string, paint?: PartDef['paint']): PartDef => ({
@@ -208,6 +209,53 @@ function crawler(): PartDef[] {
       } },
     ...legs,
   ];
+}
+
+/** Cinderling (2.0): a knee-high scamp of glowing coals with a flickering crest. */
+function cinderling(): PartDef[] {
+  const coal = '#2e2421', crack = '#ff8a2a', hot = '#ffd27a';
+  const cracks = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => {
+    for (const f of ['front', 'back', 'left', 'right'] as const) {
+      p.px(f, 1, 1, crack, 1, 2); p.px(f, 2, 3, crack, 2, 1); p.px(f, 4, 2, hot, 1, 1);
+    }
+    p.px('top', 1, 1, crack, 3, 1);
+  };
+  return [
+    { name: 'body', size: [6, 6, 5], pivot: [0, 4, 0], from: [-3, 0, -2.5], base: coal, noise: 0.14, paint: cracks },
+    { name: 'head', size: [6, 5, 5], pivot: [0, 10, 0.5], from: [-3, 0, -2.5], base: '#382b27', noise: 0.12,
+      paint: (p) => {
+        p.px('front', 1, 2, hot, 1, 1); p.px('front', 4, 2, hot, 1, 1);
+        p.px('front', 1, 3, crack, 1, 1); p.px('front', 4, 3, crack, 1, 1);
+        p.px('front', 2, 4, '#1a1311', 2, 1);
+      } },
+    { name: 'crest', size: [2, 3, 4], pivot: [0, 0, 0], from: [-1, 5, -2], base: crack, parent: 'head',
+      paint: (p) => { p.fill('top', hot, 0.1, 4); p.px('front', 0, 0, hot, 2, 1); p.px('left', 0, 0, hot, 4, 1); p.px('right', 0, 0, hot, 4, 1); } },
+    { name: 'armL', size: [2, 5, 2], pivot: [4, 9, 0], from: [-1, -5, -1], base: coal, paint: (p) => p.px('front', 0, 4, crack, 2, 1) },
+    { name: 'armR', size: [2, 5, 2], pivot: [-4, 9, 0], from: [-1, -5, -1], base: coal, paint: (p) => p.px('front', 0, 4, crack, 2, 1) },
+    { name: 'legL', size: [2, 4, 2], pivot: [1.5, 4, 0], from: [-1, -4, -1], base: '#251d1b' },
+    { name: 'legR', size: [2, 4, 2], pivot: [-1.5, 4, 0], from: [-1, -4, -1], base: '#251d1b' },
+  ];
+}
+
+/** Smoulderer (2.0): a tall, hooded walker caked in ash, with ember eyes and glowing seams. */
+function smoulderer(): PartDef[] {
+  const ashy = '#5f5856', robe = '#3f3937', seam = '#ff7a2a';
+  return humanoid({
+    skin: ashy, shirt: robe, pants: robe, shoes: '#2a2524',
+    face: (p) => {
+      p.fill('front', '#1d1919', 0.05, 31);
+      p.px('front', 1, 3, '#ffcf6a', 2, 1); p.px('front', 5, 3, '#ffcf6a', 2, 1);
+      p.px('front', 2, 4, seam, 1, 1); p.px('front', 5, 4, seam, 1, 1);
+    },
+    torso: (p) => {
+      p.px('front', 3, 1, seam, 2, 1); p.px('front', 4, 2, seam, 1, 4); p.px('front', 2, 6, seam, 1, 3); p.px('front', 5, 7, seam, 1, 3);
+      p.px('back', 3, 2, seam, 1, 5);
+    },
+    extra: [
+      { name: 'hood', size: [9, 4, 9], pivot: [0, 0, 0], from: [-4.5, 6, -4.5], base: robe, parent: 'head', noise: 0.08,
+        paint: (p) => { p.px('front', 0, 3, '#2b2625', 9, 1); } },
+    ],
+  });
 }
 
 function dustwalker(): PartDef[] {
@@ -431,7 +479,7 @@ export function mobModel(type: MobType): BuiltModel {
   if (m) return m;
   if (type === 'villager') return villagerModel('none');
   if (type === 'hound') return houndModel(false);
-  const parts = { pig, cow, sheep, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel }[type]();
+  const parts = { pig, cow, sheep, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer }[type]();
   m = buildModel(parts, 64, 64, type.length * 13);
   cache.set(type, m);
   return m;
