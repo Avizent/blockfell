@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { engine } from '../engine/Engine';
+import { restartForUpdate } from '../engine/offline';
 import { useStore } from '../core/store';
 import { ui } from './uiStore';
 import { Button, ItemIcon, Slider, Title } from './widgets';
@@ -112,6 +113,17 @@ function SoundButton() {
   return <Button size="half" testId="btn-pause-sound" title="Switch all sound on or off (M)" onClick={() => engine.toggleSound()}>Sound: {engine.options.sound ? 'ON' : 'OFF'}</Button>;
 }
 
+/** 2.0.1: a newer Blockfell is waiting: save the world and start it, from inside the game. */
+function PauseUpdate() {
+  const upd = useStore(ui, (s) => s.update);
+  if (!upd) return null;
+  return (
+    <Button size="wide" testId="btn-pause-update" onClick={async () => { await engine.saveAndQuit(); restartForUpdate(); }}>
+      Save and Update to Blockfell {upd.version || 'new version'}
+    </Button>
+  );
+}
+
 export function PauseMenu() {
   return (
     <div className="screen" data-testid="pause-menu">
@@ -129,6 +141,7 @@ export function PauseMenu() {
         </div>
         <div style={{ height: '8rem' }} />
         <Button size="wide" testId="btn-save-quit" onClick={() => void engine.saveAndQuit()}>Save and Quit to Title</Button>
+        <PauseUpdate />
       </div>
     </div>
   );
