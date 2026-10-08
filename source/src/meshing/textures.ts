@@ -232,6 +232,130 @@ function cinderstone(rng: () => number): PixelTex {
   return t;
 }
 
+/** Cinderstone Bricks (1.10): cut cinderstone in staggered courses, ember-red glints in the joints. */
+function cinderstoneBricks(rng: () => number): PixelTex {
+  const t = new PixelTex();
+  for (let row = 0; row < 4; row++) {
+    const off = row % 2 ? 4 : 0;
+    for (let y = row * 4; y < row * 4 + 4; y++) for (let x = 0; x < 16; x++) {
+      const bx = (x + 16 - off) % 16;
+      const ly = y - row * 4, lx = bx % 8;
+      let c: RGB = shade([44, 40, 47], 1 + (rng() - 0.5) * 0.14);
+      if (ly === 3 || lx === 7) c = rng() < 0.12 ? [178, 64, 30] : [22, 20, 24];
+      else if (ly === 0 || lx === 0) c = [64, 60, 70];
+      t.set(x, y, c);
+    }
+  }
+  return t;
+}
+
+// ------------------------------------------------------------------ 2.0 the Cinderdeep
+/** Ashrock: dark red-brown stone with warm streaks and the odd glinting fleck. */
+function ashrock(rng: () => number): PixelTex {
+  const t = noisy([86, 58, 54], rng, 0.05, 4, 0.14);
+  for (let i = 0; i < 7; i++) {
+    const x = Math.floor(rng() * 16), y = Math.floor(rng() * 16), len = 2 + Math.floor(rng() * 4);
+    for (let k = 0; k < len; k++) t.set(x + k, y, shade(t.get(x + k, y), 0.76));
+  }
+  speckle(t, rng, 12, [110, 76, 66]);
+  speckle(t, rng, 3, [150, 74, 44], 0.1);
+  return t;
+}
+
+/** Ash: soft grey-black dust with paler flecks. */
+function ash(rng: () => number): PixelTex {
+  const t = noisy([78, 76, 78], rng, 0.07, 2, 0.1);
+  speckle(t, rng, 22, [104, 100, 102]);
+  speckle(t, rng, 10, [56, 52, 54]);
+  return t;
+}
+
+/** Ember Ore: Ashrock with clusters of glowing orange embers. */
+function emberOre(rng: () => number): PixelTex {
+  const t = ashrock(rng);
+  const pal: RGB[] = [[255, 168, 60], [255, 220, 120], [214, 92, 26]];
+  for (let c = 0; c < 4; c++) {
+    const cx = 2 + Math.floor(rng() * 12), cy = 2 + Math.floor(rng() * 12);
+    paint(t, ['.a.', 'abA', '.A.'], { a: pal[0], b: pal[1], A: pal[2] }, cx - 1, cy - 1);
+  }
+  return t;
+}
+
+/** Fire Opal Ore: Ashrock set with milky stones flashing red, orange and green. */
+function fireOpalOre(rng: () => number): PixelTex {
+  const t = ashrock(rng);
+  const pal: RGB[] = [[255, 236, 214], [250, 120, 70], [255, 196, 90], [120, 220, 150]];
+  for (let c = 0; c < 3; c++) {
+    const cx = 3 + Math.floor(rng() * 10), cy = 3 + Math.floor(rng() * 10);
+    paint(t, ['.ab.', 'acbd', 'bdca', '.ba.'], { a: pal[1], b: pal[0], c: pal[2], d: pal[3] }, cx - 2, cy - 2);
+  }
+  return t;
+}
+
+/** Glowcap: a pale stalk with a glowing orange-gold cap (cutout). */
+function glowcap(rng: () => number): PixelTex {
+  const t = new PixelTex();
+  for (let y = 0; y < TEX; y++) for (let x = 0; x < TEX; x++) t.set(x, y, [0, 0, 0], 0);
+  paint(t, [
+    '...cCCc...',
+    '.cCYYYCc..',
+    'cCYyYYyCc.',
+    'CYYYyYYYC.',
+    'oooooooo..',
+    '...ss.....',
+    '...ss.....',
+    '...ss..cc.',
+    '...ss.cYYc',
+    '...ss.oooo',
+    '..sss..s..',
+    '.......s..',
+  ], { c: [214, 110, 40], C: [244, 150, 56], Y: [255, 214, 110], y: [255, 246, 196], o: [150, 70, 30], s: [220, 206, 186] }, 3, 4);
+  return t;
+}
+
+/** Ashrock Bricks: neat courses of cut Ashrock. */
+function ashrockBricks(rng: () => number): PixelTex {
+  const t = new PixelTex();
+  for (let row = 0; row < 2; row++) {
+    const off = row ? 4 : 0;
+    for (let y = row * 8; y < row * 8 + 8; y++) for (let x = 0; x < 16; x++) {
+      const bx = (x + 16 - off) % 16, ly = y - row * 8, lx = bx % 8;
+      let c: RGB = shade([92, 62, 58], 1 + (rng() - 0.5) * 0.1);
+      if (ly === 7 || lx === 7) c = [46, 32, 30];
+      else if (ly === 0 || lx === 0) c = [118, 82, 74];
+      else if (ly === 6 || lx === 6) c = [76, 52, 48];
+      t.set(x, y, c);
+    }
+  }
+  return t;
+}
+
+/** Ember Lamp: glowing embers behind a dark iron lattice. */
+function emberLamp(rng: () => number): PixelTex {
+  const t = new PixelTex();
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const d = Math.hypot(x - 7.5, y - 7.5);
+    let c: RGB = d < 3 ? [255, 236, 170] : d < 5.5 ? [255, 180, 80] : [228, 112, 40];
+    c = shade(c, 1 + (rng() - 0.5) * 0.12);
+    if (x === 0 || y === 0 || x === 15 || y === 15 || x === 5 || x === 10 || y === 5 || y === 10) c = [54, 40, 38];
+    t.set(x, y, c);
+  }
+  return t;
+}
+
+/** Deepgate: a swirl of molten light, brightest at the heart. */
+function deepgate(rng: () => number): PixelTex {
+  const t = new PixelTex();
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const dx = x - 7.5, dy = y - 7.5, r = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+    const swirl = Math.sin(a * 3 + r * 0.9) * 0.5 + 0.5;
+    const v = Math.max(0, 1 - r / 11) * 0.7 + swirl * 0.3 + (rng() - 0.5) * 0.08;
+    const c: RGB = v > 0.75 ? [255, 244, 200] : v > 0.58 ? [255, 196, 96] : v > 0.4 ? [246, 128, 48] : [178, 58, 30];
+    t.set(x, y, c);
+  }
+  return t;
+}
+
 /** Monster Cage: a frame of dark iron bars (the gaps are see-through). */
 function spawnerCage(rng: () => number): PixelTex {
   const t = new PixelTex();
@@ -1325,6 +1449,15 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   for (let f = 0; f < WATER_FRAMES; f++) m.set(`water_${f}`, water(f));
   for (let f = 0; f < LAVA_FRAMES; f++) m.set(`lava_${f}`, lava(f));
   m.set('cinderstone', cinderstone(R('cinderstone')));
+  m.set('cinderstone_bricks', cinderstoneBricks(R('cinderstone_bricks')));
+  m.set('ashrock', ashrock(R('ashrock')));
+  m.set('ash', ash(R('ash')));
+  m.set('ember_ore', emberOre(R('ember_ore')));
+  m.set('fire_opal_ore', fireOpalOre(R('fire_opal_ore')));
+  m.set('glowcap', glowcap(R('glowcap')));
+  m.set('ashrock_bricks', ashrockBricks(R('ashrock_bricks')));
+  m.set('ember_lamp', emberLamp(R('ember_lamp')));
+  m.set('deepgate', deepgate(R('deepgate')));
   m.set('spawner', spawnerCage(R('spawner')));
   m.set('bell', bellBronze(R('bell')));
   m.set('bell_mount', bellMount(R('bell_mount')));

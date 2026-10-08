@@ -67,7 +67,7 @@ const DIRS: Dir[] = [
 ];
 const AXIS_STEP = [1, PLANE, PW];
 
-const padded = new Uint8Array(PVOL);
+const padded = new Uint16Array(PVOL);
 const sky = new Uint8Array(PVOL);
 const blk = new Uint8Array(PVOL);
 const opaqueB = new MeshBuilder(32768);
@@ -81,7 +81,7 @@ const cornerBlk = new Int32Array(4);
 const coord = [0, 0, 0];
 
 /** Copies the 3x3 chunk neighbourhood (index (dz+1)*3 + (dx+1)) into the padded volume. */
-function fillPadded(chunks: Uint8Array[]): void {
+function fillPadded(chunks: Uint16Array[]): void {
   // bottom guard row: solid; top guard row: air
   padded.fill(BEDROCK, 0, PLANE);
   padded.fill(AIR, (PY - 1) * PLANE, PVOL);
@@ -241,7 +241,7 @@ function waterCorners(pi: number, kind: Uint8Array = IS_WATER): boolean {
   return waterH[0] === waterH[1] && waterH[1] === waterH[2] && waterH[2] === waterH[3] && (waterH[0] === 14 || waterH[0] === 16);
 }
 
-export function meshChunk(chunks: Uint8Array[], greedy: boolean, prevLight: (Uint8Array | null)[] | null): MeshResult {
+export function meshChunk(chunks: Uint16Array[], greedy: boolean, prevLight: (Uint8Array | null)[] | null): MeshResult {
   const t0 = performance.now();
   fillPadded(chunks);
   computeLight(padded, sky, blk);

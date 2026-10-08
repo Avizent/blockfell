@@ -42,6 +42,10 @@ const base = [
   'cinderstone', 'spawner',
   // 1.8: village life
   'bell', 'bell_mount', 'map_table_top', 'map_table_side',
+  // 1.10
+  'cinderstone_bricks',
+  // 2.0: the Cinderdeep
+  'ashrock', 'ash', 'ember_ore', 'fire_opal_ore', 'glowcap', 'ashrock_bricks', 'ember_lamp', 'deepgate',
 ];
 
 export const TEXTURE_NAMES: string[] = [

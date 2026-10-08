@@ -37,7 +37,7 @@ let queue: Int32Array | null = null;
  *    downward losing 1 per step (so caves and overhangs darken naturally).
  *  - Block light: flood fill from emitting blocks (torches, lumen, lit furnaces).
  */
-export function computeLight(blocks: Uint8Array, sky: Uint8Array, blk: Uint8Array): void {
+export function computeLight(blocks: Uint16Array, sky: Uint8Array, blk: Uint8Array): void {
   if (!queue) queue = new Int32Array(QUEUE_SIZE);
   const q = queue;
   sky.fill(0);
@@ -97,7 +97,7 @@ export function computeLight(blocks: Uint8Array, sky: Uint8Array, blk: Uint8Arra
   if (tail > 0) flood(blocks, blk, q, head, tail);
 }
 
-function flood(blocks: Uint8Array, light: Uint8Array, q: Int32Array, head: number, tail: number): void {
+function flood(blocks: Uint16Array, light: Uint8Array, q: Int32Array, head: number, tail: number): void {
   while (head !== tail) {
     const i = q[head]; head = (head + 1) & QUEUE_MASK;
     const L = light[i];
@@ -116,7 +116,7 @@ function flood(blocks: Uint8Array, light: Uint8Array, q: Int32Array, head: numbe
   }
 }
 
-function spread(blocks: Uint8Array, light: Uint8Array, q: Int32Array, n: number, L: number, tail: number): number {
+function spread(blocks: Uint16Array, light: Uint8Array, q: Int32Array, n: number, L: number, tail: number): number {
   const op = LIGHT_OPACITY[blocks[n]];
   if (op >= 15) return tail;
   const nl = L - (op > 1 ? op : 1);
