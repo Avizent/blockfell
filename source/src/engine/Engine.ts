@@ -6,7 +6,9 @@ import type { EngineServices } from './services';
 import { WorkerPool } from '../workers/WorkerPool';
 import { AudioManager } from '../systems/AudioManager';
 import { Options, autoGuiScale, touchGuiScale, loadOptions, saveOptions } from '../systems/Options';
-import { SaveManager, WorldRecord, DEFAULT_RULES, GameRules } from '../systems/SaveManager';
+import { SaveManager, WorldRecord, DEFAULT_RULES, GameRules, OVERWORLD, type DimId } from '../systems/SaveManager';
+import { hasGenerator, newestGenVersion } from '../world/generators';
+import type { Arrival } from '../world/dims';
 import { ItemIcons } from '../render/ItemIcons';
 import { ItemModels } from '../render/ItemModels';
 import { Game } from '../game/Game';
@@ -113,6 +115,11 @@ export class Engine implements EngineServices {
         for (const w of await this.saves.listWorlds()) if (w.name === BENCH_WORLD) await this.saves.deleteWorld(w.id);
       }
       ui.set((s) => ({ worldsVersion: s.worldsVersion + 1 }));
+      if (this.saves.upgraded.length) {
+        const n = this.saves.upgraded.length;
+        pushToast({ kind: 'info', icon: 'chest', title: `Updated for Blockfell ${GAME_VERSION}`, desc: n === 1 ? this.saves.upgraded[0] : `${n} worlds (old copies kept)` });
+      }
+      if (this.saves.upgradeFailed.length) pushToast({ kind: 'info', icon: 'bedrock', title: 'A world could not be updated', desc: this.saves.upgradeFailed.join(', ') });
       await this.cloud.init();
       if (!(await this.resumeLastWorld())) void this.cloud.syncAll();
     });
@@ -210,7 +217,7 @@ export class Engine implements EngineServices {
       const st = this.game.chunks.stats;
       ui.set({
         loading: {
-          title: 'Loading world', stage: ready < total ? 'Building terrain' : 'Preparing spawn area',
+          title: this.loadingTitle, stage: ready < total ? 'Building terrain' : 'Preparing spawn area',
           progress: total ? ready / total : 0,
           detail: `${st.totalGenerated} chunks generated · ${ready} / ${total} spawn chunks meshed`,
         },
@@ -283,6 +290,49 @@ export class Engine implements EngineServices {
     await this.playWorld(rec.id);
   }
 
+  /** Title of the loading screen while a world (or another dimension of it) loads. */
+  private loadingTitle = 'Loading world';
+
+  /**
+   * 2.0: carries the player into another dimension of the open world - through a
+   * Deepgate, or home to the surface after dying in the Cinderdeep. The world is
+   * saved with the player in the new dimension, then that landscape is loaded like a
+   * world is (its own chunks, chests and creatures) and the player arrives.
+   */
+  async changeDimension(target: DimId, arrival: Arrival): Promise<void> {
+    const g = this.game;
+    if (!g || this.busy || !hasGenerator(target) || target === g.dim) return;
+    this.busy = true;
+    try {
+      const title = target === OVERWORLD ? (arrival.kind === 'respawn' ? 'Waking up on the surface' : 'Returning to the surface') : 'Entering the Cinderdeep';
+      this.loadingTitle = title;
+      ui.set({ screen: 'loading', overlay: null, loading: { title, stage: 'Saving', progress: -1, detail: g.record.name } });
+      this.input.exitLock();
+      g.leaveFor(target);
+      await g.save();
+      const rec = g.record;
+      g.dispose();
+      this.game = null;
+      (window as unknown as Record<string, unknown>).__game = null;
+      this.pool.clearPending();
+      if (target !== OVERWORLD) {
+        const now = Date.now();
+        rec.dims = { ...(rec.dims ?? {}) };
+        const info = rec.dims[target] ?? { genVersion: newestGenVersion(target), firstVisit: now };
+        rec.dims[target] = { ...info, lastVisit: now };
+        await this.saves.putWorld(rec);
+      }
+      ui.set({ loading: { title, stage: 'Reading save data', progress: -1, detail: rec.name } });
+      const deltas = await this.saves.loadDeltas(rec.id, target);
+      const extra = await this.saves.getExtra(rec.id, target);
+      this.game = new Game(this, rec, deltas, extra, target, arrival);
+      this.loadingGame = true;
+      (window as unknown as Record<string, unknown>).__game = this.game;
+    } finally {
+      this.busy = false;
+    }
+  }
+
   async playWorld(id: string): Promise<void> {
     if (this.busy) return;
     this.busy = true;
@@ -303,13 +353,20 @@ export class Engine implements EngineServices {
         rec = await this.saves.getWorld(id);
         if (!rec) return;
       }
-      ui.set({ screen: 'loading', overlay: null, loading: { title: 'Loading world', stage: 'Reading save data', progress: -1, detail: rec.name } });
+      if ((rec.format ?? 1) < SAVE_FORMAT) {
+        // conversion failed at start-up (see SaveManager.upgradeAll): opening it now would lose its changes
+        pushToast({ kind: 'info', icon: 'bedrock', title: 'This world could not be updated', desc: 'Export it and send the file for help' });
+        return;
+      }
+      const dim = playerDim(rec);
+      this.loadingTitle = dim === OVERWORLD ? 'Loading world' : 'Loading world: the Cinderdeep';
+      ui.set({ screen: 'loading', overlay: null, loading: { title: this.loadingTitle, stage: 'Reading save data', progress: -1, detail: rec.name } });
       this.panorama?.dispose();
       this.panorama = null;
       this.pool.clearPending();
-      const deltas = await this.saves.loadDeltas(id);
-      const extra = await this.saves.getExtra(id);
-      this.game = new Game(this, rec, deltas, extra);
+      const deltas = await this.saves.loadDeltas(id, dim);
+      const extra = await this.saves.getExtra(id, dim);
+      this.game = new Game(this, rec, deltas, extra, dim);
       this.loadingGame = true;
       (window as unknown as Record<string, unknown>).__game = this.game;
     } finally {
@@ -505,7 +562,7 @@ export class Engine implements EngineServices {
       `Blockfell ${GAME_VERSION}`,
       `${this.loop.fps} fps (frame ${this.loop.frameMs.toFixed(1)} ms, worst ${this.loop.worstFrameMs.toFixed(0)} ms)`,
       `XYZ: ${p.x.toFixed(3)} / ${p.y.toFixed(3)} / ${p.z.toFixed(3)}`,
-      `Block: ${bx} ${by} ${bz}  Chunk: ${bx >> 4} ${bz >> 4} [${bx & 15} ${bz & 15}]`,
+      `Block: ${bx} ${by} ${bz}  Chunk: ${bx >> 4} ${bz >> 4} [${bx & 15} ${bz & 15}]  Dimension: ${g.dim}`,
       `Facing: ${facing} (${yawDeg.toFixed(1)} / ${((p.pitch * 180) / Math.PI).toFixed(1)})`,
       `Velocity: ${(p.vx * 20).toFixed(2)} ${(p.vy * 20).toFixed(2)} ${(p.vz * 20).toFixed(2)} m/s`,
       `Light: sky ${light >> 4} block ${light & 15}  Biome: ${biomeName(col.biome)}`,
@@ -542,3 +599,9 @@ export class Engine implements EngineServices {
 }
 
 export const engine = new Engine();
+
+/** The dimension a saved player is in (overworld when unknown or not available in this Blockfell). */
+function playerDim(rec: WorldRecord): DimId {
+  const d = rec.player?.dim;
+  return d && hasGenerator(d) ? d : OVERWORLD;
+}

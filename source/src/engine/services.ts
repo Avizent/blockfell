@@ -26,4 +26,6 @@ export interface EngineServices {
   updateDebug(game: Game): void;
   /** The game saved its world on this device (1.9: Dropbox sync uploads it). */
   worldSaved?(id: string, urgent: boolean): void;
+  /** 2.0: carries the player into another dimension of the open world. */
+  changeDimension?(target: import('../world/dims').DimId, arrival: import('../world/dims').Arrival): Promise<void>;
 }
