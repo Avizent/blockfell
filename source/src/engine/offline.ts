@@ -10,7 +10,7 @@
  * page anyway. Nothing of this runs from a file (Blockfell.html), in the dev
  * server, or inside another page (the claude.ai viewer).
  */
-import { ui } from '../ui/uiStore';
+import { ui, pushToast } from '../ui/uiStore';
 
 declare const __BUILD_ID__: string;
 export const BUILD_ID: string = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev';
@@ -56,7 +56,13 @@ export async function checkForUpdate(force = false): Promise<string | null> {
     const version = /<meta name="blockfell-version" content="([^"]*)"/.exec(html)?.[1] ?? '';
     const cache = await caches.open(CACHE);
     await cache.put(pageUrl(), new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } }));
+    const first = !ui.get().update;
     ui.set({ update: { version } });
+    // 2.0.1: in a world the title-screen banner isn't seen (a Home Screen app that reopens its
+    // last world may never show the title), so say so here; the pause menu offers Save and Update
+    if (first && ui.get().screen === 'game') {
+      pushToast({ kind: 'info', icon: 'chest', title: version ? `Blockfell ${version} is ready` : 'A new Blockfell is ready', desc: 'Menu: Save and Update' });
+    }
     return version;
   } catch {
     return null;
@@ -65,7 +71,7 @@ export async function checkForUpdate(force = false): Promise<string | null> {
   }
 }
 
-/** Starts the new version (the menus only offer this: a world in play is never interrupted). */
+/** Starts the new version (the menus only offer this: a world in play is saved first, never interrupted). */
 export function restartForUpdate(): void {
   location.reload();
 }
