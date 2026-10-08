@@ -244,6 +244,9 @@ add({ id: 'ember', name: 'Ember', category: 'ingredients', fuel: 4800 });
 add({ id: 'fire_opal', name: 'Fire Opal', category: 'ingredients' });
 /** Cinder Charm: held in the off hand it halves fire and lava damage and puts fire out sooner. */
 add({ id: 'cinder_charm', name: 'Cinder Charm', category: 'combat', maxStack: 1 });
+// ---- 2.0.1
+blockItem('glimmerstone', 'decoration');
+add({ id: 'glimmer_dust', name: 'Glimmer Dust', category: 'ingredients' });
 
 // ---- spawn items
 const MOBS: [string, string][] = [
