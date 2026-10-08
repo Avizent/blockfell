@@ -111,3 +111,5 @@ shaped(['AA', 'AA'], { A: 'ashrock' }, 'ashrock_bricks', 4);
 shaped([' G ', 'GEG', ' G '], { G: 'glass', E: 'ember' }, 'ember_lamp');
 shaped(['E', 'S'], { E: 'ember', S: 'stick' }, 'torch', 8);
 shaped([' S ', 'IOI', ' I '], { S: 'string', I: 'iron_ingot', O: 'fire_opal' }, 'cinder_charm');
+// 2.0.1: four Glimmer Dust make the block again
+shaped(['DD', 'DD'], { D: 'glimmer_dust' }, 'glimmerstone');
