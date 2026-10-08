@@ -21,7 +21,8 @@ import type { DimensionGenerator } from './generators';
  * from a noise lattice every 4 blocks (interpolated, the same trick the overworld's
  * caves use), and everything stamped into a chunk stays inside it.
  */
-export const CINDER_GEN_VERSION = 1;
+/** 1 = 2.0; 2 = 2.0.1 (Glimmerstone clusters on cavern roofs). A world keeps the version of its first visit. */
+export const CINDER_GEN_VERSION = 2;
 /** Everything open at or below this height is lava. */
 export const LAVA_SEA = 24;
 const STEP = 4;
@@ -121,6 +122,7 @@ export class CinderGenerator implements DimensionGenerator {
     this.placeOres(blocks, rng);
     this.placeLavafall(blocks, rng);
     if (this.opts.structures) placeShrine(this.seed, cx, cz, blocks, containers, spawners);
+    if (this.version >= 2) this.placeGlimmer(cx, cz, blocks);
     return { blocks, containers, spawners };
   }
 
@@ -153,6 +155,42 @@ export class CinderGenerator implements DimensionGenerator {
     for (let n = 0; n < 6; n++) blob(randInt(rng, 0, 15), randInt(rng, 20, 116), randInt(rng, 0, 15), randInt(rng, 3, 7), B.EMBER_ORE);
     // Fire Opal: rare, small, deep - near (and under) the lava sea
     for (let n = 0; n < 2; n++) if (rng() < 0.55) blob(randInt(rng, 0, 15), randInt(rng, 6, 34), randInt(rng, 0, 15), randInt(rng, 1, 3), B.FIRE_OPAL_ORE);
+  }
+
+  /**
+   * Generator 2 (2.0.1): clusters of Glimmerstone hanging from cavern roofs. Its own
+   * random stream, so everything generator 1 makes stays exactly the same.
+   */
+  private placeGlimmer(cx: number, cz: number, b: Uint16Array): void {
+    const rng = mulberry32(hash4(this.seed, cx, cz, 0x91e5));
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (rng() >= 0.55) continue;
+      const lx = randInt(rng, 3, 12), lz = randInt(rng, 3, 12);
+      // a roof with at least 6 blocks of open air under it, well above the lava sea
+      let roof = -1;
+      for (let y = WORLD_HEIGHT - 6; y > LAVA_SEA + 16; y--) {
+        const i = localIndex(lx, y, lz);
+        if ((b[i] !== B.ASHROCK && b[i] !== B.EMBER_ORE) || b[i - 256] !== B.AIR) continue;
+        let open = 0;
+        for (let k = 1; k <= 6 && b[localIndex(lx, y - k, lz)] === B.AIR; k++) open++;
+        if (open >= 6) { roof = y; }
+        break;
+      }
+      if (roof < 0) continue;
+      // grow downwards and sideways from the roof, every piece touching the cluster
+      let x = lx, y = roof - 1, z = lz;
+      b[localIndex(x, y, z)] = B.GLIMMERSTONE;
+      const size = randInt(rng, 9, 22);
+      for (let n = 0, placed = 1; n < size * 4 && placed < size; n++) {
+        const d = Math.floor(rng() * 6);
+        const nx = x + (d === 0 ? 1 : d === 1 ? -1 : 0), nz = z + (d === 2 ? 1 : d === 3 ? -1 : 0);
+        const ny = y - (d >= 4 ? 1 : 0);
+        if (nx < 1 || nx > 14 || nz < 1 || nz > 14 || ny < roof - 5) { x = lx; y = roof - 1; z = lz; continue; }
+        const i = localIndex(nx, ny, nz);
+        if (b[i] === B.AIR) { b[i] = B.GLIMMERSTONE; placed++; }
+        if (b[i] === B.GLIMMERSTONE) { x = nx; y = ny; z = nz; }
+      }
+    }
   }
 
   /** Now and then a column of lava pours from the roof of a cavern onto its floor. */

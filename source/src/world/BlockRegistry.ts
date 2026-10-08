@@ -728,8 +728,8 @@ export const CINDERSTONE_BRICKS = reg('cinderstone_bricks', 'Cinderstone Bricks'
 // ======================================================================
 // Version 2.0 blocks: the Cinderdeep. Appended only.
 // ======================================================================
-/** Ashrock: the dark, ember-warmed stone the Cinderdeep is made of. */
-export const ASHROCK = reg('ashrock', 'Ashrock', { tex: 'ashrock', hardness: 1.5, tool: 'pickaxe', requiresTool: true }).id;
+/** Ashrock: the dark, ember-warmed stone the Cinderdeep is made of. Crumbly: quick to dig (2.0.1: hardness 1.5 -> 0.6). */
+export const ASHROCK = reg('ashrock', 'Ashrock', { tex: 'ashrock', hardness: 0.6, tool: 'pickaxe', requiresTool: true }).id;
 /** Ash: soft grey dust on Cinderdeep floors. */
 export const ASH = reg('ash', 'Ash', { tex: 'ash', hardness: 0.5, tool: 'shovel', sound: 'sand' }).id;
 /** Ember Ore: Ashrock with glowing embers in it. Any pickaxe. */
@@ -760,6 +760,17 @@ export const DEEPGATE = reg('deepgate', 'Deepgate', {
   hardness: -1, drops: [], item: null, model: [0, 12, 0, 16, 13, 16], collision: null,
   selection: [0, 0.7, 0, 1, 0.82, 1],
 }).id;
+// ---- 2.0.1
+/**
+ * Glimmerstone: pale gold crystal that grows down from the Cinderdeep's cavern roofs
+ * in hanging clusters (Cinderdeep generator 2). As bright as a lantern; it shatters
+ * at a touch into Glimmer Dust, and four dust make the block again.
+ */
+export const GLIMMERSTONE = reg('glimmerstone', 'Glimmerstone', {
+  tex: 'glimmerstone', lightEmission: 15, hardness: 0.3, sound: 'glass',
+  drops: [{ item: 'glimmer_dust', min: 2, max: 4 }],
+}).id;
+
 /** Blocks a Deepgate's ring may be made of. */
 export const GATE_RING = [CINDERSTONE, CINDERSTONE_BRICKS];
 
