@@ -101,3 +101,13 @@ for (const c of DYE_COLORS) {
   for (const w of DYE_COLORS) if (w !== c) shapeless([woolKey(w), `${c}_dye`], woolKey(c));
   if (c !== 'white') shaped(['WWW', 'WDW', 'WWW'], { W: 'wool', D: `${c}_dye` }, woolKey(c), 8);
 }
+
+// ---- 1.10: Cinderstone without lava (worlds made before 1.7 have none), and Cinderstone Bricks
+shaped(['SCS', 'CIC', 'SCS'], { S: 'stone', C: 'coal', I: 'iron_ingot' }, 'cinderstone', 4);
+shaped(['CC', 'CC'], { C: 'cinderstone' }, 'cinderstone_bricks', 4);
+
+// ---- 2.0: the Cinderdeep
+shaped(['AA', 'AA'], { A: 'ashrock' }, 'ashrock_bricks', 4);
+shaped([' G ', 'GEG', ' G '], { G: 'glass', E: 'ember' }, 'ember_lamp');
+shaped(['E', 'S'], { E: 'ember', S: 'stick' }, 'torch', 8);
+shaped([' S ', 'IOI', ' I '], { S: 'string', I: 'iron_ingot', O: 'fire_opal' }, 'cinder_charm');
