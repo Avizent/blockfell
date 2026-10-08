@@ -111,7 +111,7 @@ function palette(style: VillageStyle, variant: number): Palette {
 /** Writes blocks of one chunk; everything outside the chunk is ignored. */
 class ChunkWriter {
   readonly minX: number; readonly minZ: number;
-  constructor(readonly blocks: Uint8Array, cx: number, cz: number) { this.minX = cx * 16; this.minZ = cz * 16; }
+  constructor(readonly blocks: Uint16Array, cx: number, cz: number) { this.minX = cx * 16; this.minZ = cz * 16; }
   inside(x: number, z: number): boolean { return x >= this.minX && x < this.minX + 16 && z >= this.minZ && z < this.minZ + 16; }
   set(x: number, y: number, z: number, id: number): void {
     if (y < 1 || y >= WORLD_HEIGHT || !this.inside(x, z)) return;
@@ -303,7 +303,7 @@ export class VillagePlanner {
 
   // ------------------------------------------------------------------ stamping
   /** Builds every part of every nearby village that lies inside this chunk. */
-  stampChunk(cx: number, cz: number, blocks: Uint8Array, containers: { x: number; y: number; z: number; loot: string }[]): void {
+  stampChunk(cx: number, cz: number, blocks: Uint16Array, containers: { x: number; y: number; z: number; loot: string }[]): void {
     const plans = new Set<VillagePlan>();
     for (const [x, z] of [[cx * 16, cz * 16], [cx * 16 + 15, cz * 16], [cx * 16, cz * 16 + 15], [cx * 16 + 15, cz * 16 + 15]]) {
       for (const p of this.near(x, z, 0)) plans.add(p);

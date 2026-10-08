@@ -1,8 +1,10 @@
 import { textureLayer, WATER_LAYER } from '../meshing/textureNames';
 import { DYE_COLORS, DYE_NAMES, DyeColor, woolKey } from './dyes';
+import { BLOCK_LIMIT } from './constants';
 
 /**
- * Block registry. Block ids are small integers (stored in Uint8Array chunk data).
+ * Block registry. Block ids are small integers (stored in Uint16Array chunk data;
+ * below BLOCK_LIMIT). Ids 0-248 are fixed by saved worlds; new blocks start at 256.
  * This module is imported by both the main thread and the worker, so it only
  * contains plain data.
  */
@@ -84,6 +86,14 @@ export interface BlockDef {
 
 const defs: BlockDef[] = [];
 const byKey = new Map<string, BlockDef>();
+/** Definitions by id (ids 249-255 have none). */
+const byId: (BlockDef | undefined)[] = new Array(BLOCK_LIMIT);
+let nextId = 0;
+/** New blocks from here on get ids from `id` up (1.10: leaves 249-255 free, 255 = UNLOADED). */
+function startIdsAt(id: number): void {
+  if (id < nextId) throw new Error('block ids must only grow');
+  nextId = id;
+}
 const FULL: BlockDef['selection'] = [0, 0, 0, 1, 1, 1];
 
 type Opts = Partial<Omit<BlockDef, 'id' | 'key' | 'name' | 'faces'>> & {
@@ -114,7 +124,9 @@ function unionBox(m: number[]): BlockDef['selection'] {
 }
 
 function reg(key: string, name: string, o: Opts): BlockDef {
-  const id = defs.length;
+  const id = nextId++;
+  if (id >= BLOCK_LIMIT) throw new Error('too many blocks');
+  if (id === 255) throw new Error('id 255 is UNLOADED');
   const def: BlockDef = {
     id, key, name,
     render: o.render ?? RENDER_CUBE,
@@ -155,6 +167,7 @@ function reg(key: string, name: string, o: Opts): BlockDef {
   };
   if (def.model && !o.selection) def.selection = unionBox(def.model);
   defs.push(def);
+  byId[id] = def;
   byKey.set(key, def);
   return def;
 }
@@ -702,11 +715,65 @@ export const MAP_TABLE = reg('map_table', 'Map Table', {
 WORKSTATION.mapmaker = MAP_TABLE;
 PROFESSIONS.push('mapmaker');
 
+// ======================================================================
+// Version 1.10 blocks. Ids start at 256: 0-248 are the 8-bit ids of
+// Blockfell 1.0-1.9, 249-254 stay free and 255 is UNLOADED.
+// ======================================================================
+startIdsAt(256);
+/** Cinderstone Bricks: Cinderstone cut into blocks (1.10). As tough as Cinderstone. */
+export const CINDERSTONE_BRICKS = reg('cinderstone_bricks', 'Cinderstone Bricks', {
+  tex: 'cinderstone_bricks', hardness: 36, tool: 'pickaxe', requiresTool: true, minTier: 2,
+}).id;
+
+// ======================================================================
+// Version 2.0 blocks: the Cinderdeep. Appended only.
+// ======================================================================
+/** Ashrock: the dark, ember-warmed stone the Cinderdeep is made of. */
+export const ASHROCK = reg('ashrock', 'Ashrock', { tex: 'ashrock', hardness: 1.5, tool: 'pickaxe', requiresTool: true }).id;
+/** Ash: soft grey dust on Cinderdeep floors. */
+export const ASH = reg('ash', 'Ash', { tex: 'ash', hardness: 0.5, tool: 'shovel', sound: 'sand' }).id;
+/** Ember Ore: Ashrock with glowing embers in it. Any pickaxe. */
+export const EMBER_ORE = reg('ember_ore', 'Ember Ore', {
+  tex: 'ember_ore', hardness: 3, tool: 'pickaxe', requiresTool: true, lightEmission: 5,
+  drops: [{ item: 'ember', min: 1, max: 3 }], xp: [2, 5],
+}).id;
+/** Fire Opal Ore: rare, deep in the Cinderdeep near the lava sea. Needs an iron pickaxe. */
+export const FIRE_OPAL_ORE = reg('fire_opal_ore', 'Fire Opal Ore', {
+  tex: 'fire_opal_ore', hardness: 4, tool: 'pickaxe', requiresTool: true, minTier: 2, lightEmission: 3,
+  drops: [{ item: 'fire_opal', min: 1, max: 1 }], xp: [4, 9],
+}).id;
+/** Glowcap: a softly glowing fungus on Cinderdeep floors. */
+export const GLOWCAP = reg('glowcap', 'Glowcap', {
+  render: RENDER_CROSS, tex: 'glowcap', opaque: false, solid: false, cutout: true, lightOpacity: 0, lightEmission: 10,
+  hardness: 0, sound: 'grass', selection: [0.25, 0, 0.25, 0.75, 0.6, 0.75],
+}).id;
+/** Ashrock Bricks: cut Ashrock (Ember Shrines are built of it). */
+export const ASHROCK_BRICKS = reg('ashrock_bricks', 'Ashrock Bricks', { tex: 'ashrock_bricks', hardness: 2, tool: 'pickaxe', requiresTool: true }).id;
+/** Ember Lamp: embers sealed in glass; as bright as a Lumen block. */
+export const EMBER_LAMP = reg('ember_lamp', 'Ember Lamp', { tex: 'ember_lamp', lightEmission: 15, hardness: 0.3, sound: 'glass' }).id;
+/**
+ * Deepgate: the glowing surface inside a lit ring of eight Cinderstone. Standing in
+ * it carries you to the Cinderdeep and back. It can't be mined: break the ring.
+ */
+export const DEEPGATE = reg('deepgate', 'Deepgate', {
+  render: RENDER_MODEL, tex: 'deepgate', opaque: false, solid: false, lightOpacity: 0, lightEmission: 11,
+  hardness: -1, drops: [], item: null, model: [0, 12, 0, 16, 13, 16], collision: null,
+  selection: [0, 0.7, 0, 1, 0.82, 1],
+}).id;
+/** Blocks a Deepgate's ring may be made of. */
+export const GATE_RING = [CINDERSTONE, CINDERSTONE_BRICKS];
+
+/** Number of registered blocks (not the highest id: see BLOCK_LIMIT). */
 export const BLOCK_COUNT = defs.length;
 export const BLOCKS: ReadonlyArray<BlockDef> = defs;
 
 export function getBlock(id: number): BlockDef {
-  return defs[id] ?? defs[0];
+  return byId[id] ?? defs[0];
+}
+
+/** Is there a block with this id? */
+export function isBlockId(id: number): boolean {
+  return id >= 0 && id < BLOCK_LIMIT && byId[id] !== undefined;
 }
 
 export function blockByKey(key: string): BlockDef | undefined {
@@ -718,26 +785,26 @@ export function facingVariant(base: string, facing: Facing): number {
 }
 
 // ---- dense lookup tables for hot loops (meshing, lighting, physics, raycasting) ----
-export const IS_WATER = new Uint8Array(256);
-export const IS_LAVA = new Uint8Array(256);
+export const IS_WATER = new Uint8Array(BLOCK_LIMIT);
+export const IS_LAVA = new Uint8Array(BLOCK_LIMIT);
 /** Water or lava. */
-export const IS_FLUID = new Uint8Array(256);
-export const FLUID_LEVEL = new Int8Array(256).fill(-1);
-export const NEIGHBOR_LIGHT = new Uint8Array(256);
-export const TOP_ROT = new Uint8Array(256);
+export const IS_FLUID = new Uint8Array(BLOCK_LIMIT);
+export const FLUID_LEVEL = new Int8Array(BLOCK_LIMIT).fill(-1);
+export const NEIGHBOR_LIGHT = new Uint8Array(BLOCK_LIMIT);
+export const TOP_ROT = new Uint8Array(BLOCK_LIMIT);
 /** Model boxes per block id (1/16 units) or null. */
-export const MODEL: (Int8Array | null)[] = new Array(256).fill(null);
+export const MODEL: (Int8Array | null)[] = new Array(BLOCK_LIMIT).fill(null);
 /** Collision boxes per block id (block units, relative to the cell) or null for a full cube. */
-export const COLLISION: (Float32Array | null)[] = new Array(256).fill(null);
-export const CULL_GROUP = new Int16Array(256).fill(-1);
-export const IS_OPAQUE = new Uint8Array(256);
-export const IS_SOLID = new Uint8Array(256);
-export const RENDER = new Uint8Array(256);
-export const LIGHT_OPACITY = new Uint8Array(256);
-export const LIGHT_EMISSION = new Uint8Array(256);
-export const IS_CUTOUT = new Uint8Array(256);
-export const CULL_SAME = new Uint8Array(256);
-export const FACE_LAYER = new Uint8Array(256 * 6);
+export const COLLISION: (Float32Array | null)[] = new Array(BLOCK_LIMIT).fill(null);
+export const CULL_GROUP = new Int16Array(BLOCK_LIMIT).fill(-1);
+export const IS_OPAQUE = new Uint8Array(BLOCK_LIMIT);
+export const IS_SOLID = new Uint8Array(BLOCK_LIMIT);
+export const RENDER = new Uint8Array(BLOCK_LIMIT);
+export const LIGHT_OPACITY = new Uint8Array(BLOCK_LIMIT);
+export const LIGHT_EMISSION = new Uint8Array(BLOCK_LIMIT);
+export const IS_CUTOUT = new Uint8Array(BLOCK_LIMIT);
+export const CULL_SAME = new Uint8Array(BLOCK_LIMIT);
+export const FACE_LAYER = new Uint8Array(BLOCK_LIMIT * 6);
 for (const d of defs) {
   IS_OPAQUE[d.id] = d.opaque ? 1 : 0;
   IS_SOLID[d.id] = d.solid ? 1 : 0;
@@ -766,16 +833,16 @@ for (const d of defs) {
   }
 }
 /** Crop growth stage per id (-1 = not a crop) and the last stage of that crop. */
-export const CROP_STAGE = new Int8Array(256).fill(-1);
-export const CROP_MAX = new Int8Array(256);
+export const CROP_STAGE = new Int8Array(BLOCK_LIMIT).fill(-1);
+export const CROP_MAX = new Int8Array(BLOCK_LIMIT);
 /** Blocks that react to random ticks (crops, farmland). */
-export const RANDOM_TICK = new Uint8Array(256);
+export const RANDOM_TICK = new Uint8Array(BLOCK_LIMIT);
 WHEAT.forEach((id, s) => { CROP_STAGE[id] = s; CROP_MAX[id] = 7; RANDOM_TICK[id] = 1; });
 CARROTS.forEach((id, s) => { CROP_STAGE[id] = s; CROP_MAX[id] = 3; RANDOM_TICK[id] = 1; });
 RANDOM_TICK[FARMLAND] = 1;
 RANDOM_TICK[FARMLAND_MOIST] = 1;
 export function cropStages(id: number): number[] | null {
-  const d = defs[id];
+  const d = byId[id];
   if (!d) return null;
   return d.variantOf === 'wheat' ? WHEAT : d.variantOf === 'carrots' ? CARROTS : null;
 }
@@ -783,19 +850,19 @@ export const IS_FARMLAND = (id: number): boolean => id === FARMLAND || id === FA
 
 // ---- 1.4 lookup tables
 /** Per-box texture layers for models with overrides (6 per box, -1 = the block's own face). */
-export const MODEL_FACES: (Int16Array | null)[] = new Array(256).fill(null);
+export const MODEL_FACES: (Int16Array | null)[] = new Array(BLOCK_LIMIT).fill(null);
 /** Cross plant inside a model: [layer, lo, hi, y0, y1] in 1/16 units. */
-export const MODEL_CROSS: (Int16Array | null)[] = new Array(256).fill(null);
+export const MODEL_CROSS: (Int16Array | null)[] = new Array(BLOCK_LIMIT).fill(null);
 /** Ladders. */
-export const CLIMBABLE = new Uint8Array(256);
+export const CLIMBABLE = new Uint8Array(BLOCK_LIMIT);
 /** 1 = fence, 2 = glass pane: shapes that reach out to their neighbours. */
-export const CONNECT = new Uint8Array(256);
+export const CONNECT = new Uint8Array(BLOCK_LIMIT);
 export const CONNECT_FENCE = 1;
 export const CONNECT_PANE = 2;
 /** Fence gates: 1 = spans the X axis (facing n/s), 2 = spans the Z axis (facing e/w). */
-export const GATE_AXIS = new Uint8Array(256);
+export const GATE_AXIS = new Uint8Array(BLOCK_LIMIT);
 /** Solid blocks creatures may spawn on (not fences, gates, panes, ladders, lanterns, pots...). */
-export const SPAWN_FLOOR = new Uint8Array(256);
+export const SPAWN_FLOOR = new Uint8Array(BLOCK_LIMIT);
 export const PANE_EDGE_LAYER = textureLayer('glass_pane_edge');
 for (const d of defs) {
   if (d.modelFaces && d.model) {
@@ -877,7 +944,7 @@ for (let m = 0; m < 16; m++) {
 export function selectionAt(get: (x: number, y: number, z: number) => number, id: number, x: number, y: number, z: number): number[] {
   const k = CONNECT[id];
   if (k) return CONNECT_SELECT[k][connectMaskAt(get, id, x, y, z)];
-  return defs[id]?.selection ?? FULL;
+  return byId[id]?.selection ?? FULL;
 }
 /** Collision boxes (block units) at a position; null = full cube. Only meaningful for solid blocks. */
 export function collisionAt(get: (x: number, y: number, z: number) => number, id: number, x: number, y: number, z: number): Float32Array | null {
@@ -886,7 +953,10 @@ export function collisionAt(get: (x: number, y: number, z: number) => number, id
   return COLLISION[id];
 }
 
-// unknown ids behave like opaque stone so corrupt data never produces holes
-for (let i = defs.length; i < 256; i++) { IS_OPAQUE[i] = 1; IS_SOLID[i] = 1; RENDER[i] = RENDER_CUBE; LIGHT_OPACITY[i] = 15; }
-FACE_LAYER.fill(0, defs.length * 6);
+// unknown ids (and UNLOADED) behave like opaque stone so corrupt data never produces holes
+for (let i = 0; i < BLOCK_LIMIT; i++) {
+  if (byId[i]) continue;
+  IS_OPAQUE[i] = 1; IS_SOLID[i] = 1; RENDER[i] = RENDER_CUBE; LIGHT_OPACITY[i] = 15;
+  FACE_LAYER.fill(0, i * 6, i * 6 + 6);
+}
 export { WATER_LAYER };

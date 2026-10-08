@@ -1,7 +1,9 @@
 import { Chunk } from './Chunk';
 import { CHUNK_MASK, CHUNK_SHIFT, WORLD_HEIGHT, chunkKey, chunkKeyNum, localIndex } from './constants';
 import { AIR, CHEST, getBlock } from './BlockRegistry';
-import { TerrainGenerator, GEN_VERSION } from './TerrainGenerator';
+import { GEN_VERSION, TerrainGenerator } from './TerrainGenerator';
+import { createGenerator, type DimensionGenerator } from './generators';
+import { type DimId, OVERWORLD } from './dims';
 import { Emitter } from '../core/Emitter';
 import type { Slot } from '../inventory/ItemStack';
 
@@ -47,7 +49,9 @@ export function posKey(x: number, y: number, z: number): string {
  */
 export class World {
   readonly seed: number;
-  readonly generator: TerrainGenerator;
+  /** Which landscape of the saved world this is (1.10). */
+  readonly dim: DimId;
+  readonly generator: DimensionGenerator;
   readonly structures: boolean;
   readonly chunks = new Map<number, Chunk>();
   /**
@@ -62,11 +66,17 @@ export class World {
 
   readonly genVersion: number;
 
-  constructor(seed: number, structures: boolean, genVersion = GEN_VERSION) {
+  constructor(seed: number, structures: boolean, genVersion = GEN_VERSION, dim: DimId = OVERWORLD) {
     this.seed = seed;
     this.structures = structures;
     this.genVersion = genVersion;
-    this.generator = new TerrainGenerator(seed, { structures, version: genVersion });
+    this.dim = dim;
+    this.generator = createGenerator(dim, seed, { structures, version: genVersion });
+  }
+
+  /** The overworld generator (villages, maps, ruins), or null in other dimensions. */
+  get surface(): TerrainGenerator | null {
+    return this.generator instanceof TerrainGenerator ? this.generator : null;
   }
 
   getChunk(cx: number, cz: number): Chunk | undefined {
@@ -135,7 +145,7 @@ export class World {
   }
 
   /** Applies saved modifications to freshly generated chunk data. */
-  applyDeltas(cx: number, cz: number, blocks: Uint8Array): void {
+  applyDeltas(cx: number, cz: number, blocks: Uint16Array): void {
     const d = this.deltas.get(chunkKey(cx, cz));
     if (!d) return;
     for (const [i, id] of d) blocks[i] = id;

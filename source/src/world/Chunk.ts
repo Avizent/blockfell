@@ -8,7 +8,7 @@ import { CHUNK_SIZE } from './constants';
 export class Chunk {
   readonly cx: number;
   readonly cz: number;
-  blocks: Uint8Array;
+  blocks: Uint16Array;
   /** Packed (sky << 4 | block) light from the latest mesh build; null until meshed. */
   light: Uint8Array | null = null;
 
@@ -34,7 +34,7 @@ export class Chunk {
   vertexCount = 0;
   triangleCount = 0;
 
-  constructor(cx: number, cz: number, blocks: Uint8Array) {
+  constructor(cx: number, cz: number, blocks: Uint16Array) {
     this.cx = cx;
     this.cz = cz;
     this.blocks = blocks;

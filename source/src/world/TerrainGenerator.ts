@@ -4,6 +4,7 @@ import { CHUNK_SIZE, CHUNK_VOLUME, SEA_LEVEL, WORLD_HEIGHT, localIndex } from '.
 import * as B from './BlockRegistry';
 import { VillagePlanner } from './Villages';
 import { placeDungeon, placeLavaLake } from './Dungeons';
+import type { DimensionGenerator } from './generators';
 import {
   BIOMES, BIOME_BADLANDS, BIOME_BEACH, BIOME_BIRCH, BIOME_DESERT, BIOME_FOREST, BIOME_MOUNTAINS, BIOME_OCEAN, BIOME_PLAINS,
   BIOME_RIVER, BIOME_SNOWY, BIOME_TAIGA,
@@ -32,7 +33,7 @@ export interface ColumnInfo {
 /** A generated structure that owns a container (chest) whose loot is created lazily. */
 export interface GeneratedContainer {
   x: number; y: number; z: number;
-  loot: 'ruin' | 'village' | 'dungeon';
+  loot: 'ruin' | 'village' | 'dungeon' | 'shrine';
 }
 
 /** A Monster Cage placed by generation and the creature it makes. */
@@ -42,7 +43,7 @@ export interface GeneratedSpawner {
 }
 
 export interface GeneratedChunk {
-  blocks: Uint8Array;
+  blocks: Uint16Array;
   containers: GeneratedContainer[];
   spawners: GeneratedSpawner[];
 }
@@ -58,7 +59,8 @@ const CAVE_NY = WORLD_HEIGHT / CAVE_STEP + 1;
  */
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
-export class TerrainGenerator {
+export class TerrainGenerator implements DimensionGenerator {
+  readonly dim = 'overworld' as const;
   readonly seed: number;
   readonly opts: GenOptions;
   private continent: Noise;
@@ -292,7 +294,7 @@ export class TerrainGenerator {
     return { x, z, y: height + 1, h: th, kind };
   }
 
-  private placeTrees(cx: number, cz: number, blocks: Uint8Array): void {
+  private placeTrees(cx: number, cz: number, blocks: Uint16Array): void {
     const x0 = cx * CHUNK_SIZE, z0 = cz * CHUNK_SIZE;
     const tmp: ColumnInfo = { height: 0, biome: 0, mountain: 0, river: 0 };
     const cMinX = Math.floor((x0 - 3) / 5), cMaxX = Math.floor((x0 + 18) / 5);
@@ -308,7 +310,7 @@ export class TerrainGenerator {
     }
   }
 
-  private stampTree(lx: number, y: number, lz: number, th: number, hsh: number, blocks: Uint8Array, birch = false): void {
+  private stampTree(lx: number, y: number, lz: number, th: number, hsh: number, blocks: Uint16Array, birch = false): void {
     const top = y + th - 1;
     const LEAF = birch ? B.BIRCH_LEAVES : B.LEAVES, LOG = birch ? B.BIRCH_LOG : B.LOG;
     const setLeaf = (x: number, yy: number, z: number) => {
@@ -343,7 +345,7 @@ export class TerrainGenerator {
   }
 
   /** Spruce: a tall trunk with a cone of needles in alternating wide and narrow rings. */
-  private stampSpruce(lx: number, y: number, lz: number, th: number, blocks: Uint8Array): void {
+  private stampSpruce(lx: number, y: number, lz: number, th: number, blocks: Uint16Array): void {
     const top = y + th - 1;
     const setLeaf = (x: number, yy: number, z: number) => {
       if (x < 0 || x > 15 || z < 0 || z > 15 || yy < 0 || yy >= WORLD_HEIGHT) return;
@@ -379,7 +381,7 @@ export class TerrainGenerator {
 
   // ------------------------------------------------------------------ chunk
   generateChunk(cx: number, cz: number): GeneratedChunk {
-    const blocks = new Uint8Array(CHUNK_VOLUME);
+    const blocks = new Uint16Array(CHUNK_VOLUME);
     const containers: GeneratedContainer[] = [];
     const spawners: GeneratedSpawner[] = [];
     const x0 = cx * CHUNK_SIZE, z0 = cz * CHUNK_SIZE;
@@ -489,7 +491,7 @@ export class TerrainGenerator {
     return { blocks, containers, spawners };
   }
 
-  private blob(blocks: Uint8Array, rng: () => number, x: number, y: number, z: number, size: number, block: number, replace: number[]): void {
+  private blob(blocks: Uint16Array, rng: () => number, x: number, y: number, z: number, size: number, block: number, replace: number[]): void {
     for (let n = 0; n < size; n++) {
       if (x >= 0 && x < 16 && z >= 0 && z < 16 && y > 0 && y < WORLD_HEIGHT) {
         const i = localIndex(x, y, z);
@@ -500,7 +502,7 @@ export class TerrainGenerator {
     }
   }
 
-  private placeOres(blocks: Uint8Array, rng: () => number): void {
+  private placeOres(blocks: Uint16Array, rng: () => number): void {
     const stone = [B.STONE];
     for (let n = 0; n < 20; n++) this.blob(blocks, rng, randInt(rng, 0, 15), randInt(rng, 6, 110), randInt(rng, 0, 15), randInt(rng, 4, 12), B.COAL_ORE, stone);
     for (let n = 0; n < 12; n++) this.blob(blocks, rng, randInt(rng, 0, 15), randInt(rng, 5, 64), randInt(rng, 0, 15), randInt(rng, 3, 7), B.IRON_ORE, stone);
@@ -512,7 +514,7 @@ export class TerrainGenerator {
    * Rune ore: small deep veins. Uses its own random stream (after all other ores)
    * so adding it did not move anything else in existing worlds.
    */
-  private placeRuneOre(cx: number, cz: number, blocks: Uint8Array): void {
+  private placeRuneOre(cx: number, cz: number, blocks: Uint16Array): void {
     const rng = mulberry32(hash4(this.seed, cx, cz, 0x7a4e));
     for (let n = 0; n < 2; n++) {
       if (rng() < 0.35) continue;
@@ -527,7 +529,7 @@ export class TerrainGenerator {
     return k < 2 ? B.TERRACOTTA[0] : k < 4 ? B.TERRACOTTA[1] : k === 4 ? B.TERRACOTTA[2] : k === 5 ? B.TERRACOTTA[3] : B.TERRACOTTA[4];
   }
 
-  private placeDryPlants(cx: number, cz: number, blocks: Uint8Array, cols: ColumnInfo[]): void {
+  private placeDryPlants(cx: number, cz: number, blocks: Uint16Array, cols: ColumnInfo[]): void {
     for (let lz = 1; lz < 15; lz++) for (let lx = 1; lx < 15; lx++) {
       const col = cols[lx | (lz << 4)];
       if (col.biome !== BIOME_DESERT && col.biome !== BIOME_BADLANDS) continue;
@@ -550,7 +552,7 @@ export class TerrainGenerator {
     }
   }
 
-  private placePlants(cx: number, cz: number, blocks: Uint8Array, cols: ColumnInfo[]): void {
+  private placePlants(cx: number, cz: number, blocks: Uint16Array, cols: ColumnInfo[]): void {
     if (this.version >= 2) this.placeDryPlants(cx, cz, blocks, cols);
     for (let lz = 0; lz < 16; lz++) for (let lx = 0; lx < 16; lx++) {
       const col = cols[lx | (lz << 4)];
@@ -588,7 +590,7 @@ export class TerrainGenerator {
   }
 
   /** Small abandoned cobblestone ruin with a loot chest ("Generate Structures"). */
-  private placeRuin(cx: number, cz: number, blocks: Uint8Array, cols: ColumnInfo[], containers: GeneratedContainer[]): void {
+  private placeRuin(cx: number, cz: number, blocks: Uint16Array, cols: ColumnInfo[], containers: GeneratedContainer[]): void {
     if (hashFloat(this.seed, cx, cz, 0x5a1) >= 1 / 42) return;
     const center = cols[8 | (8 << 4)];
     if (center.height <= SEA_LEVEL + 1 || center.biome === BIOME_SNOWY || center.biome === BIOME_RIVER || center.biome === BIOME_OCEAN) return;

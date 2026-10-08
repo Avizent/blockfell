@@ -1,6 +1,6 @@
 import * as B from './BlockRegistry';
 import { hash4, mulberry32, randInt } from '../core/rng';
-import { WORLD_HEIGHT, localIndex } from './constants';
+import { BLOCK_LIMIT, WORLD_HEIGHT, localIndex } from './constants';
 import type { GeneratedContainer, GeneratedSpawner } from './TerrainGenerator';
 
 /**
@@ -25,13 +25,13 @@ import type { GeneratedContainer, GeneratedSpawner } from './TerrainGenerator';
  * middle and one or two chests against the walls.
  */
 
-const ROCK = new Uint8Array(256);
+const ROCK = new Uint8Array(BLOCK_LIMIT);
 for (const id of [B.STONE, B.DIRT, B.GRAVEL, B.COAL_ORE, B.IRON_ORE, B.RUNE_ORE, B.SANDSTONE, B.COBBLESTONE, B.MOSSY_COBBLESTONE]) ROCK[id] = 1;
 
-const get = (b: Uint8Array, x: number, y: number, z: number) => b[localIndex(x, y, z)];
+const get = (b: Uint16Array, x: number, y: number, z: number) => b[localIndex(x, y, z)];
 
 /** A buried pool of lava (maybe). Returns true if one was placed. */
-export function placeLavaLake(seed: number, cx: number, cz: number, blocks: Uint8Array, minSurface: number): boolean {
+export function placeLavaLake(seed: number, cx: number, cz: number, blocks: Uint16Array, minSurface: number): boolean {
   const rng = mulberry32(hash4(seed, cx, cz, 0x1a7a));
   if (rng() >= 1 / 14) return false;
   const rx = 3 + rng() * 3, rz = 3 + rng() * 3, ry = 2.2 + rng() * 1.3;
@@ -77,7 +77,7 @@ export function dungeonCandidate(seed: number, cx: number, cz: number): boolean 
 }
 
 /** A dungeon room (maybe). Returns the room's centre if one was placed. */
-export function placeDungeon(seed: number, cx: number, cz: number, blocks: Uint8Array, minSurface: number,
+export function placeDungeon(seed: number, cx: number, cz: number, blocks: Uint16Array, minSurface: number,
   containers: GeneratedContainer[], spawners: GeneratedSpawner[]): { x: number; y: number; z: number } | null {
   const rng = mulberry32(hash4(seed, cx, cz, 0xd0d6e));
   if (rng() >= 0.2) return null;
@@ -124,7 +124,7 @@ export function placeDungeon(seed: number, cx: number, cz: number, blocks: Uint8
  * with cobblestone), no fluids anywhere in the room, and 1-10 cells of the walls
  * open into caves: the room is buried in rock, but a cave runs past it.
  */
-function fits(b: Uint8Array, lx: number, fy: number, lz: number, hx: number, hz: number): boolean {
+function fits(b: Uint16Array, lx: number, fy: number, lz: number, hx: number, hz: number): boolean {
   if (fy < 6 || fy + 5 >= WORLD_HEIGHT) return false;
   let rock = 0, cells = 0;
   for (let x = lx - hx - 1; x <= lx + hx + 1; x++) for (let z = lz - hz - 1; z <= lz + hz + 1; z++) {
@@ -142,7 +142,7 @@ function fits(b: Uint8Array, lx: number, fy: number, lz: number, hx: number, hz:
   return openings >= 1 && openings <= 10;
 }
 
-function stamp(b: Uint8Array, rng: () => number, lx: number, fy: number, lz: number, hx: number, hz: number): void {
+function stamp(b: Uint16Array, rng: () => number, lx: number, fy: number, lz: number, hx: number, hz: number): void {
   for (let x = lx - hx - 1; x <= lx + hx + 1; x++) for (let z = lz - hz - 1; z <= lz + hz + 1; z++) {
     const wall = x === lx - hx - 1 || x === lx + hx + 1 || z === lz - hz - 1 || z === lz + hz + 1;
     for (let y = fy; y <= fy + 4; y++) {

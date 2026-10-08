@@ -151,7 +151,7 @@ export class ChunkManager {
     const world = this.world;
     this.pool.submit({
       type: 'gen',
-      build: () => ({ req: { type: 'gen', seed: world.seed, structures: world.structures, version: world.genVersion, cx, cz } }),
+      build: () => ({ req: { type: 'gen', dim: world.dim, seed: world.seed, structures: world.structures, version: world.genVersion, cx, cz } }),
       priority: () => this.dist2(cx, cz),
       valid: () => !this.disposed && this.dist2(cx, cz) <= dataR2,
       onDrop: () => this.generating.delete(key),
@@ -190,7 +190,7 @@ export class ChunkManager {
       build: () => {
         c.meshQueued = false;
         c.meshInFlight = true;
-        const chunks: Uint8Array[] = [];
+        const chunks: Uint16Array[] = [];
         let prevLight: (Uint8Array | null)[] | null = null;
         if (c.checkNeighborLight) prevLight = [];
         for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
