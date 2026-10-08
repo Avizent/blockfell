@@ -128,6 +128,7 @@ blockItem('flower_white', 'natural');
 
 // ---- 1.7 lava and dungeons
 blockItem('cinderstone', 'building');
+blockItem('cinderstone_bricks', 'building');
 blockItem('spawner', 'functional', { maxStack: 16 });
 // ---- 1.8 village life
 blockItem('bell', 'functional');
@@ -229,11 +230,27 @@ for (const [id, name, hunger, saturation, cooked] of FOOD) {
   });
 }
 
+// ---- 2.0 the Cinderdeep
+blockItem('ashrock', 'building');
+blockItem('ashrock_bricks', 'building');
+blockItem('ash', 'natural');
+blockItem('ember_ore', 'natural', { smelt: { result: 'ember', xp: 0.2 } });
+blockItem('fire_opal_ore', 'natural', { smelt: { result: 'fire_opal', xp: 1 } });
+blockItem('glowcap', 'natural');
+blockItem('ember_lamp', 'decoration');
+/** Ember: glowing crystal from Ember Ore. Burns three times as long as coal. */
+add({ id: 'ember', name: 'Ember', category: 'ingredients', fuel: 4800 });
+/** Fire Opal: a rare gem from deep in the Cinderdeep. */
+add({ id: 'fire_opal', name: 'Fire Opal', category: 'ingredients' });
+/** Cinder Charm: held in the off hand it halves fire and lava damage and puts fire out sooner. */
+add({ id: 'cinder_charm', name: 'Cinder Charm', category: 'combat', maxStack: 1 });
+
 // ---- spawn items
 const MOBS: [string, string][] = [
   ['pig', 'Pig'], ['cow', 'Cow'], ['sheep', 'Sheep'], ['chicken', 'Chicken'], ['shambler', 'Shambler'], ['skeleton', 'Bone Archer'],
   ['goat', 'Goat'], ['rabbit', 'Rabbit'], ['crawler', 'Crawler'], ['dustwalker', 'Dustwalker'],
   ['villager', 'Villager'], ['sentinel', 'Sentinel'], ['hound', 'Fellhound'],
+  ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'],
 ];
 for (const [mob, name] of MOBS) {
   add({ id: `spawn_${mob}`, name: `${name} Spawn Egg`, kind: 'spawn', category: 'spawn', spawn: mob });
