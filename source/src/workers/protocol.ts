@@ -1,16 +1,17 @@
 import type { MeshBuffers } from '../meshing/MeshBuilder';
 import type { MeshStats } from '../meshing/ChunkMesher';
 import type { GeneratedContainer, GeneratedSpawner } from '../world/TerrainGenerator';
+import type { DimId } from '../world/dims';
 
 export type WorkerRequest =
-  | { type: 'gen'; id: number; seed: number; structures: boolean; version: number; cx: number; cz: number }
+  | { type: 'gen'; id: number; dim: DimId; seed: number; structures: boolean; version: number; cx: number; cz: number }
   | {
     type: 'mesh'; id: number; cx: number; cz: number; version: number; greedy: boolean;
-    chunks: Uint8Array[]; prevLight: (Uint8Array | null)[] | null;
+    chunks: Uint16Array[]; prevLight: (Uint8Array | null)[] | null;
   };
 
 export type WorkerResponse =
-  | { type: 'gen'; id: number; cx: number; cz: number; blocks: Uint8Array; containers: GeneratedContainer[]; spawners: GeneratedSpawner[]; ms: number }
+  | { type: 'gen'; id: number; cx: number; cz: number; blocks: Uint16Array; containers: GeneratedContainer[]; spawners: GeneratedSpawner[]; ms: number }
   | {
     type: 'mesh'; id: number; cx: number; cz: number; version: number;
     opaque: MeshBuffers | null; water: MeshBuffers | null; light: Uint8Array;

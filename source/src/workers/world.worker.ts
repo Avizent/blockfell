@@ -4,22 +4,22 @@
  * (rendering, input, UI) never stalls on them. Results are returned as
  * transferable typed arrays (zero-copy).
  */
-import { TerrainGenerator } from '../world/TerrainGenerator';
+import { createGenerator, type DimensionGenerator } from '../world/generators';
 import { meshChunk } from '../meshing/ChunkMesher';
 import type { WorkerRequest, WorkerResponse } from './protocol';
 
 declare const self: DedicatedWorkerGlobalScope;
 
-let gen: TerrainGenerator | null = null;
+let gen: DimensionGenerator | null = null;
 let genKey = '';
 
 self.onmessage = (ev: MessageEvent<WorkerRequest>) => {
   const msg = ev.data;
   try {
     if (msg.type === 'gen') {
-      const key = msg.seed + ':' + msg.structures + ':' + msg.version;
+      const key = msg.dim + ':' + msg.seed + ':' + msg.structures + ':' + msg.version;
       if (!gen || genKey !== key) {
-        gen = new TerrainGenerator(msg.seed, { structures: msg.structures, version: msg.version });
+        gen = createGenerator(msg.dim, msg.seed, { structures: msg.structures, version: msg.version });
         genKey = key;
       }
       const t0 = performance.now();
