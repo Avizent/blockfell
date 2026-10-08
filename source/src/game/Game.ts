@@ -69,6 +69,8 @@ interface Breaking {
 const UNLIT_EFFECT: Partial<Record<EffectKind, true>> = { smoke: true, poof: true, splash: true, drip: true, ash: true };
 /** 2.0: the Cinderdeep is never pitch dark: a dull red glow from the lava sea everywhere. */
 export const DEEP_AMBIENT = 0.44;
+/** A standing or wall torch. */
+const isTorchBlock = (id: number): boolean => id === B.TORCH || id === B.WALL_TORCH.n || id === B.WALL_TORCH.e || id === B.WALL_TORCH.s || id === B.WALL_TORCH.w;
 
 export class Game implements EntityHost, PrecipSource {
   readonly world: World;
@@ -936,6 +938,7 @@ export class Game implements EntityHost, PrecipSource {
     this.fluids.onBlockChanged(x, y, z, this.tickCount);
     if (id === B.SAND || id === B.GRAVEL) this.schedule(x, y, z, 2);
     if (id !== B.DEEPGATE) this.checkGatesAround(x, y, z);
+    if (B.GATE_RING.includes(id) && cause === 'player') this.lightWaitingTorch(x, y, z);
     if (B.getBlock(old).interact === 'furnace' && B.getBlock(id).interact !== 'furnace') this.furnaces.delete(posKey(x, y, z));
     if (B.getBlock(old).interact === 'sign' || B.getBlock(id).interact === 'sign') this.signs.refresh();
     if (id === B.SPAWNER || old === B.SPAWNER) this.spawners.onBlockChanged(x, y, z, old, id, cause);
@@ -1470,10 +1473,11 @@ export class Game implements EntityHost, PrecipSource {
   /** A torch or a lava bucket used on the open middle of a ring lights a Deepgate there. */
   private tryLightGate(t: RayHit, slot: number): boolean {
     const cands: [number, number, number][] = [[t.px, t.py, t.pz]];
+    if (isTorchBlock(t.block)) cands.unshift([t.x, t.y, t.z]);
     if (B.GATE_RING.includes(t.block)) for (const [dx, dz] of Game.RING) cands.push([t.x + dx, t.y, t.z + dz]);
     for (const [x, y, z] of cands) {
       const here = this.world.getBlock(x, y, z);
-      if (here === UNLOADED || here === B.DEEPGATE || B.IS_FLUID[here] || (here !== B.AIR && !B.getBlock(here).replaceable)) continue;
+      if (here === UNLOADED || here === B.DEEPGATE || B.IS_FLUID[here] || (here !== B.AIR && !isTorchBlock(here) && !B.getBlock(here).replaceable)) continue;
       if (!this.gateRingComplete(x, y, z)) continue;
       this.world.setBlock(x, y, z, B.DEEPGATE, 'player');
       this.sound('gate_light', x + 0.5, y + 0.8, z + 0.5, 1, 1);
@@ -1489,6 +1493,19 @@ export class Game implements EntityHost, PrecipSource {
       return true;
     }
     return false;
+  }
+
+  /** 2.0.1: the ring was finished around a torch already standing in the middle: that torch lights the gate. */
+  private lightWaitingTorch(x: number, y: number, z: number): void {
+    for (const [dx, dz] of Game.RING) {
+      const cx = x - dx, cz = z - dz;
+      if (!isTorchBlock(this.world.getBlock(cx, y, cz)) || !this.gateRingComplete(cx, y, cz)) continue;
+      this.world.setBlock(cx, y, cz, B.DEEPGATE, 'player');
+      this.sound('gate_light', cx + 0.5, y + 0.8, cz + 0.5, 1, 1);
+      this.effect('flame', cx + 0.5, y + 0.9, cz + 0.5, 16);
+      pushChat('The Deepgate is lit: stand in it to go down into the Cinderdeep');
+      return;
+    }
   }
 
   /** A Deepgate goes out when its ring or the block under it is broken. */
@@ -1507,7 +1524,10 @@ export class Game implements EntityHost, PrecipSource {
   private tickGate(): void {
     const p = this.player;
     if (this.gateCooldown > 0) this.gateCooldown--;
-    const gx = Math.floor(p.x), gy = Math.floor(p.y + 0.05), gz = Math.floor(p.z);
+    const gx = Math.floor(p.x), gz = Math.floor(p.z);
+    let gy = Math.floor(p.y + 0.05);
+    // in the glow, or just above it (flying in Creative, or not yet dropped into the middle)
+    if (this.world.getBlock(gx, gy, gz) !== B.DEEPGATE && this.world.getBlock(gx, gy - 1, gz) === B.DEEPGATE) gy--;
     const inGate = !p.dead && !this.riding && this.world.getBlock(gx, gy, gz) === B.DEEPGATE;
     // ambient: gates nearby breathe out sparks
     if (this.tickCount % 6 === 0) {
@@ -1661,7 +1681,7 @@ export class Game implements EntityHost, PrecipSource {
   private fillShrineLoot(be: ChestEntity, rng: () => number): void {
     const table: [string, number, number, number][] = [
       ['ember', 2, 6, 0.85], ['iron_ingot', 1, 4, 0.55], ['rune_shard', 1, 3, 0.45], ['amber', 2, 5, 0.45],
-      ['fire_opal', 1, 1, 0.3], ['glowcap', 1, 3, 0.3], ['bread', 1, 3, 0.3], ['arrow', 4, 10, 0.25], ['cinder_charm', 1, 1, 0.08],
+      ['fire_opal', 1, 1, 0.3], ['glowcap', 1, 3, 0.3], ['glimmer_dust', 2, 5, 0.4], ['bread', 1, 3, 0.3], ['arrow', 4, 10, 0.25], ['cinder_charm', 1, 1, 0.08],
     ];
     const free = () => { for (let t = 0; t < 40; t++) { const i = Math.floor(rng() * 27); if (!be.items[i]) return i; } return be.items.indexOf(null); };
     for (const [id, lo, hi, ch] of table) {
