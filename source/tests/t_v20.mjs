@@ -3,7 +3,9 @@
 // lighting and going through a Deepgate and back, the rules down there (no water, no
 // sleeping, maps, waking up on the surface), the Cinderling and the Smoulderer, the
 // Cinder Charm, and saving a world with two dimensions.
-// node tests/t_v20.mjs   (dev server)   ONLY=items,gen,gate,travel,rules,mobs,save,shrine
+// node tests/t_v20.mjs   (dev server)   ONLY=items,gen,gate,travel,rules,mobs,save,shrine,v201
+// v201 = 2.0.1: Glimmerstone, quicker Ashrock, a more forgiving Deepgate (walking in with the keys,
+// hovering over it, a torch already in the middle), and the in-game update button.
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import zlib from 'node:zlib';
@@ -11,7 +13,7 @@ import zlib from 'node:zlib';
 const URL = process.env.URL || 'http://localhost:5173/';
 const SHOTS = process.env.SHOTS || '/tmp/shots';
 fs.mkdirSync(SHOTS, { recursive: true });
-const only = process.env.ONLY ? process.env.ONLY.split(',') : ['items', 'gen', 'gate', 'travel', 'rules', 'mobs', 'save', 'shrine'];
+const only = process.env.ONLY ? process.env.ONLY.split(',') : ['items', 'gen', 'gate', 'travel', 'rules', 'mobs', 'save', 'shrine', 'v201'];
 const run = (n) => only.includes(n);
 const results = [];
 const check = (name, ok, info = '') => { const s = typeof info === 'string' ? info : JSON.stringify(info); results.push([ok ? 'PASS' : 'FAIL', name, s]); console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : s.slice(0, 700)); };
@@ -236,7 +238,7 @@ if (run('travel')) {
   });
   check('travel: you arrive in the Cinderdeep at the same spot (one block there is one block here)', there.dim === 'cinderdeep' && Math.abs(there.x - ring.x) < 16 && Math.abs(there.z - ring.z) < 16, there);
   check('travel: ...standing beside a lit Deepgate that leads back', !!there.gate && Math.hypot(there.gate.x + 0.5 - there.x, there.gate.z + 0.5 - there.z) < 2, there);
-  check('travel: the world now records the Cinderdeep (generator 1) and that you are in it; "Into the Cinderdeep"', there.rec === 'cinderdeep' && there.dims?.cinderdeep?.genVersion === 1 && there.dims.cinderdeep.firstVisit > 0 && there.adv, there);
+  check('travel: the world now records the Cinderdeep (generator 2) and that you are in it; "Into the Cinderdeep"', there.rec === 'cinderdeep' && there.dims?.cinderdeep?.genVersion === 2 && there.dims.cinderdeep.firstVisit > 0 && there.adv, there);
   check('travel: no sky down here', there.sky === false);
   await ev(() => { window.__bf.game.player.yaw += Math.PI; window.__bf.ui.set({ chat: [] }); });
   await wait(800);
@@ -439,12 +441,12 @@ if (run('save')) {
     const { backup } = await W2.createBackup(window.__bf.engine.saves, id);
     return { dims: Object.keys(backup.dims), cd: Object.keys(backup.dims.cinderdeep?.chunks ?? {}).length, rec: backup.world.dims, at: backup.world.player.dim };
   }, W);
-  check('save: a backup (and the Dropbox copy) holds both dimensions', JSON.stringify(file.dims.sort()) === '["cinderdeep","overworld"]' && file.cd > 0 && file.rec?.cinderdeep?.genVersion === 1 && file.at === 'cinderdeep', file);
+  check('save: a backup (and the Dropbox copy) holds both dimensions', JSON.stringify(file.dims.sort()) === '["cinderdeep","overworld"]' && file.cd > 0 && file.rec?.cinderdeep?.genVersion === 2 && file.at === 'cinderdeep', file);
   const old = await ev(async () => {
     const G = await import('/src/world/generators.ts');
-    return { need: G.needsNewerGenerator({ genVersion: 6, dims: { cinderdeep: { genVersion: 1 } }, player: { dim: 'cinderdeep' } }), needV2: G.needsNewerGenerator({ genVersion: 6, dims: { cinderdeep: { genVersion: 2 } } }) };
+    return { need: G.needsNewerGenerator({ genVersion: 6, dims: { cinderdeep: { genVersion: 1 } }, player: { dim: 'cinderdeep' } }) || G.needsNewerGenerator({ genVersion: 6, dims: { cinderdeep: { genVersion: 2 } } }), needV2: G.needsNewerGenerator({ genVersion: 6, dims: { cinderdeep: { genVersion: 3 } } }) };
   });
-  check('save: 2.0 can open its own Cinderdeep worlds; a newer Cinderdeep generator would need a newer Blockfell', !old.need && old.needV2, old);
+  check('save: 2.0.1 opens Cinderdeep worlds of generator 1 and 2; a newer Cinderdeep generator would need a newer Blockfell', !old.need && old.needV2, old);
 }
 
 // ======================================================================= SHRINE
@@ -482,10 +484,128 @@ if (run('shrine')) {
       const be = window.__bf.game.world.blockEntities.get(`${S.chest.x},${S.chest.y},${S.chest.z}`);
       return { items: be?.items?.filter(Boolean).map((i) => i.id) ?? [], adv: window.__bf.game.progress.done.has('shrine') };
     }, s);
-    check('shrine: its chest holds treasure from the shrine table (Ember and more), and opening it earns "Shrine Raider"', loot.items.length > 0 && loot.adv && loot.items.every((i) => ['ember', 'iron_ingot', 'rune_shard', 'amber', 'fire_opal', 'glowcap', 'bread', 'arrow', 'cinder_charm', 'iron_chestplate', 'iron_helmet'].includes(i)), loot);
+    check('shrine: its chest holds treasure from the shrine table (Ember and more), and opening it earns "Shrine Raider"', loot.items.length > 0 && loot.adv && loot.items.every((i) => ['ember', 'iron_ingot', 'rune_shard', 'amber', 'fire_opal', 'glowcap', 'glimmer_dust', 'bread', 'arrow', 'cinder_charm', 'iron_chestplate', 'iron_helmet'].includes(i)), loot);
     await ev(() => window.__bf.engine.closeOverlay());
     await page.screenshot({ path: `${SHOTS}/v20_shrine.png` });
   }
+}
+
+// ======================================================================= 2.0.1
+if (run('v201')) {
+  // ---- Glimmerstone and Ashrock
+  const gl = await ev(async () => {
+    const B = await import('/src/world/BlockRegistry.ts');
+    const I = await import('/src/inventory/ItemRegistry.ts');
+    const T = await import('/src/meshing/textureNames.ts');
+    const { recipes } = await import('/src/crafting/recipes.ts');
+    const dust = { id: 'glimmer_dust', count: 1 };
+    const r = recipes.match([dust, dust, dust, dust], 2);
+    const made = r ? r.result : null;
+    const d = B.getBlock(B.GLIMMERSTONE);
+    return { id: B.GLIMMERSTONE, light: B.LIGHT_EMISSION[B.GLIMMERSTONE], drops: d.drops, hard: d.hardness, tex: T.TEXTURE_NAMES.includes('glimmerstone'),
+      items: [I.hasItem('glimmerstone'), I.hasItem('glimmer_dust')], ashrock: B.getBlock(B.ASHROCK).hardness, stone: B.getBlock(B.STONE).hardness,
+      made };
+  });
+  check('2.0.1 Glimmerstone: block 265, as bright as a lantern (15), shatters into 2-4 Glimmer Dust, own texture, both items exist',
+    gl.id === 265 && gl.light === 15 && gl.drops[0]?.item === 'glimmer_dust' && gl.drops[0].min === 2 && gl.drops[0].max === 4 && gl.tex && gl.items.every(Boolean) && gl.hard <= 0.5, gl);
+  check('2.0.1 four Glimmer Dust make a Glimmerstone again', gl.made?.id === 'glimmerstone', gl.made);
+  check('2.0.1 Ashrock is quick to dig (hardness 0.6, stone 1.5)', gl.ashrock === 0.6 && gl.stone === 1.5, gl);
+  // generation: generator 2 adds hanging clusters and changes nothing else
+  const gen = await ev(async () => {
+    const C = await import('/src/world/Cinderdeep.ts');
+    const B = await import('/src/world/BlockRegistry.ts');
+    const v1 = new C.CinderGenerator(4242, { structures: true, version: 1 });
+    const v2 = new C.CinderGenerator(4242, { structures: true, version: 2 });
+    let g1 = 0, g2 = 0, other = 0, chunks = 0, hanging = 0, high = 0;
+    for (let cx = -4; cx < 4; cx++) for (let cz = -4; cz < 4; cz++) {
+      const a = v1.generateChunk(cx, cz).blocks, b = v2.generateChunk(cx, cz).blocks;
+      let here = 0;
+      for (let i = 0; i < a.length; i++) {
+        if (a[i] === B.GLIMMERSTONE) g1++;
+        if (b[i] === B.GLIMMERSTONE) { g2++; here++; if (b[i + 256] !== B.AIR) hanging++; if ((i >> 8) > C.LAVA_SEA + 10) high++; }
+        if (a[i] !== b[i] && !(b[i] === B.GLIMMERSTONE && a[i] === B.AIR)) other++;
+      }
+      if (here) chunks++;
+    }
+    return { g1, g2, other, chunks, hanging, high, newest: C.CINDER_GEN_VERSION };
+  });
+  check('2.0.1 Cinderdeep generator 2: Glimmerstone clusters hang from cavern roofs in many chunks (generator 1 has none)',
+    gen.newest === 2 && gen.g1 === 0 && gen.chunks >= 12 && gen.g2 > gen.chunks * 5 && gen.high === gen.g2 && gen.hanging > gen.g2 * 0.5, gen);
+  check('2.0.1 ...and everything else is exactly as generator 1 made it (worlds already visited keep their Cinderdeep)', gen.other === 0, gen);
+
+  // ---- the Deepgate, the way people actually use it (a fresh world from the title screen)
+  if ((await screen()) === 'game') { await ev(() => window.__bf.engine.saveAndQuit()); await waitFor(async () => (await screen()) === 'title', 40000); }
+  await newWorld('Gate Fixes', 'gatefix');
+  // (a) walk in with the keyboard: jump onto the ring, step into the glow, wait
+  const R1 = await makeRing();
+  await settle();
+  await give('torch', 0, 4);
+  await aim(R1.x + 0.5, R1.y - 0.02, R1.z + 0.5);
+  await rclick();
+  await ev(() => { const p = window.__bf.game.player; p.yaw = -Math.PI / 2; p.pitch = 0; });
+  await page.mouse.move(CX, CY);
+  await page.keyboard.down('KeyW');
+  let walked = null;
+  for (let i = 0; i < 40; i++) {
+    await wait(120);
+    const st = await ev(() => { const g = window.__bf.game, p = g.player; return { x: p.x, y: p.y, gt: g.gateTicks, ground: p.onGround }; });
+    if (st.ground && st.x < R1.x - 1.25 && st.x > R1.x - 1.5 && st.y < R1.y + 0.5) { await page.keyboard.down('Space'); await wait(200); await page.keyboard.up('Space'); }
+    if (st.gt > 0) { walked = st; break; }
+  }
+  await page.keyboard.up('KeyW');
+  const wentDown = await waitFor(async () => (await dim()) === 'cinderdeep', 15000);
+  check('2.0.1 walking into a Deepgate with the keys (jump onto the ring, step into the glow) takes you down after 3 s', !!walked && wentDown, { walked, dim: await dim() });
+  if (wentDown) {
+    await inGame();
+    await ev(() => window.__bf.engine.changeDimension('overworld', { kind: 'gate', x: Math.floor(window.__bf.game.player.x), z: Math.floor(window.__bf.game.player.z) }));
+    await waitFor(async () => (await dim()) === 'overworld' && (await screen()) === 'game', 60000);
+    await inGame();
+    await calm();
+  }
+  // (b) Creative, flying just above the gate
+  const R2 = await makeRing();
+  await set(R2.x, R2.y, R2.z, 'deepgate');
+  await ev(([x, y, z]) => { const g = window.__bf.game, p = g.player; p.gameMode = 'creative'; p.creative = true; p.flying = true; g.gateCooldown = 0; g.teleport(x + 0.5, y + 1.15, z + 0.5); p.vx = p.vy = p.vz = 0; }, [R2.x, R2.y, R2.z]);
+  const hover = await waitFor(async () => (await screen()) !== 'game' || (await dim()) === 'cinderdeep', 8000);
+  const hdim = await (async () => { await waitFor(async () => (await screen()) === 'game', 60000); return dim(); })();
+  check('2.0.1 flying just above a gate (Creative) counts as standing in it', hover && hdim === 'cinderdeep', { hover, hdim });
+  if (hdim === 'cinderdeep') {
+    await inGame();
+    await ev(() => window.__bf.engine.changeDimension('overworld', { kind: 'gate', x: Math.floor(window.__bf.game.player.x), z: Math.floor(window.__bf.game.player.z) }));
+    await waitFor(async () => (await dim()) === 'overworld' && (await screen()) === 'game', 60000);
+    await inGame();
+    await calm();
+  }
+  await ev(() => { const p = window.__bf.game.player; p.gameMode = 'survival'; p.creative = false; p.flying = false; });
+  // (c) a torch put in the middle first: finishing the ring lights it
+  const R3 = await makeRing();
+  await set(R3.x - 1, R3.y, R3.z, 'air');
+  await set(R3.x, R3.y, R3.z, 'torch');
+  await ticks(2);
+  const before = await key(R3.x, R3.y, R3.z);
+  await give('cinderstone', 0, 1);
+  await aim(R3.x - 0.5, R3.y - 0.02, R3.z + 0.5);
+  await clearChat();
+  await rclick();
+  const after = await key(R3.x, R3.y, R3.z);
+  check('2.0.1 a torch already standing in the middle lights the gate when the ring is finished', before === 'torch' && after === 'deepgate' && (await chat()).some((c) => /Deepgate is lit/.test(c)), { before, after });
+  // (d) using a torch on a torch standing in the middle of a finished ring
+  await set(R3.x, R3.y, R3.z, 'air');
+  await ev(([x, y, z]) => window.__bf.game.world.setBlock(x, y, z, window.__bf.B.TORCH, 'system'), [R3.x, R3.y, R3.z]);
+  await ticks(2);
+  const mid = await key(R3.x, R3.y, R3.z);
+  await give('torch', 0, 2);
+  await aim(R3.x + 0.5, R3.y + 0.3, R3.z + 0.5);
+  await rclick();
+  const lit = await key(R3.x, R3.y, R3.z);
+  check('2.0.1 using a torch on a torch standing in the middle of a finished ring lights it', mid === 'torch' && lit === 'deepgate', { mid, lit });
+  // ---- an update found mid-game: the pause menu offers Save and Update
+  await ev(() => window.__bf.ui.set({ update: { version: '9.9.9' } }));
+  await ev(() => window.__bf.ui.set({ overlay: 'pause' }));
+  await wait(400);
+  const btn = await page.textContent('[data-testid=btn-pause-update]').catch(() => null);
+  check('2.0.1 when a newer Blockfell is ready, the pause menu offers "Save and Update"', /Save and Update to Blockfell 9\.9\.9/.test(btn || ''), btn);
+  await ev(() => window.__bf.ui.set({ update: null, overlay: null }));
 }
 
 check('no script errors', errors.length === 0, errors.slice(0, 8));

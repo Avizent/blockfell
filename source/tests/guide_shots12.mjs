@@ -6,7 +6,7 @@ import fs from 'node:fs';
 const URL = process.env.URL || 'http://localhost:5173/';
 const OUT = process.env.OUT || '/tmp/guide_shots12';
 const ICONS = process.env.ICONS || '/tmp/guide/icons';
-const PARTS = (process.env.PARTS || 'icons,gate,cavern,creatures,shrine').split(',');
+const PARTS = (process.env.PARTS || 'icons,gate,cavern,glimmer,creatures,shrine').split(',');
 const SEED = process.env.SEED || 'cinder';
 fs.mkdirSync(OUT, { recursive: true });
 fs.mkdirSync(ICONS, { recursive: true });
@@ -34,7 +34,7 @@ await wait(1200);
 
 if (PARTS.includes('icons')) {
   const ids = ['ashrock', 'ash', 'ember_ore', 'fire_opal_ore', 'glowcap', 'ashrock_bricks', 'ember_lamp', 'ember', 'fire_opal', 'cinder_charm',
-    'spawn_cinderling', 'spawn_smoulderer', 'cinderstone', 'cinderstone_bricks', 'torch', 'lava_bucket', 'glass', 'string', 'stick', 'iron_ingot'];
+    'spawn_cinderling', 'spawn_smoulderer', 'cinderstone', 'cinderstone_bricks', 'torch', 'lava_bucket', 'glass', 'string', 'stick', 'iron_ingot', 'glimmerstone', 'glimmer_dust'];
   const out = await ev(async (ids) => {
     const bf = window.__bf, ic = bf.engine.icons, old = ic.scale;
     ic.build(6);
@@ -85,7 +85,7 @@ if (PARTS.includes('gate')) {
   await shot('cd01_gate');
 }
 
-if (PARTS.includes('cavern') || PARTS.includes('creatures') || PARTS.includes('shrine')) {
+if (PARTS.includes('cavern') || PARTS.includes('creatures') || PARTS.includes('shrine') || PARTS.includes('glimmer')) {
   // the Cinderdeep pictures are taken with Options > Brightness at Bright (BRIGHT=0.5 for the default)
   await ev((v) => { window.__bf.engine.options.brightness = v; }, Number(process.env.BRIGHT ?? 1));
   await ev(() => void window.__bf.engine.changeDimension('cinderdeep', { kind: 'gate', x: Math.floor(window.__bf.game.player.x), z: Math.floor(window.__bf.game.player.z) }));
@@ -131,6 +131,47 @@ if (PARTS.includes('cavern')) {
   await settle();
   await wait(2500);
   await shot('cd02_cavern');
+}
+
+if (PARTS.includes('glimmer')) {
+  // 2.0.1: the biggest Glimmerstone cluster near the arrival, seen from a little below and to the side
+  const c = await ev(() => {
+    const g = window.__bf.game, w = g.world, p = g.player, GL = window.__bf.B.GLIMMERSTONE;
+    const cells = [];
+    for (let dx = -48; dx <= 48; dx++) for (let dz = -48; dz <= 48; dz++) {
+      const x = Math.floor(p.x) + dx, z = Math.floor(p.z) + dz;
+      if (!w.isLoaded(x, z)) continue;
+      for (let y = 40; y < 122; y++) if (w.getBlock(x, y, z) === GL) cells.push([x, y, z]);
+    }
+    // group by 6x6 columns and pick the fullest
+    const groups = new Map();
+    for (const [x, y, z] of cells) { const k = (x >> 3) + ',' + (z >> 3); const gr = groups.get(k) ?? []; gr.push([x, y, z]); groups.set(k, gr); }
+    let best = null;
+    for (const gr of groups.values()) if (!best || gr.length > best.length) best = gr;
+    if (!best) return null;
+    const m = best.reduce((a, [x, y, z]) => [a[0] + x / best.length, a[1] + y / best.length, a[2] + z / best.length], [0, 0, 0]);
+    const low = Math.min(...best.map((c) => c[1]));
+    return { x: m[0], y: m[1], z: m[2], low, n: best.length };
+  });
+  console.log('glimmer', JSON.stringify(c));
+  if (c) {
+    await ev((c) => {
+      const g = window.__bf.game, p = g.player, w = g.world;
+      // a spot 6-7 blocks away with open air, a little below the cluster
+      let spot = null;
+      for (const r of [7, 6, 8, 5, 9]) for (let a = 0; a < 16 && !spot; a++) {
+        const ang = (a / 16) * Math.PI * 2, x = c.x + Math.cos(ang) * r, z = c.z + Math.sin(ang) * r, y = c.low - 2;
+        let ok = true;
+        for (let k = 0; k <= 10 && ok; k++) { const t = k / 10; if (w.getBlock(Math.floor(x + (c.x - x) * t), Math.floor(y + 1.6 + (c.y - y - 1.6) * t), Math.floor(z + (c.z - z) * t)) !== 0 && t < 0.8) ok = false; }
+        if (ok) spot = { x, y, z };
+      }
+      spot = spot ?? { x: c.x + 6, y: c.low - 2, z: c.z };
+      p.flying = true; g.teleport(spot.x, spot.y, spot.z); window.__bf.aimAt(c.x, c.y, c.z);
+    }, c);
+    await settle();
+    await wait(1500);
+    await shot('cd05_glimmer');
+  }
 }
 
 if (PARTS.includes('creatures')) {

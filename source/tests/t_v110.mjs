@@ -18,7 +18,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
 const only = process.env.ONLY ? process.env.ONLY.split(',') : ['ids', 'save', 'craft', 'backup'];
 const run = (n) => only.includes(n);
 // the version being tested (1.10.0 when written; later releases keep these checks)
-const NEWVER = process.env.NEWVER || '2.0.0';
+const NEWVER = process.env.NEWVER || '2.0.1';
 const NEWVER_RE = NEWVER.replace(/\./g, '\\.');
 const results = [];
 const check = (name, ok, info = '') => { const s = typeof info === 'string' ? info : JSON.stringify(info); results.push([ok ? 'PASS' : 'FAIL', name, s]); console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : s.slice(0, 700)); };
@@ -265,10 +265,10 @@ if (run('ids') || run('save') || run('craft') || run('backup')) {
     await h.quit();
 
     // a file from a newer Blockfell, or one with a landscape this version can't make, is refused
-    // "newer" relative to the version under test: 1.10 lacked the Cinderdeep; 2.0 has generator 1 but not a dimension it doesn't know
+    // "newer" relative to the version under test: 1.10 lacked the Cinderdeep; later versions have the Cinderdeep but not generator 9 or a dimension they don't know
     const newer = NEWVER === '1.10.0'
       ? { ver: '1.11.0', gen: 1, dim: 'cinderdeep' }
-      : { ver: NEWVER.replace(/^(\d+)\.(\d+)\..*$/, (m, a, b) => `${a}.${+b + 1}.0`), gen: 2, dim: 'skyreach' };
+      : { ver: NEWVER.replace(/^(\d+)\.(\d+)\..*$/, (m, a, b) => `${a}.${+b + 1}.0`), gen: 9, dim: 'skyreach' };
     const refuse = await h.ev(async ([b64, newer]) => {
       const W = await import('/src/systems/WorldBackup.ts');
       const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -302,7 +302,7 @@ if (run('ids') || run('save') || run('craft') || run('backup')) {
         dims: D.DIM_IDS, over: G.hasGenerator('overworld'), cinder: G.hasGenerator('cinderdeep'), ver: G.newestGenVersion('overworld'),
         n: [
           G.needsNewerGenerator({ genVersion: 6 }), G.needsNewerGenerator({ genVersion: 7 }),
-          G.needsNewerGenerator({ genVersion: 6, dims: { cinderdeep: { genVersion: 2 } } }),
+          G.needsNewerGenerator({ genVersion: 6, dims: { cinderdeep: { genVersion: 9 } } }),
           G.needsNewerGenerator({ genVersion: 6, player: { dim: NEWVER === '1.10.0' ? 'cinderdeep' : 'skyreach' } }), G.needsNewerGenerator({ genVersion: 1, player: { dim: 'overworld' } }),
         ],
       };
