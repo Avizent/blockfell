@@ -56,7 +56,7 @@ export function exposeTestApi(): void {
     meshCompare(cx: number, cz: number) {
       const g = engine.game;
       if (!g) return null;
-      const chunks: Uint8Array[] = [];
+      const chunks: Uint16Array[] = [];
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
         const c = g.world.chunks.get(chunkKeyNum(cx + dx, cz + dz));
         if (!c) return null;
@@ -106,7 +106,7 @@ export function exposeTestApi(): void {
     meshStatsFor(cx: number, cz: number) {
       const g = engine.game;
       if (!g) return null;
-      const chunks: Uint8Array[] = [];
+      const chunks: Uint16Array[] = [];
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
         const c = g.world.chunks.get(chunkKeyNum(cx + dx, cz + dz));
         if (!c) return null;
