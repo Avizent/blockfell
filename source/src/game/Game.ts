@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { World, BlockEntity, ChestEntity, FurnaceEntity, SignEntity, posKey, UNLOADED } from '../world/World';
 import { ChunkManager } from '../world/ChunkManager';
 import * as B from '../world/BlockRegistry';
-import { SEA_LEVEL, TICKS_PER_SECOND, WORLD_HEIGHT, chunkKey, GAME_VERSION, localIndex } from '../world/constants';
+import { SEA_LEVEL, TICKS_PER_SECOND, WORLD_HEIGHT, chunkKey, GAME_VERSION, SAVE_FORMAT, localIndex } from '../world/constants';
 import { Player, MoveInput, Difficulty } from '../player/Player';
 import { AABB, boxCollides } from '../player/PlayerPhysics';
 import { PlayerInventory, Container, ARMOR_START, OFFHAND } from '../inventory/Inventory';
@@ -19,6 +19,10 @@ import { DayNightSystem } from '../systems/DayNightSystem';
 import { Progress } from '../systems/Progress';
 import type { WorldRecord, WorldExtra, GameRules } from '../systems/SaveManager';
 import { DEFAULT_RULES } from '../systems/SaveManager';
+import { type DimId, type Arrival, OVERWORLD } from '../world/dims';
+import { LAVA_SEA } from '../world/Cinderdeep';
+import { BIOME_CINDERDEEP } from '../world/BiomeSystem';
+import { newestGenVersion } from '../world/generators';
 import { WeatherSystem, WeatherKind } from '../systems/WeatherSystem';
 import { Precipitation, PrecipSource, PRECIP_NONE, PRECIP_RAIN, PRECIP_SNOW } from '../render/Precipitation';
 import { BIOME_DESERT, BIOME_BADLANDS, BIOME_SNOWY, BIOME_MOUNTAINS } from '../world/BiomeSystem';
@@ -62,7 +66,9 @@ interface Breaking {
  * entities, time, and all per-tick gameplay rules. Rendering-side helpers
  * (hand, outline, cracks, particles) are driven from here too.
  */
-const UNLIT_EFFECT: Partial<Record<EffectKind, true>> = { smoke: true, poof: true, splash: true, drip: true };
+const UNLIT_EFFECT: Partial<Record<EffectKind, true>> = { smoke: true, poof: true, splash: true, drip: true, ash: true };
+/** 2.0: the Cinderdeep is never pitch dark: a dull red glow from the lava sea everywhere. */
+export const DEEP_AMBIENT = 0.44;
 
 export class Game implements EntityHost, PrecipSource {
   readonly world: World;
@@ -152,13 +158,26 @@ export class Game implements EntityHost, PrecipSource {
   private readonly frustum = new THREE.Frustum();
   private readonly projView = new THREE.Matrix4();
 
-  constructor(private engine: EngineServices, record: WorldRecord, deltas: Map<string, Map<number, number>>, extra: WorldExtra | undefined) {
+  /** The dimension this session plays (1.10; the world may hold others). */
+  readonly dim: DimId;
+  /** 2.0: how the player came in (through a Deepgate, or back to the surface after dying below). */
+  private arrival: Arrival | null;
+  /** 2.0: set while the player is being carried to another dimension (the next save records it). */
+  private leaving: DimId | null = null;
+  /** 2.0: ticks spent standing in a Deepgate; when it fills up, the gate carries you away. */
+  gateTicks = 0;
+  /** 2.0: no travelling again straight after arriving. */
+  private gateCooldown = 0;
+
+  constructor(private engine: EngineServices, record: WorldRecord, deltas: Map<string, Map<number, number>>, extra: WorldExtra | undefined, dim: DimId = OVERWORLD, arrival: Arrival | null = null) {
     this.record = record;
+    this.dim = dim;
+    this.arrival = arrival;
     this.difficulty = record.difficulty;
     this.rules = { ...DEFAULT_RULES, ...record.rules };
     this.weather.load(record.weather);
     const r = engine.renderer;
-    this.world = new World(record.seed, record.structures, record.genVersion ?? 1);
+    this.world = new World(record.seed, record.structures, dim === OVERWORLD ? record.genVersion ?? 1 : record.dims?.[dim]?.genVersion ?? newestGenVersion(dim), dim);
     for (const [k, v] of deltas) this.world.deltas.set(k, v);
     if (extra) {
       for (const [k, v] of extra.blockEntities) {
@@ -224,6 +243,12 @@ export class Game implements EntityHost, PrecipSource {
       p.setPosition(sp.x, sp.y + 1, sp.z);
       p.yaw = Math.PI * 0.75;
     }
+    // 2.0: arriving from another dimension: wait over the gate's spot (or the way home) until the land is ready
+    if (arrival?.kind === 'gate') p.setPosition(arrival.x + 0.5, 72, arrival.z + 0.5);
+    else if (arrival?.kind === 'respawn') {
+      const b = p.bed;
+      p.setPosition((b ? b.x : p.spawnX) + 0.5, (b ? b.y : p.spawnY) + 1, (b ? b.z : p.spawnZ) + 0.5);
+    }
     p.onLanded = (d) => this.onLanded(d);
     this.dayNight.time = record.time;
     this.dayNight.day = record.day;
@@ -245,7 +270,8 @@ export class Game implements EntityHost, PrecipSource {
   isDay(): boolean { return !this.dayNight.isNight(); }
   brightnessAt(x: number, y: number, z: number): number {
     const l = this.world.getLight(Math.floor(x), Math.floor(y), Math.floor(z));
-    return lightToBrightness(l, this.dayNight.light.daylight);
+    const b = lightToBrightness(l, this.dayNight.light.daylight);
+    return this.dim === 'cinderdeep' ? Math.max(DEEP_AMBIENT, b) : b;
   }
   sound(name: string, x?: number, y?: number, z?: number, volume = 1, pitch = 1): void {
     this.engine.audio.play(name, x, y, z, volume, pitch);
@@ -284,6 +310,9 @@ export class Game implements EntityHost, PrecipSource {
   }
   spawnArrow(x: number, y: number, z: number, vx: number, vy: number, vz: number, fromPlayer: boolean, damage: number, shooter: Mob | null = null): void {
     this.entities.spawnArrow(x, y, z, vx, vy, vz, fromPlayer, damage, shooter);
+  }
+  spawnEmber(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob): void {
+    this.entities.spawnEmber(x, y, z, vx, vy, vz, shooter);
   }
   timeOfDay(): number { return this.dayNight.timeOfDay; }
   villagePlan(id: string): VillagePlan | null { return this.villages.plan(id); }
@@ -339,6 +368,7 @@ export class Game implements EntityHost, PrecipSource {
       }
     }
     if (source.kind !== 'starve' && source.kind !== 'void') dmg *= 1 - this.protection(source.kind) * 0.04;
+    if ((source.kind === 'lava' || source.kind === 'burn' || source.kind === 'ember') && this.hasCharm()) dmg *= 0.5;
     p.health = Math.max(0, p.health - dmg);
     p.invulnerable = 10;
     p.hurtTime = 10;
@@ -368,6 +398,12 @@ export class Game implements EntityHost, PrecipSource {
       this.started = true;
       pushChat(`Welcome to ${this.record.name}!`);
     }
+    // 2.0: coming in through a Deepgate, or back on the surface after dying in the Cinderdeep
+    const arr = this.arrival;
+    this.arrival = null;
+    if (arr?.kind === 'gate') this.arriveThroughGate(arr.x, arr.z);
+    else if (arr?.kind === 'respawn') this.respawn();
+    else if (this.started && !p.dead && this.insideRock()) this.freeFromRock();
     if (p.dead) ui.set({ overlay: 'death' });
     // back into the boat the player was sitting in
     if (this.rideOnLoad && !p.dead) {
@@ -424,6 +460,11 @@ export class Game implements EntityHost, PrecipSource {
     this.fishLine.geometry.dispose();
     (this.fishLine.material as THREE.Material).dispose();
     this.world.events.clear();
+    // the Cinderdeep hid the sky and raised the ambient light: put them back for the title screen
+    const r = this.engine.renderer;
+    r.sky.group.visible = true;
+    r.uniforms.uAmbient.value = 0.045;
+    r.uniforms.uAmbientTint.value.setRGB(1, 1, 1);
   }
 
   // ======================================================================= save
@@ -460,7 +501,9 @@ export class Game implements EntityHost, PrecipSource {
         bed: p.bed,
         inventory: invCopy.toJSON(), selected: this.inventory.selected,
         riding: !!this.riding,
+        dim: this.leaving ?? this.dim,
       },
+      format: SAVE_FORMAT,
     };
     this.record = rec;
     const extra: WorldExtra = {
@@ -490,8 +533,8 @@ export class Game implements EntityHost, PrecipSource {
       const dirty = [...this.world.dirtyDeltaChunks];
       this.world.dirtyDeltaChunks.clear();
       try {
-        const n = await saves.putDeltas(record.id, this.world.deltas, dirty);
-        await saves.putExtra(record.id, extra);
+        const n = await saves.putDeltas(record.id, this.dim, this.world.deltas, dirty);
+        await saves.putExtra(record.id, this.dim, extra);
         await saves.putWorld(record);
         if (!opts.quiet) this.engine.worldSaved?.(record.id, !!opts.urgent);
         return n;
@@ -576,6 +619,7 @@ export class Game implements EntityHost, PrecipSource {
       if (!be || be.type !== 'chest') { be = { type: 'chest', items: new Array(27).fill(null) }; this.world.blockEntities.set(key, be); }
       if (be.loot) {
         if (be.loot === 'dungeon') this.progress.grant('dungeon');
+        if (be.loot === 'shrine') this.progress.grant('shrine');
         this.fillLoot(be, x, y, z);
         delete be.loot;
       }
@@ -627,6 +671,7 @@ export class Game implements EntityHost, PrecipSource {
   useMap(slot: number): void {
     const held = this.inventory.get(slot);
     if (!held) return;
+    if (this.dim !== OVERWORLD) { pushChat('Maps only work on the surface'); return; }
     const kind = MAP_ITEMS[held.id];
     if (!held.map) {
       const p = this.player;
@@ -669,7 +714,8 @@ export class Game implements EntityHost, PrecipSource {
     let mh: import('../ui/uiStore').MapHud | null = null;
     if (held && MAP_ITEMS[held.id]) {
       const t = held.map;
-      if (!t) mh = { label: getItem(held.id).name, text: 'Not drawn yet: right-click to draw it', arrow: null, found: false };
+      if (this.dim !== OVERWORLD) mh = { label: getItem(held.id).name, text: 'Maps only work on the surface', arrow: null, found: false };
+      else if (!t) mh = { label: getItem(held.id).name, text: 'Not drawn yet: right-click to draw it', arrow: null, found: false };
       else {
         const dx = t.x + 0.5 - p.x, dz = t.z + 0.5 - p.z, dist = Math.hypot(dx, dz), dy = t.y - p.y;
         const label = t.kind === 'village' ? `Village of ${t.name ?? '?'}` : t.kind === 'dungeon' ? 'Dungeon' : 'Ruin';
@@ -781,6 +827,7 @@ export class Game implements EntityHost, PrecipSource {
   private fillLoot(be: ChestEntity, x: number, y: number, z: number): void {
     const rng = mulberry32(hash4(this.world.seed, x, y, z));
     if (be.loot === 'dungeon') { this.fillDungeonLoot(be, rng); return; }
+    if (be.loot === 'shrine') { this.fillShrineLoot(be, rng); return; }
     const table: [string, number, number, number][] = be.loot === 'village' ? [
       ['bread', 1, 4, 0.7], ['wheat', 2, 8, 0.5], ['wheat_seeds', 2, 6, 0.5], ['carrot', 1, 5, 0.5], ['apple', 1, 3, 0.4],
       ['amber', 1, 3, 0.45], ['torch', 2, 6, 0.4], ['iron_ingot', 1, 2, 0.2], ['stone_hoe', 1, 1, 0.15], ['bone_meal', 2, 6, 0.3],
@@ -834,6 +881,7 @@ export class Game implements EntityHost, PrecipSource {
     if (r.id === 'stone_pickaxe') g('stone_pick');
     if (r.id === 'iron_pickaxe') g('iron_pick');
     if (r.id === 'furnace') g('furnace');
+    if (r.id === 'cinder_charm') g('charm');
     if (r.id.endsWith('_sword')) g('sword');
     if (r.id.endsWith('_wool') || r.id.endsWith('_dye')) g('dye');
     this.sound('click', undefined, undefined, undefined, 0.3, 1.4);
@@ -887,6 +935,7 @@ export class Game implements EntityHost, PrecipSource {
     this.schedule(x, y, z + 1, 2); this.schedule(x, y, z - 1, 2);
     this.fluids.onBlockChanged(x, y, z, this.tickCount);
     if (id === B.SAND || id === B.GRAVEL) this.schedule(x, y, z, 2);
+    if (id !== B.DEEPGATE) this.checkGatesAround(x, y, z);
     if (B.getBlock(old).interact === 'furnace' && B.getBlock(id).interact !== 'furnace') this.furnaces.delete(posKey(x, y, z));
     if (B.getBlock(old).interact === 'sign' || B.getBlock(id).interact === 'sign') this.signs.refresh();
     if (id === B.SPAWNER || old === B.SPAWNER) this.spawners.onBlockChanged(x, y, z, old, id, cause);
@@ -970,6 +1019,11 @@ export class Game implements EntityHost, PrecipSource {
       this.effect('flame', x + Math.random(), y + 1, z + Math.random(), 1);
       if (Math.random() < 0.15) this.sound('lava_pop', x + 0.5, y + 1, z + 0.5, 0.35, 0.8 + Math.random() * 0.4);
     }
+    // the Cinderdeep groans now and then, and ash drifts in the air
+    if (this.dim === 'cinderdeep') {
+      if (Math.random() < 1 / 600) this.sound('deep_rumble', p.x + (Math.random() - 0.5) * 30, p.y - 6, p.z + (Math.random() - 0.5) * 30, 0.8, 0.8 + Math.random() * 0.4);
+      if (this.tickCount % 3 === 0) this.effect('ash', p.x + (Math.random() - 0.5) * 20, p.y + (Math.random() - 0.3) * 10, p.z + (Math.random() - 0.5) * 20, 1);
+    }
   }
 
   /** Re-schedules flowing water saved in a chunk's changes when the chunk loads. */
@@ -999,6 +1053,7 @@ export class Game implements EntityHost, PrecipSource {
   /** Right-clicking a bed: set the respawn point and, at night, sleep until morning. */
   trySleep(x: number, y: number, z: number): void {
     const p = this.player;
+    if (this.dim === 'cinderdeep') { pushChat('It is far too hot to sleep down here'); return; }
     const id = this.world.getBlock(x, y, z);
     const d = B.getBlock(id);
     if (d.shape !== 'bed' || !d.facing) return;
@@ -1166,8 +1221,9 @@ export class Game implements EntityHost, PrecipSource {
     if (p.invulnerable > 0) p.invulnerable--;
 
     // ---- milestones
-    if (p.y < 20) this.progress.grant('deep');
-    if (p.y > 105) this.progress.grant('summit');
+    if (this.dim === OVERWORLD && p.y < 20) this.progress.grant('deep');
+    if (this.dim === OVERWORLD && p.y > 105) this.progress.grant('summit');
+    this.tickGate();
     const night = this.dayNight.isNight();
     if (this.wasNight && !night && !p.dead) this.progress.grant('night');
     this.wasNight = night;
@@ -1176,7 +1232,7 @@ export class Game implements EntityHost, PrecipSource {
       this.autosaveTimer = 0;
       void this.save();
     }
-    if (++this.musicTimer >= 20) { this.musicTimer = 0; this.engine.audio.updateMusic(1, night); }
+    if (++this.musicTimer >= 20) { this.musicTimer = 0; this.engine.audio.updateMusic(1, night, this.dim === 'cinderdeep'); }
     this.pushHud(false);
   }
 
@@ -1320,7 +1376,7 @@ export class Game implements EntityHost, PrecipSource {
     const p = this.player;
     if (this.riding) return;
     if (p.touchingLava) {
-      p.fireTicks = 300;
+      p.fireTicks = this.hasCharm() ? 100 : 300;
       if (this.tickCount % 10 === 0) this.damagePlayer(4, { x: p.x, y: p.y, z: p.z, kind: 'lava' });
       if (this.tickCount % 6 === 0) this.sound('lava_pop', p.x, p.y + 0.5, p.z, 0.3, 1.2);
     } else if (p.fireTicks > 0) {
@@ -1330,6 +1386,7 @@ export class Game implements EntityHost, PrecipSource {
         this.effect('smoke', p.x, p.y + 1, p.z, 8);
         return;
       }
+      if (this.hasCharm() && p.fireTicks > 100) p.fireTicks = 100;   // the charm puts fire out sooner
       p.fireTicks--;
       if (p.fireTicks % 20 === 0) this.damagePlayer(1, { x: p.x, y: p.y, z: p.z, kind: 'burn' });
     }
@@ -1346,7 +1403,7 @@ export class Game implements EntityHost, PrecipSource {
       fall: 'You hit the ground too hard', mob: 'You were slain by a creature', arrow: 'You were shot by a Bone Archer',
       drown: 'You drowned', starve: 'You starved to death', void: 'You fell out of the world', cactus: 'You were pricked to death',
       lightning: 'You were struck by lightning', hound: 'You were mauled by a pack of Fellhounds',
-      lava: 'You sank into the lava', burn: 'You burned to death',
+      lava: 'You sank into the lava', burn: 'You burned to death', ember: 'You were burned by a Smoulderer\'s ember',
     };
     const score = p.xpTotal;
     if (this.screen) this.closeScreen();
@@ -1367,6 +1424,11 @@ export class Game implements EntityHost, PrecipSource {
 
   respawn(): void {
     const p = this.player;
+    if (this.dim !== OVERWORLD && this.engine.changeDimension) {
+      // dying down there: you wake up at home on the surface
+      void this.engine.changeDimension(OVERWORLD, { kind: 'respawn' });
+      return;
+    }
     p.dead = false;
     p.health = 20; p.food = 20; p.saturation = 5; p.exhaustion = 0; p.air = 300;
     p.flying = false;
@@ -1382,6 +1444,235 @@ export class Game implements EntityHost, PrecipSource {
     }
     ui.set({ overlay: null });
     this.pushHud(true);
+  }
+
+  // ======================================================================= 2.0: Deepgates and the Cinderdeep
+  /** Is a Cinder Charm held in the off hand? */
+  hasCharm(): boolean {
+    return this.inventory.get(OFFHAND)?.id === 'cinder_charm';
+  }
+
+  /** Ticks of standing in a Deepgate before it carries you away (3 s; 1 s in Creative). */
+  gateTime(): number {
+    return this.player.creative ? 20 : 60;
+  }
+
+  /** The eight cells round a gate's centre. */
+  private static readonly RING: [number, number][] = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+
+  /** A complete ring of Cinderstone round (x, y, z), with something solid underneath the centre. */
+  gateRingComplete(x: number, y: number, z: number): boolean {
+    if (!B.IS_SOLID[this.world.getBlock(x, y - 1, z)]) return false;
+    for (const [dx, dz] of Game.RING) if (!B.GATE_RING.includes(this.world.getBlock(x + dx, y, z + dz))) return false;
+    return true;
+  }
+
+  /** A torch or a lava bucket used on the open middle of a ring lights a Deepgate there. */
+  private tryLightGate(t: RayHit, slot: number): boolean {
+    const cands: [number, number, number][] = [[t.px, t.py, t.pz]];
+    if (B.GATE_RING.includes(t.block)) for (const [dx, dz] of Game.RING) cands.push([t.x + dx, t.y, t.z + dz]);
+    for (const [x, y, z] of cands) {
+      const here = this.world.getBlock(x, y, z);
+      if (here === UNLOADED || here === B.DEEPGATE || B.IS_FLUID[here] || (here !== B.AIR && !B.getBlock(here).replaceable)) continue;
+      if (!this.gateRingComplete(x, y, z)) continue;
+      this.world.setBlock(x, y, z, B.DEEPGATE, 'player');
+      this.sound('gate_light', x + 0.5, y + 0.8, z + 0.5, 1, 1);
+      this.effect('flame', x + 0.5, y + 0.9, z + 0.5, 16);
+      this.effect('smoke', x + 0.5, y + 1.1, z + 0.5, 6);
+      const p = this.player;
+      if (!p.creative) {
+        const held = this.inventory.get(slot)!;
+        if (held.id === 'lava_bucket') { this.inventory.slots[slot] = makeStack('bucket'); this.inventory.changed(); }
+        else this.consume(slot);
+      }
+      pushChat('The Deepgate is lit: stand in it to go down into the Cinderdeep');
+      return true;
+    }
+    return false;
+  }
+
+  /** A Deepgate goes out when its ring or the block under it is broken. */
+  private checkGatesAround(x: number, y: number, z: number): void {
+    const check = (gx: number, gy: number, gz: number) => {
+      if (this.world.getBlock(gx, gy, gz) !== B.DEEPGATE || this.gateRingComplete(gx, gy, gz)) return;
+      this.world.setBlock(gx, gy, gz, B.AIR, 'physics');
+      this.sound('fizz', gx + 0.5, gy + 0.8, gz + 0.5, 0.7, 0.7);
+      this.effect('smoke', gx + 0.5, gy + 0.9, gz + 0.5, 10);
+    };
+    for (const [dx, dz] of Game.RING) check(x + dx, y, z + dz);
+    check(x, y + 1, z);
+  }
+
+  /** Standing in a Deepgate fills a glow; when it is full you are carried to the other side. */
+  private tickGate(): void {
+    const p = this.player;
+    if (this.gateCooldown > 0) this.gateCooldown--;
+    const gx = Math.floor(p.x), gy = Math.floor(p.y + 0.05), gz = Math.floor(p.z);
+    const inGate = !p.dead && !this.riding && this.world.getBlock(gx, gy, gz) === B.DEEPGATE;
+    // ambient: gates nearby breathe out sparks
+    if (this.tickCount % 6 === 0) {
+      for (let i = 0; i < 3; i++) {
+        const x = Math.floor(p.x + (Math.random() - 0.5) * 24), y = Math.floor(p.y + (Math.random() - 0.5) * 12), z = Math.floor(p.z + (Math.random() - 0.5) * 24);
+        if (this.world.getBlock(x, y, z) === B.DEEPGATE) this.effect('flame', x + Math.random(), y + 0.85, z + Math.random(), 1);
+      }
+    }
+    if (!inGate || this.gateCooldown > 0) { this.gateTicks = Math.max(0, this.gateTicks - 2); return; }
+    this.gateTicks++;
+    if (this.gateTicks % 4 === 0) this.effect('flame', p.x + (Math.random() - 0.5), p.y + Math.random() * 1.8, p.z + (Math.random() - 0.5), 2);
+    if (this.gateTicks % 20 === 1) this.sound('gate_hum', p.x, p.y + 1, p.z, 0.8, 0.8 + this.gateTicks / this.gateTime() * 0.5);
+    if (this.gateTicks >= this.gateTime() && this.engine.changeDimension) {
+      this.gateTicks = 0;
+      this.gateCooldown = 100;
+      const target: DimId = this.dim === OVERWORLD ? 'cinderdeep' : OVERWORLD;
+      this.sound('gate_travel', p.x, p.y + 1, p.z, 1, 1);
+      void this.engine.changeDimension(target, { kind: 'gate', x: gx, z: gz });
+    }
+  }
+
+  /** Prepares the next save to put the player in another dimension (the Engine then reloads). */
+  leaveFor(dim: DimId): void {
+    this.leaving = dim;
+    if (this.riding) this.dismount();
+  }
+
+  /** The nearest lit Deepgate within `r` blocks of (x, z), at any height, among loaded chunks. */
+  findGate(x: number, z: number, r = 16): { x: number; y: number; z: number } | null {
+    let best: { x: number; y: number; z: number } | null = null, bd = Infinity;
+    for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+      const wx = x + dx, wz = z + dz;
+      const c = this.world.getChunk(wx >> 4, wz >> 4);
+      if (!c) continue;
+      for (let y = 1; y < WORLD_HEIGHT - 1; y++) {
+        if (c.blocks[localIndex(wx & 15, y, wz & 15)] !== B.DEEPGATE) continue;
+        const d = dx * dx + dz * dz;
+        if (d < bd) { bd = d; best = { x: wx, y, z: wz }; }
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Builds a lit Deepgate at (or near) (x, z): on the ground in the overworld (on a
+   * little platform over water), on a cavern floor in the Cinderdeep - or, if there is
+   * none close by, in a chamber carved out of the rock.
+   */
+  buildGate(x: number, z: number): { x: number; y: number; z: number } {
+    const w = this.world;
+    let gx = x, gz = z, gy = -1;
+    if (this.dim === 'cinderdeep') {
+      // a cavern floor near (x, z) with room above, as close to the middle height as can be found
+      let bestScore = Infinity;
+      for (let r = 0; r <= 10 && gy < 0; r++) {
+        for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+          if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+          for (let y = LAVA_SEA + 3; y < 110; y++) {
+            const fx = x + dx, fz = z + dz;
+            const fl = w.getBlock(fx, y, fz);
+            if (!B.IS_SOLID[fl] || fl === B.BEDROCK) continue;
+            let ok = true;
+            for (let ox = -1; ox <= 1 && ok; ox++) for (let oz = -1; oz <= 1 && ok; oz++) {
+              if (!B.IS_SOLID[w.getBlock(fx + ox, y, fz + oz)]) ok = false;
+              for (let oy = 1; oy <= 3 && ok; oy++) if (w.getBlock(fx + ox, y + oy, fz + oz) !== B.AIR) ok = false;
+            }
+            if (!ok) continue;
+            const score = Math.abs(y - 64) + r * 4;
+            if (score < bestScore) { bestScore = score; gx = fx; gz = fz; gy = y; }
+          }
+        }
+      }
+      if (gy < 0) {
+        // nothing open nearby: carve a chamber in the rock (or over the lava sea) at height 64
+        gy = 64;
+        for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+          for (let dy = 1; dy <= 4; dy++) w.setBlock(x + dx, gy + dy, z + dz, B.AIR, 'system');
+          w.setBlock(x + dx, gy, z + dz, B.ASHROCK, 'system');
+          if (!B.IS_SOLID[w.getBlock(x + dx, gy - 1, z + dz)]) w.setBlock(x + dx, gy - 1, z + dz, B.ASHROCK, 'system');
+        }
+        gx = x; gz = z;
+      }
+    } else {
+      // the ground, not a tree top
+      let top = w.highestSolid(x, z);
+      while (top > 1 && /leaves|log/.test(B.getBlock(w.getBlock(x, top, z)).key)) top--;
+      gy = top;
+      if (top < 1 || B.IS_FLUID[w.getBlock(x, top + 1, z)]) {
+        // over water: a small cobblestone platform at the surface
+        gy = Math.max(top + 1, SEA_LEVEL);
+        for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+          w.setBlock(x + dx, gy, z + dz, B.COBBLESTONE, 'system');
+          w.setBlock(x + dx, gy - 1, z + dz, B.COBBLESTONE, 'system');
+        }
+      }
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+        for (let dy = 1; dy <= 3; dy++) if (gy + dy < WORLD_HEIGHT) w.setBlock(x + dx, gy + dy, z + dz, B.AIR, 'system');
+      }
+    }
+    if (!B.IS_SOLID[w.getBlock(gx, gy - 1, gz)]) w.setBlock(gx, gy - 1, gz, this.dim === 'cinderdeep' ? B.ASHROCK : B.STONE, 'system');
+    for (const [dx, dz] of Game.RING) w.setBlock(gx + dx, gy, gz + dz, B.CINDERSTONE, 'system');
+    w.setBlock(gx, gy, gz, B.DEEPGATE, 'system');
+    return { x: gx, y: gy, z: gz };
+  }
+
+  /** Coming out of a Deepgate: beside the gate that leads back (built if there isn't one). */
+  private arriveThroughGate(x: number, z: number): void {
+    const gate = this.findGate(x, z) ?? this.buildGate(x, z);
+    const p = this.player;
+    // stand on the ring, facing away from the gate, where there is head room
+    let spot: [number, number] = [gate.x + 1, gate.z];
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const sx = gate.x + dx, sz = gate.z + dz;
+      if (!B.IS_SOLID[this.world.getBlock(sx, gate.y + 1, sz)] && !B.IS_SOLID[this.world.getBlock(sx, gate.y + 2, sz)]) { spot = [sx, sz]; break; }
+    }
+    p.setPosition(spot[0] + 0.5, gate.y + 1, spot[1] + 0.5);
+    p.vx = p.vy = p.vz = 0;
+    p.yaw = Math.atan2(-(spot[0] - gate.x), -(spot[1] - gate.z)) + Math.PI;
+    p.flying = p.flying && p.creative;
+    this.gateCooldown = 100;
+    this.gateTicks = 0;
+    if (this.dim === 'cinderdeep') {
+      this.progress.grant('deepgate');
+      this.progress.add('deep_visits');
+    }
+  }
+
+  /** Is the player standing inside solid rock (an old save, or a world changed elsewhere)? */
+  private insideRock(): boolean {
+    const p = this.player;
+    const x = Math.floor(p.x), z = Math.floor(p.z), y = Math.floor(p.y);
+    return B.IS_SOLID[this.world.getBlock(x, y, z)] === 1 || B.IS_SOLID[this.world.getBlock(x, y + 1, z)] === 1;
+  }
+
+  /** Moves the player to the nearest open spot above or below. */
+  private freeFromRock(): void {
+    const p = this.player;
+    const x = Math.floor(p.x), z = Math.floor(p.z), y0 = Math.floor(p.y);
+    for (let d = 1; d < WORLD_HEIGHT; d++) {
+      for (const y of [y0 + d, y0 - d]) {
+        if (y < 1 || y >= WORLD_HEIGHT - 2) continue;
+        if (!B.IS_SOLID[this.world.getBlock(x, y, z)] && !B.IS_SOLID[this.world.getBlock(x, y + 1, z)] && B.IS_SOLID[this.world.getBlock(x, y - 1, z)] && !B.IS_FLUID[this.world.getBlock(x, y, z)]) {
+          p.setPosition(x + 0.5, y, z + 0.5);
+          return;
+        }
+      }
+    }
+  }
+
+  /** Ember Shrine chests: embers and Fire Opal, iron, rune shards, amber - and now and then a Cinder Charm. */
+  private fillShrineLoot(be: ChestEntity, rng: () => number): void {
+    const table: [string, number, number, number][] = [
+      ['ember', 2, 6, 0.85], ['iron_ingot', 1, 4, 0.55], ['rune_shard', 1, 3, 0.45], ['amber', 2, 5, 0.45],
+      ['fire_opal', 1, 1, 0.3], ['glowcap', 1, 3, 0.3], ['bread', 1, 3, 0.3], ['arrow', 4, 10, 0.25], ['cinder_charm', 1, 1, 0.08],
+    ];
+    const free = () => { for (let t = 0; t < 40; t++) { const i = Math.floor(rng() * 27); if (!be.items[i]) return i; } return be.items.indexOf(null); };
+    for (const [id, lo, hi, ch] of table) {
+      if (rng() >= ch) continue;
+      const i = free();
+      if (i >= 0) be.items[i] = makeStack(id, lo + Math.floor(rng() * (hi - lo + 1)));
+    }
+    if (rng() < 0.18) {
+      const i = free();
+      if (i >= 0) be.items[i] = { id: rng() < 0.5 ? 'iron_chestplate' : 'iron_helmet', count: 1, ench: { warding: 2 } };
+    }
   }
 
   // ======================================================================= interaction
@@ -1633,6 +1924,7 @@ export class Game implements EntityHost, PrecipSource {
       p.addExhaustion(0.005);
       if (id === B.STONE && harvest) this.progress.grant('stone');
       if (id === B.SPAWNER) { this.progress.grant('spawner'); this.progress.add('spawners_broken'); }
+      if (id === B.EMBER_ORE && harvest) this.progress.grant('ember');
       const tool = held ? getItem(held.id).tool : undefined;
       if (tool && !p.creative && def.hardness > 0) {
         if (this.inventory.damageItem(this.inventory.selected, tool.type === 'sword' ? 2 : 1)) this.sound('tool_break', p.x, p.eyeY, p.z);
@@ -1682,6 +1974,7 @@ export class Game implements EntityHost, PrecipSource {
         this.hand.swing();
         return;
       }
+      if (t && pressed && (held.id === 'torch' || held.id === 'lava_bucket') && this.tryLightGate(t, slotIndex)) { this.hand.swing(); return; }
       if (def.kind === 'bucket' && pressed) {
         const pour = held.id === 'water_bucket' ? B.WATER : held.id === 'lava_bucket' ? B.LAVA : null;
         if (this.useBucket(slotIndex, pour)) { this.hand.swing(); return; }
@@ -2095,6 +2388,13 @@ export class Game implements EntityHost, PrecipSource {
     if (needsSupport(cur) && !B.IS_SOLID[cur]) {
       if (pour === B.LAVA) this.burnOut(x, y, z); else this.washOut(x, y, z, cur);
     }
+    if (pour === B.WATER && this.dim === 'cinderdeep') {
+      // far too hot down here: the water hisses away as steam
+      this.sound('fizz', x + 0.5, y + 0.5, z + 0.5, 0.8, 0.9);
+      this.effect('smoke', x + 0.5, y + 0.4, z + 0.5, 14);
+      if (!p.creative) { this.inventory.slots[slotIndex] = makeStack('bucket'); this.inventory.changed(); }
+      return true;
+    }
     this.world.setBlock(x, y, z, pour, 'player');
     this.sound(pour === B.LAVA ? 'lava_empty' : 'bucket_empty', x + 0.5, y + 0.5, z + 0.5, 0.7);
     if (!p.creative) { this.inventory.slots[slotIndex] = makeStack('bucket'); this.inventory.changed(); }
@@ -2156,7 +2456,7 @@ export class Game implements EntityHost, PrecipSource {
     if (v !== undefined) return v;
     const col = this.world.generator.column(x, z);
     const b = col.biome;
-    if (b === BIOME_DESERT || b === BIOME_BADLANDS) v = PRECIP_NONE;
+    if (b === BIOME_DESERT || b === BIOME_BADLANDS || b === BIOME_CINDERDEEP) v = PRECIP_NONE;
     else if (b === BIOME_SNOWY || (b === BIOME_MOUNTAINS && col.height >= 90) || col.height >= 108) v = PRECIP_SNOW;
     else v = PRECIP_RAIN;
     if (this.precipCache.size > 60000) this.precipCache.clear();
@@ -2441,6 +2741,12 @@ export class Game implements EntityHost, PrecipSource {
     u.uWaterFrame.value = Math.floor(performance.now() / 150) % 8;
     u.uLavaFrame.value = Math.floor(performance.now() / 260) % 8;
     const far = this.chunks.renderDistance * 16;
+    const deep = this.dim === 'cinderdeep';
+    // the Cinderdeep has no sky: a warm glow from the lava sea lights everything a little (the Brightness option scales it)
+    u.uAmbient.value = deep ? DEEP_AMBIENT * (0.85 + 0.3 * opts.brightness) : 0.045;
+    if (deep) u.uAmbientTint.value.setRGB(1, 0.8, 0.7); else u.uAmbientTint.value.setRGB(1, 1, 1);
+    if (deep) { u.uDaylight.value = 0; u.uSunStrength.value = 0; }
+    r.sky.group.visible = !deep;
     if (p.eyeInLava) {
       u.uFogColor.value.setRGB(0.85, 0.32, 0.06);
       u.uFogNear.value = 0;
@@ -2449,6 +2755,11 @@ export class Game implements EntityHost, PrecipSource {
       u.uFogColor.value.setRGB(0.08, 0.16, 0.42).multiplyScalar(0.4 + 0.6 * L.daylight);
       u.uFogNear.value = 0;
       u.uFogFar.value = 18;
+    } else if (deep) {
+      // a smoky red haze: the far caverns fade into the glow of the lava sea
+      u.uFogColor.value.setRGB(0.2, 0.06, 0.04);
+      u.uFogNear.value = Math.min(24, far * 0.3);
+      u.uFogFar.value = Math.min(far, 96);
     } else {
       u.uFogColor.value.copy(L.fog);
       const wet = this.weather.rain * (this.precipAt(Math.floor(p.x), Math.floor(p.z)) === PRECIP_NONE ? 0.3 : 1);
@@ -2515,6 +2826,7 @@ export class Game implements EntityHost, PrecipSource {
       hurtTick: p.invulnerable > 0 && p.hurtTime > 0 ? p.hurtTime : 0,
       regenTick: 0, underwater: p.eyeInWater, offhand: !!this.inventory.get(OFFHAND),
       inLava: p.eyeInLava, burning: p.fireTicks > 0 && !p.creative && !p.dead,
+      gate: this.gateTicks > 0 ? Math.round(Math.min(1, this.gateTicks / this.gateTime()) * 20) / 20 : 0,
       saturationShake: p.food <= 4 && p.food > 0,
     };
     const key = JSON.stringify(hud);

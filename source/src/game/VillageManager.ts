@@ -558,8 +558,8 @@ export class VillageManager {
    * generator directly (the places need not be loaded or even visited).
    */
   findMapTarget(kind: MapTarget['kind'], fromX: number, fromZ: number, villageId: string | null): MapTarget | null {
-    const gen = this.game.world.generator;
-    if (!gen.structures) return null;
+    const gen = this.game.world.surface;
+    if (!gen || !gen.structures) return null;
     const skip = new Set(villageId ? this.state(villageId).mapped ?? [] : []);
     const key = (x: number, y: number, z: number) => `${x},${y},${z}`;
     let best: MapTarget | null = null, bd = 1e9;
