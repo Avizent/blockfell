@@ -39,3 +39,15 @@ export const DYE_RGB: Record<DyeColor, [number, number, number]> = {
 export function woolKey(c: DyeColor): string {
   return c === 'white' ? 'wool' : `${c}_wool`;
 }
+
+/** 2.1: words for a dyed leather colour (0xRRGGBB): "Dyed Red", or the nearest dye for a mix. */
+export function dyedLabel(color: number): string {
+  const r = (color >> 16) & 255, g = (color >> 8) & 255, b = color & 255;
+  let best: DyeColor = 'white', bd = Infinity;
+  for (const c of DYE_COLORS) {
+    const [cr, cg, cb] = DYE_RGB[c];
+    const d = (cr - r) ** 2 + (cg - g) ** 2 + (cb - b) ** 2;
+    if (d < bd) { bd = d; best = c; }
+  }
+  return bd === 0 ? `Dyed ${DYE_NAMES[best]}` : `Dyed (a mix, close to ${DYE_NAMES[best]})`;
+}
