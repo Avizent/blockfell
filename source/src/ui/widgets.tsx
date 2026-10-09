@@ -63,14 +63,14 @@ export function Slider(props: { value: number; min: number; max: number; step?: 
   );
 }
 
-export function ItemIcon({ id, style }: { id: string; style?: CSSProperties }) {
+export function ItemIcon({ id, color, style }: { id: string; color?: number; style?: CSSProperties }) {
   useStore(ui, (s) => s.optionsVersion);
-  return <div className="item" style={{ ...engine.icons.style(id), ...style }} />;
+  return <div className="item" style={{ ...engine.icons.style(id, color), ...style }} />;
 }
 
 /** Shimmer drawn over rune-inscribed items, masked to the icon's own pixels. */
-export function Glint({ id, style }: { id: string; style?: CSSProperties }) {
-  const st = engine.icons.style(id);
+export function Glint({ id, color, style }: { id: string; color?: number; style?: CSSProperties }) {
+  const st = engine.icons.style(id, color);
   const mask = `${st.backgroundImage}`;
   return (
     <div className="item glint" style={{
@@ -89,8 +89,8 @@ export function StackView({ stack }: { stack: Slot }) {
   const dur = def.durability && stack.damage ? 1 - stack.damage / def.durability : null;
   return (
     <>
-      <ItemIcon id={stack.id} />
-      {stack.ench && Object.keys(stack.ench).length > 0 && <Glint id={stack.id} />}
+      <ItemIcon id={stack.id} color={stack.color} />
+      {stack.ench && Object.keys(stack.ench).length > 0 && <Glint id={stack.id} color={stack.color} />}
       {stack.count > 1 && <div className="count">{stack.count}</div>}
       {dur !== null && (
         <div className="durability">

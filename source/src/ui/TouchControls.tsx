@@ -5,6 +5,7 @@ import { ui } from './uiStore';
 import { getItem } from '../inventory/ItemRegistry';
 import { Villager } from '../entities/Villager';
 import { Hound } from '../entities/Hound';
+import { Ashboar, ASHBOAR_FOOD } from '../entities/Ashboar';
 import type { Game } from '../game/Game';
 
 /**
@@ -53,6 +54,8 @@ function holdButton(): number {
 function tapButton(): number {
   const g = engine.game;
   const m = g?.targetMob;
+  // a tap feeds an Ashboar a Glowcap; otherwise a tap on a creature is a hit (villagers and hounds: a right-click)
+  if (m instanceof Ashboar && g?.inventory.selectedStack?.id === ASHBOAR_FOOD) return 2;
   if (m && !(m instanceof Villager) && !(m instanceof Hound)) return 0;
   return 2;
 }

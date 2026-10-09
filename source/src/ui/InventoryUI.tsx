@@ -13,6 +13,9 @@ import { ITEMS, getItem, maxStackOf, CATEGORY_LABELS, Category, ItemDef } from '
 import { playerModel } from '../entities/mobModels';
 import { RUNES, RuneId, canInscribe, runeLabel, runeOffers } from '../inventory/Enchantments';
 import { instantiate } from '../entities/BoxModel';
+import { dyedLabel } from '../world/dyes';
+import { ArmourDresser } from '../entities/armourModels';
+import { ARMOR_START } from '../inventory/Inventory';
 
 // ------------------------------------------------------------------ pixel art bits
 function px(w: number, h: number, draw: (c: CanvasRenderingContext2D) => void): string {
@@ -174,6 +177,7 @@ function tooltipLines(s: Slot, def: ItemDef): ReactNode {
   if (def.food) extra.push(`Restores ${def.food.hunger / 2} hunger`);
   if (def.tool) extra.push(`${def.attack} attack damage`);
   if (def.armor) extra.push(`+${def.armor.points} armour`);
+  if (s.color !== undefined) extra.push(dyedLabel(s.color));
   if (def.durability) extra.push(`Durability: ${def.durability - (s.damage ?? 0)} / ${def.durability}`);
   if (def.fuel) extra.push('Furnace fuel');
   const runes = s.ench ? Object.entries(s.ench) as [RuneId, number][] : [];
@@ -239,6 +243,8 @@ let previewRenderer: THREE.WebGLRenderer | null = null;
 let previewScene: THREE.Scene | null = null;
 let previewCam: THREE.PerspectiveCamera | null = null;
 let previewModel: { root: THREE.Group; parts: Map<string, THREE.Object3D> } | null = null;
+/** 2.1: the armour you wear, drawn on the picture of you. */
+let previewArmour: ArmourDresser | null = null;
 
 function PlayerPreview({ x, y, w, h, mouse }: { x: number; y: number; w: number; h: number; mouse: { x: number; y: number } }) {
   const host = useRef<HTMLDivElement>(null);
@@ -258,6 +264,7 @@ function PlayerPreview({ x, y, w, h, mouse }: { x: number; y: number; w: number;
       const inst = instantiate(playerModel());
       previewModel = inst;
       previewScene.add(inst.root);
+      previewArmour = new ArmourDresser(inst.parts);
     }
     const el = previewRenderer.domElement;
     el.style.width = '100%';
@@ -277,6 +284,8 @@ function PlayerPreview({ x, y, w, h, mouse }: { x: number; y: number; w: number;
     previewModel.root.rotation.y = yaw * 0.6;
     const head = previewModel.parts.get('head');
     if (head) { head.rotation.y = yaw * 0.5; head.rotation.x = pitch; }
+    const inv = engine.game?.inventory;
+    if (previewArmour && inv) previewArmour.set(inv.slots.slice(ARMOR_START, ARMOR_START + 4));
     previewRenderer.render(previewScene, previewCam);
   });
   return <div ref={host} style={{ position: 'absolute', left: `${x}rem`, top: `${y}rem`, width: `${w}rem`, height: `${h}rem`, background: '#000', boxShadow: 'inset 1rem 1rem 0 #373633, inset -1rem -1rem 0 #fffefa' }} />;
