@@ -221,6 +221,9 @@ const FOOD: [string, string, number, number, string?][] = [
   ['cooked_trout', 'Cooked Trout', 5, 6],
   ['raw_perch', 'Raw Perch', 2, 0.4, 'cooked_perch'],
   ['cooked_perch', 'Cooked Perch', 6, 9.6],
+  // 2.1: from Ashboars in the Cinderdeep
+  ['raw_ashboar', 'Raw Ashboar', 3, 1.8, 'roast_ashboar'],
+  ['roast_ashboar', 'Roast Ashboar', 8, 12.8],
 ];
 for (const [id, name, hunger, saturation, cooked] of FOOD) {
   add({
@@ -247,13 +250,15 @@ add({ id: 'cinder_charm', name: 'Cinder Charm', category: 'combat', maxStack: 1 
 // ---- 2.0.1
 blockItem('glimmerstone', 'decoration');
 add({ id: 'glimmer_dust', name: 'Glimmer Dust', category: 'ingredients' });
+// ---- 2.1 armour stands
+add({ id: 'armour_stand', name: 'Armour Stand', category: 'decoration', maxStack: 16 });
 
 // ---- spawn items
 const MOBS: [string, string][] = [
   ['pig', 'Pig'], ['cow', 'Cow'], ['sheep', 'Sheep'], ['chicken', 'Chicken'], ['shambler', 'Shambler'], ['skeleton', 'Bone Archer'],
   ['goat', 'Goat'], ['rabbit', 'Rabbit'], ['crawler', 'Crawler'], ['dustwalker', 'Dustwalker'],
   ['villager', 'Villager'], ['sentinel', 'Sentinel'], ['hound', 'Fellhound'],
-  ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'],
+  ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'], ['ashboar', 'Ashboar'],
 ];
 for (const [mob, name] of MOBS) {
   add({ id: `spawn_${mob}`, name: `${name} Spawn Egg`, kind: 'spawn', category: 'spawn', spawn: mob });

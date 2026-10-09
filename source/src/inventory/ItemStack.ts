@@ -11,6 +11,8 @@ export interface ItemStack {
   ench?: Record<string, number>;
   /** Explorer maps (1.8): the place the map leads to. */
   map?: MapTarget;
+  /** 2.1: dyed leather armour, 0xRRGGBB. */
+  color?: number;
 }
 
 /** Where an explorer map leads (a dungeon, a ruin or another village). */
@@ -44,5 +46,20 @@ function sameRunes(a: ItemStack, b: ItemStack): boolean {
 
 /** Two stacks can merge if they are the same item with no per-item state. */
 export function stacksMatch(a: Slot, b: Slot): boolean {
-  return !!a && !!b && a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && sameRunes(a, b) && !a.map && !b.map;
+  return !!a && !!b && a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && sameRunes(a, b) && !a.map && !b.map && a.color === b.color;
+}
+
+/**
+ * What a stack looks like: its item id, plus "#rrggbb" for dyed leather (2.1).
+ * Icons, held items and dropped items are built and cached by this key.
+ */
+export function visualKey(s: Slot): string {
+  if (!s) return '';
+  return s.color === undefined ? s.id : `${s.id}#${s.color.toString(16).padStart(6, '0')}`;
+}
+
+/** Splits a visual key back into the item id and its colour (if any). */
+export function parseVisualKey(key: string): { id: string; color: number | undefined } {
+  const i = key.indexOf('#');
+  return i < 0 ? { id: key, color: undefined } : { id: key.slice(0, i), color: parseInt(key.slice(i + 1), 16) };
 }

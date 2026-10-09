@@ -1,7 +1,7 @@
 import { Container } from './Inventory';
 import { ItemStack, Slot, stacksMatch } from './ItemStack';
 import { getItem, maxStackOf } from './ItemRegistry';
-import { recipes } from '../crafting/recipes';
+import { recipes, specialCraft } from '../crafting/recipes';
 import { canInscribe } from './Enchantments';
 
 export type SlotGroup = 'hotbar' | 'main' | 'armor' | 'offhand' | 'craft' | 'output' | 'chest' | 'furnace_in' | 'furnace_fuel' | 'furnace_out' | 'rune_item' | 'rune_shards';
@@ -74,7 +74,7 @@ export class ScreenHandler {
   updateCraftResult(): void {
     if (!this.craftGrid || !this.craftOutput) return;
     const r = recipes.match(this.craftGrid.slots, this.craftWidth);
-    this.craftOutput.slots[0] = r ? { ...r.result } : null;
+    this.craftOutput.slots[0] = r ? { ...r.result } : specialCraft(this.craftGrid.slots);
     this.craftOutput.changed();
   }
 

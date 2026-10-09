@@ -73,10 +73,19 @@ export class Container {
     if (!data) return;
     for (let i = 0; i < this.slots.length; i++) {
       const s = data[i];
-      this.slots[i] = s && s.id && s.count > 0 ? { id: s.id, count: s.count, ...(s.damage ? { damage: s.damage } : {}), ...(cleanRunes(s.ench) ?? {}), ...(cleanMap(s.map) ?? {}) } : null;
+      this.slots[i] = cleanStack(s);
     }
     this.changed();
   }
+}
+
+/** A validated copy of a saved stack (or null): id, count, wear, runes, map target and dye colour. */
+export function cleanStack(s: unknown): Slot {
+  if (!s || typeof s !== 'object') return null;
+  const o = s as ItemStack;
+  if (typeof o.id !== 'string' || !o.id || typeof o.count !== 'number' || !(o.count > 0)) return null;
+  const color = typeof o.color === 'number' && Number.isInteger(o.color) && o.color >= 0 && o.color <= 0xffffff ? { color: o.color } : {};
+  return { id: o.id, count: Math.floor(o.count), ...(o.damage ? { damage: o.damage } : {}), ...(cleanRunes(o.ench) ?? {}), ...(cleanMap(o.map) ?? {}), ...color };
 }
 
 /** Validated copy of saved runes ({ ench } or undefined when there are none). */
