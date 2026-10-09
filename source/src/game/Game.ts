@@ -49,6 +49,8 @@ import { Sentinel } from '../entities/Sentinel';
 import { MAP_ITEMS } from '../inventory/ItemRegistry';
 import { compassName } from '../render/mapImage';
 import { Hound, HOUND_FOOD, HOUND_TAMING_FOOD } from '../entities/Hound';
+import { ArmourStand, STAND_HAND, STAND_HEIGHT, STAND_WIDTH } from '../entities/ArmourStand';
+import { Ashboar, ASHBOAR_FOOD } from '../entities/Ashboar';
 import type { Trade } from '../entities/Trades';
 import type { VillagePlan } from '../world/Villages';
 
@@ -131,6 +133,9 @@ export class Game implements EntityHost, PrecipSource {
   riding: Boat | null = null;
   /** The boat under the crosshair. */
   targetBoat: Boat | null = null;
+  /** 2.1: the armour stand under the crosshair, and how high up it the aim lands (blocks above its feet). */
+  targetStand: ArmourStand | null = null;
+  private targetStandAt = 0;
   /** The fishing float while a line is out. */
   bobber: Bobber | null = null;
   private readonly fishLine: THREE.Line;
@@ -351,6 +356,18 @@ export class Game implements EntityHost, PrecipSource {
   petDied(pet: Mob): void {
     pushChat(`Your ${pet.spec.name} has died.`);
     this.progress.add('pets_lost');
+  }
+
+  // ---- 2.1
+  spawnMob(type: MobType, x: number, y: number, z: number): Mob {
+    return this.entities.spawnMob(type, x, y, z, this);
+  }
+
+  animalBred(type: string): void {
+    const p = this.player;
+    this.progress.add('animals_bred');
+    if (type === 'ashboar') this.progress.grant('ashboar_breed');
+    void p;
   }
 
   damagePlayer(amount: number, source: { x: number; y: number; z: number; kind: string; mob?: Mob }): void {
@@ -886,6 +903,7 @@ export class Game implements EntityHost, PrecipSource {
     if (r.id === 'cinder_charm') g('charm');
     if (r.id.endsWith('_sword')) g('sword');
     if (r.id.endsWith('_wool') || r.id.endsWith('_dye')) g('dye');
+    if (r.color !== undefined) g('dye_armour');
     this.sound('click', undefined, undefined, undefined, 0.3, 1.4);
   }
 
@@ -1715,6 +1733,13 @@ export class Game implements EntityHost, PrecipSource {
     const boatHit = this.entities.rayHitBoat(ex, ey, ez, dx, dy, dz, this.reach(), this.riding);
     this.targetBoat = boatHit && !this.targetPainting && (!hit || boatHit.t < hit.dist) && (!this.targetMob || !mobHit || boatHit.t < mobHit.t) ? boatHit.boat : null;
     if (this.targetBoat) { this.target = null; this.targetMob = null; }
+    const standHit = this.entities.rayHitStand(ex, ey, ez, dx, dy, dz, this.reach());
+    this.targetStand = standHit && !this.targetPainting && (!this.targetBoat || standHit.t < boatHit!.t) && (!hit || standHit.t < hit.dist)
+      && (!this.targetMob || !mobHit || standHit.t < mobHit.t) ? standHit.stand : null;
+    if (this.targetStand) {
+      this.target = null; this.targetMob = null; this.targetBoat = null;
+      this.targetStandAt = ey + dy * standHit!.t - this.targetStand.y;
+    }
 
     const lmb = inGame && input.mouseIsDown(0);
     const lmbPress = inGame && input.consumeMouse(0);
@@ -1745,6 +1770,17 @@ export class Game implements EntityHost, PrecipSource {
       return;
     }
 
+    // ---- armour stands: right-click to dress it (or take a piece back), hit twice to knock it down
+    const st = this.targetStand;
+    if (st && (lmbPress || (lmb && this.breakDelay === 0) || rmbPress)) {
+      this.hand.swing();
+      if (this.breaking) this.breaking = null;
+      this.crack.hide();
+      if (lmbPress || lmb) { this.hitStand(st); this.breakDelay = 6; }
+      else { this.useStand(st, this.targetStandAt); this.useDelay = 4; }
+      return;
+    }
+
     // ---- attack
     if (lmbPress && this.targetMob) this.attack(this.targetMob);
     else if (lmbPress && !this.target) this.hand.swing();
@@ -1758,6 +1794,7 @@ export class Game implements EntityHost, PrecipSource {
       const item = itemForBlock(this.target.block);
       if (item) this.inventory.pickBlock(item, p.creative);
     } else if (mmbPress && this.targetPainting) this.inventory.pickBlock('painting', p.creative);
+    else if (mmbPress && this.targetStand) this.inventory.pickBlock('armour_stand', p.creative);
 
     // ---- Fellhounds: tame with raw meat, heal with meat, sit / follow
     if (rmbPress && this.targetMob instanceof Hound && this.targetMob.alive && !p.sneaking) {
@@ -1777,6 +1814,12 @@ export class Game implements EntityHost, PrecipSource {
         this.useDelay = 4;
         return;
       }
+    }
+
+    // ---- Ashboars: a Glowcap brings two grown-ups together (or makes a piglet grow up sooner)
+    if (rmbPress && this.targetMob instanceof Ashboar && this.targetMob.alive && this.inventory.selectedStack?.id === ASHBOAR_FOOD) {
+      const r = this.targetMob.feed(this);
+      if (r !== 'no') { if (!p.creative) this.consume(this.inventory.selected); this.hand.swing(); this.useDelay = 4; return; }
     }
 
     // ---- villagers: a gift (food or a flower: sneak, or to a child or a villager without a job),
@@ -2027,13 +2070,17 @@ export class Game implements EntityHost, PrecipSource {
         }
         continue;
       }
+      if (t && pressed && held.id === 'armour_stand' && slotIndex !== OFFHAND) {
+        if (this.placeStand(t, slotIndex)) { this.hand.swing(); return; }
+        continue;
+      }
       if (t && pressed && held.id === 'bone_meal') {
         if (this.useBoneMeal(t.x, t.y, t.z)) { if (!p.creative) this.consume(slotIndex); this.hand.swing(); return; }
         continue;
       }
       if (def.block !== undefined && t) {
         const boxes: AABB[] = [];
-        for (const e of this.entities.list) if (e instanceof Mob && e.alive) boxes.push(e.box);
+        for (const e of this.entities.list) if ((e instanceof Mob && e.alive) || (e instanceof ArmourStand && !e.removed)) boxes.push(e.box);
         const place = resolvePlacement(this.world, t, def.block, p.box, p.yaw, boxes);
         if (!place) continue;
         const [ex, ey, ez] = this.eye();
@@ -2200,6 +2247,94 @@ export class Game implements EntityHost, PrecipSource {
     this.sound('break:wood', pt.x, pt.y, pt.z, 0.8, 1);
     this.particles.blockBreak(pt.x - 0.5, pt.y - 0.5, pt.z - 0.5, this.models.particleColors(B.PLANKS), this.brightnessAt(pt.x, pt.y, pt.z), 12);
     if (drop) this.entities.spawnItem(makeStack('painting'), pt.x, pt.y, pt.z);
+  }
+
+  // ======================================================================= armour stands (2.1)
+  /** Stands an armour stand on the spot the player is looking at, facing them. */
+  private placeStand(t: RayHit, slot: number): boolean {
+    const p = this.player;
+    const x = t.px, y = t.py, z = t.pz;
+    const here = this.world.getBlock(x, y, z), up = this.world.getBlock(x, y + 1, z);
+    if (here === UNLOADED || up === UNLOADED || B.IS_SOLID[here] || B.IS_SOLID[up] || B.IS_LAVA[here]) return false;
+    if (needsSupport(here) && !B.IS_FLUID[here]) return false;      // not on top of a flower or a torch
+    if (this.entities.stands().some((s) => Math.floor(s.x) === x && Math.floor(s.z) === z && Math.abs(s.y - y) < 1.5)) return false;
+    const box = AABB.fromFeet(x + 0.5, y, z + 0.5, STAND_WIDTH, STAND_HEIGHT);
+    if (boxCollides(this.world, box)) return false;
+    // face the player, turned to the nearest eighth of a circle
+    const yaw = Math.round(Math.atan2(-(p.x - (x + 0.5)), -(p.z - (z + 0.5))) / (Math.PI / 4)) * (Math.PI / 4);
+    const st = new ArmourStand(yaw);
+    st.setPos(x + 0.5, y, z + 0.5);
+    this.entities.add(st);
+    this.sound('place:wood', x + 0.5, y + 0.5, z + 0.5, 0.8, 0.9);
+    if (!p.creative) this.consume(slot);
+    return true;
+  }
+
+  /**
+   * Right-click on a stand. Holding armour: it goes on (swapping what was there);
+   * holding anything else: it goes in the stand's hand. Empty hand: take back the
+   * piece you aim at (or what it holds, or whatever is left); sneaking with an
+   * empty hand swaps your whole set of armour with the stand's.
+   */
+  useStand(st: ArmourStand, at: number): void {
+    const p = this.player;
+    const inv = this.inventory;
+    const sel = inv.selected;
+    const held = inv.get(sel);
+    const loud = (pitch: number) => this.sound('place:wool', st.x, st.y + 1, st.z, 0.6, pitch);
+    if (!held && p.sneaking) {
+      let moved = false;
+      for (let i = 0; i < 4; i++) {
+        const mine = inv.get(ARMOR_START + i), theirs = st.items[i];
+        if (!mine && !theirs) continue;
+        inv.slots[ARMOR_START + i] = theirs;
+        st.items[i] = mine;
+        moved = true;
+      }
+      if (moved) {
+        inv.changed();
+        loud(1.1);
+        if (st.items.slice(0, 4).some(Boolean)) this.progress.grant('stand');
+        if (inv.armorPoints() > 0) this.progress.grant('armor');
+      }
+      return;
+    }
+    if (held) {
+      const def = getItem(held.id);
+      const slot = def.armor ? def.armor.slot : STAND_HAND;
+      const old = st.items[slot];
+      st.items[slot] = { ...cloneStack(held)!, count: 1 };
+      held.count--;
+      inv.slots[sel] = held.count > 0 ? held : null;
+      if (old) {
+        if (!inv.slots[sel]) inv.slots[sel] = old;
+        else { const left = inv.add(old); if (left > 0) this.entities.spawnItem({ ...old, count: left }, st.x, st.y + 1, st.z); }
+      }
+      inv.changed();
+      loud(def.armor ? 1 : 1.3);
+      if (def.armor) this.progress.grant('stand');
+      return;
+    }
+    // empty hand: the piece at the height aimed at, else what it holds, else anything
+    const band = at >= 1.45 ? 0 : at >= 0.95 ? 1 : at >= 0.3 ? 2 : 3;
+    const order = [band, STAND_HAND, 0, 1, 2, 3];
+    const i = order.find((k) => st.items[k]);
+    if (i === undefined) return;
+    inv.slots[sel] = st.items[i];
+    st.items[i] = null;
+    inv.changed();
+    loud(0.85);
+  }
+
+  /** A hit on a stand: it wobbles; a second hit soon after knocks it down. */
+  hitStand(st: ArmourStand): void {
+    const p = this.player;
+    this.sound('hit:wood', st.x, st.y + 1, st.z, 0.6, 1.1);
+    if (!st.hit(p.creative)) return;
+    st.removed = true;
+    this.sound('break:wood', st.x, st.y + 1, st.z, 0.8, 1);
+    this.particles.blockBreak(st.x - 0.5, st.y, st.z - 0.5, this.models.particleColors(B.PLANKS), this.brightnessAt(st.x, st.y + 1, st.z), 14);
+    st.dropAll(this.entities, !p.creative);
   }
 
   // ======================================================================= boats
@@ -2814,6 +2949,7 @@ export class Game implements EntityHost, PrecipSource {
       const bb = this.targetBoat.box;
       this.outline.show(0, 0, 0, [bb.minX, bb.minY, bb.minZ, bb.maxX, bb.maxY, bb.maxZ]);
     }
+    else if (this.targetStand && !p.dead && ui.get().overlay === null) this.outline.show(0, 0, 0, this.targetStand.hitBounds());
     else this.outline.hide();
     this.signs.update(this.world, cam.position, (x, y, z) => this.brightnessAt(x, y, z));
     this.spawnerFigures.update(this.spawners, cam.position, (x, y, z) => this.brightnessAt(x, y, z), this.paused ? 0 : dt);
