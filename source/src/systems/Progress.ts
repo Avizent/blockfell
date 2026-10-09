@@ -49,6 +49,10 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   { id: 'ember', title: 'Embers in the Dark', description: 'Mine Ember Ore', icon: 'ember', parent: 'deepgate' },
   { id: 'shrine', title: 'Shrine Raider', description: 'Open a chest in an Ember Shrine', icon: 'ashrock_bricks', parent: 'deepgate' },
   { id: 'charm', title: 'Fireproof', description: 'Make a Cinder Charm', icon: 'cinder_charm', parent: 'shrine' },
+  // 2.1
+  { id: 'stand', title: 'On Display', description: 'Put armour on an Armour Stand', icon: 'armour_stand', parent: 'armor' },
+  { id: 'dye_armour', title: 'Dressed to Impress', description: 'Dye a piece of leather armour', icon: 'leather_chestplate', parent: 'dye' },
+  { id: 'ashboar_breed', title: 'Ember Piglet', description: 'Feed two Ashboars Glowcaps so they have a piglet', icon: 'glowcap', parent: 'deepgate' },
 ];
 
 export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = [
@@ -78,6 +82,7 @@ export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = 
   ['spawners_broken', 'Monster Cages Broken', 'count'],
   ['bells_rung', 'Bells Rung', 'count'],
   ['maps_followed', 'Maps Followed', 'count'],
+  ['animals_bred', 'Animals Bred', 'count'],
 ];
 
 export function formatStat(v: number, kind: 'count' | 'cm' | 'ticks' | 'hp'): string {

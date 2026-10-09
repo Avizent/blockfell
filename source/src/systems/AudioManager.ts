@@ -277,6 +277,11 @@ export class AudioManager {
       case 'sentinel': this.noiseBurst(dest, t, 0.5, 180 * p, 1.5, 'bandpass', 0.6); this.tone(dest, t, 0.5, 70 * p, 55 * p, 'sawtooth', 0.12); break;
       case 'cinderling': for (let i = 0; i < 3; i++) this.noiseBurst(dest, t + i * 0.06, 0.06, 3200 * p, 2.5, 'bandpass', 0.3); this.tone(dest, t, 0.18, 700 * p, 1100 * p, 'square', 0.05); break;
       case 'smoulderer': this.noiseBurst(dest, t, 1.0, 260 * p, 0.8, 'lowpass', 0.4, 0.2); this.tone(dest, t, 0.9, 62 * p, 50 * p, 'sawtooth', 0.12, 0.15); break;
+      case 'ashboar':
+        if (what === 'snort') { this.noiseBurst(dest, t, 0.12, 700 * p, 1.2, 'bandpass', 0.55); this.noiseBurst(dest, t + 0.16, 0.18, 520 * p, 1.2, 'bandpass', 0.5); this.tone(dest, t + 0.14, 0.3, 110 * p, 70 * p, 'sawtooth', 0.12); }
+        else if (death) { this.tone(dest, t, 0.9, 120 * p, 45 * p, 'sawtooth', 0.16, 0.1); this.noiseBurst(dest, t, 0.7, 300, 1, 'lowpass', 0.3); }
+        else { this.tone(dest, t, hurt ? 0.25 : 0.4, (hurt ? 150 : 96) * p, (hurt ? 110 : 72) * p, 'sawtooth', 0.17, 0.04); this.noiseBurst(dest, t, 0.3, 380 * p, 1.4, 'bandpass', 0.28); }
+        break;
       case 'hound':
         if (what === 'growl') { this.tone(dest, t, 0.7, 95 * p, 80 * p, 'sawtooth', 0.12, 0.05); this.noiseBurst(dest, t, 0.6, 260, 2, 'bandpass', 0.25); }
         else if (what === 'bite') { this.noiseBurst(dest, t, 0.07, 1400, 1, 'bandpass', 0.6); this.tone(dest, t, 0.08, 260, 140, 'square', 0.1); }
