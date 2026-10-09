@@ -176,8 +176,14 @@ export class ItemModels {
     return g;
   }
 
-  /** Creates a mesh for an item (caller owns the material; geometry is shared). */
-  createMesh(id: string): { mesh: THREE.Mesh; isBlock: boolean } {
+  /** Creates a mesh for an item or a visual key (dyed leather: "id#rrggbb"); the caller owns the material, geometry is shared. */
+  createMesh(key: string): { mesh: THREE.Mesh; isBlock: boolean } {
+    const id = key.includes('#') ? key.slice(0, key.indexOf('#')) : key;
+    if (id !== key) {
+      // same shape as the plain piece; only the texture is re-coloured
+      const mat = new THREE.MeshLambertMaterial({ map: this.spriteTexture(key), alphaTest: 0.5, side: THREE.DoubleSide });
+      return { mesh: new THREE.Mesh(this.spriteGeometry(id), mat), isBlock: false };
+    }
     if (this.isBlockModel(id)) {
       const mat = new THREE.MeshLambertMaterial({ map: this.atlasTex, alphaTest: 0.5 });
       return { mesh: new THREE.Mesh(this.blockGeometry(getItem(id).block!), mat), isBlock: true };

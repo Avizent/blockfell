@@ -481,6 +481,9 @@ meat('cooked_chicken', [200, 140, 70], [150, 96, 44], [236, 190, 120], true);
 meat('spoiled_flesh', [150, 110, 70], [100, 86, 46], [120, 140, 70]);
 meat('raw_rabbit', [226, 150, 140], [190, 110, 104], [244, 214, 204], true);
 meat('cooked_rabbit', [178, 116, 64], [128, 78, 40], [220, 180, 120], true);
+// 2.1: Ashboar haunches - dark meat flecked with grey ash; roasted, an ember-orange glaze
+meat('raw_ashboar', [168, 52, 50], [112, 34, 34], [150, 146, 140], true);
+meat('roast_ashboar', [132, 70, 36], [86, 40, 22], [236, 132, 52], true);
 
 for (const mat of ['wooden', 'stone', 'iron']) {
   SPRITES[`${mat}_pickaxe`] = { map: PICKAXE, pal: toolPal(mat) };
@@ -497,6 +500,39 @@ for (const mat of ['leather', 'iron']) {
   SPRITES[`${mat}_leggings`] = { map: LEGS, pal };
   SPRITES[`${mat}_boots`] = { map: BOOTS, pal };
 }
+
+/** 2.1: a leather armour piece in a dye colour (0xRRGGBB): the same drawing, re-coloured. */
+export function dyedArmourPixels(id: string, color: number): Uint8ClampedArray {
+  const def = SPRITES[id];
+  const r = (color >> 16) & 255, g = (color >> 8) & 255, b = color & 255;
+  const k = (f: number): RGBA => [Math.round(r * f), Math.round(g * f), Math.round(b * f)];
+  const lift = (f: number): RGBA => [Math.round(r + (255 - r) * f), Math.round(g + (255 - g) * f), Math.round(b + (255 - b) * f)];
+  const pal: Palette = { o: k(0.32), D: k(0.7), M: k(1), L: lift(0.28) };
+  return def ? rasterise({ map: def.map, pal }) : spritePixels(id);
+}
+
+/** 2.1: an armour stand - a stone foot, a wooden post with a shoulder bar and hip bar, and a round head. */
+SPRITES.armour_stand = {
+  map: [
+    '......oooo......',
+    '.....oLLMMo.....',
+    '.....oLMMDo.....',
+    '......oooo......',
+    '.......oMo......',
+    '.ooooooLMDooooo.',
+    '.oLLLLLLMMMMMDo.',
+    '.ooDooooMDoooDo.',
+    '..oDo..oMDo.oDo.',
+    '..oo...oMDo..oo.',
+    '.....ooLMDoo....',
+    '.....oLMMMDo....',
+    '.....oLoooDo....',
+    '.....oMo.oDo....',
+    '..ooooooooooooo.',
+    '..oSSSSSSSSSSso.',
+  ],
+  pal: { o: [52, 36, 20], L: [200, 160, 104], M: [158, 120, 70], D: [108, 78, 44], S: [160, 160, 162], s: [104, 104, 108] },
+};
 
 // ---- 1.4 decoration items
 const WOODPAL: Palette = { o: [66, 46, 24], L: [184, 146, 94], M: [140, 106, 62], D: [104, 76, 42] };
@@ -576,6 +612,7 @@ export const EGG_COLORS: Record<string, [RGBA, RGBA]> = {
   hound: [[112, 100, 88], [222, 206, 176]],
   cinderling: [[60, 44, 40], [255, 150, 50]],
   smoulderer: [[96, 90, 88], [232, 86, 34]],
+  ashboar: [[66, 60, 58], [242, 124, 44]],
 };
 for (const [mob, [a, s]] of Object.entries(EGG_COLORS)) {
   const L: RGBA = [Math.min(255, a[0] + 30), Math.min(255, a[1] + 30), Math.min(255, a[2] + 30)];
@@ -657,11 +694,16 @@ fish('cooked_perch', [138, 100, 50], [192, 150, 84], [228, 204, 150], [150, 92, 
 /** Rasterises a sprite into RGBA pixels. */
 export function spritePixels(name: string): Uint8ClampedArray {
   const def = SPRITES[name];
-  const out = new Uint8ClampedArray(16 * 16 * 4);
   if (!def) {
+    const out = new Uint8ClampedArray(16 * 16 * 4);
     for (let i = 0; i < 256; i++) { const on = ((i & 15) >> 2 ^ (i >> 6)) & 1; out.set(on ? [250, 0, 220, 255] : [0, 0, 0, 255], i * 4); }
     return out;
   }
+  return rasterise(def);
+}
+
+function rasterise(def: SpriteDef): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(16 * 16 * 4);
   def.map.forEach((row, y) => {
     for (let x = 0; x < 16; x++) {
       const c = def.pal[row[x]];

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { ItemModels } from './ItemModels';
 import { playerModel } from '../entities/mobModels';
-import type { Slot } from '../inventory/ItemStack';
+import { visualKey, type Slot } from '../inventory/ItemStack';
 import { getItem } from '../inventory/ItemRegistry';
 
 /**
@@ -57,7 +57,7 @@ export class FirstPerson {
     this.prevSwing = this.swingTicks;
     if (this.swingTicks > 0) this.swingTicks--;
     this.prevEquip = this.equip;
-    const id = selected?.id ?? '';
+    const id = visualKey(selected);
     if (id !== this.currentId && this.pendingId !== id) this.pendingId = id;
     if (this.pendingId !== null) {
       this.equip = Math.max(0, this.equip - 0.4);
@@ -145,7 +145,7 @@ export class FirstPerson {
         h.position.set(A.bx, A.by, A.bz);
         h.rotation.set(A.brx, A.bry, 0, 'YXZ');
       } else {
-        const def = getItem(this.currentId);
+        const def = getItem(this.currentId.split('#')[0]);
         this.itemMesh.scale.setScalar(A.itemScale);
         h.position.set(A.ix, A.iy, A.iz);
         h.rotation.set(A.irx, A.iry, A.irz, 'YXZ');

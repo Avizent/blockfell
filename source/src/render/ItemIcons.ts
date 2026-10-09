@@ -3,7 +3,8 @@ import { ITEMS, getItem } from '../inventory/ItemRegistry';
 import { getBlock, MODEL } from '../world/BlockRegistry';
 import { TEXTURE_NAMES } from '../meshing/textureNames';
 import type { TextureAtlas } from '../meshing/TextureAtlas';
-import { spritePixels } from './itemSprites';
+import { spritePixels, dyedArmourPixels } from './itemSprites';
+import { parseVisualKey } from '../inventory/ItemStack';
 
 /** Cube blocks with open sides whose icons also show the far faces. */
 const SEE_THROUGH = new Set(['spawner']);
@@ -40,8 +41,10 @@ export class ItemIcons {
     return c;
   }
 
-  /** Raw 16x16 RGBA pixels for an item (used for held/dropped item models). */
-  pixels(id: string): Uint8ClampedArray {
+  /** Raw 16x16 RGBA pixels for an item or a visual key ("id#rrggbb": dyed leather) - held/dropped item models. */
+  pixels(key: string): Uint8ClampedArray {
+    const { id, color } = parseVisualKey(key);
+    if (color !== undefined) return dyedArmourPixels(id, color);
     const def = getItem(id);
     if (def.icon.kind === 'flat') return new Uint8ClampedArray(this.atlas.get(def.icon.texture).d);
     if (def.icon.kind === 'sprite') return spritePixels(def.icon.name);
@@ -137,8 +140,22 @@ export class ItemIcons {
     this.version++;
   }
 
-  /** CSS for a 16x16 GUI-pixel icon box (sized in rem, 1rem = 1 GUI pixel). */
-  style(id: string): CSSProperties {
+  private dyed = new Map<string, string>();
+
+  /** CSS for a 16x16 GUI-pixel icon box (sized in rem, 1rem = 1 GUI pixel); `color`: dyed leather (2.1). */
+  style(id: string, color?: number): CSSProperties {
+    if (color !== undefined) {
+      const key = `${id}#${color}`;
+      let url = this.dyed.get(key);
+      if (!url) {
+        const c = document.createElement('canvas');
+        c.width = c.height = 16;
+        c.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(dyedArmourPixels(id, color)), 16, 16), 0, 0);
+        url = c.toDataURL('image/png');
+        this.dyed.set(key, url);
+      }
+      return { backgroundImage: `url(${url})`, backgroundSize: '16rem 16rem', backgroundPosition: '0 0', imageRendering: 'pixelated' };
+    }
     const i = this.index.get(id) ?? 0;
     const rows = Math.ceil(ITEMS.length / this.cols);
     return {
