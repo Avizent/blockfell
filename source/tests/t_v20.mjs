@@ -404,7 +404,7 @@ if (run('mobs')) {
     for (const e of g.entities.list) if (e.type === 'mob' || e.mobType) e.removed = true;
     return kinds;
   });
-  check('creatures: only Cinderlings and Smoulderers appear in the Cinderdeep (no animals)', Object.keys(spawns).length > 0 && Object.keys(spawns).every((k) => k === 'cinderling' || k === 'smoulderer'), spawns);
+  check('creatures: only Cinderlings, Smoulderers and (2.1) Ashboars appear in the Cinderdeep (no surface animals)', (spawns.cinderling ?? 0) + (spawns.smoulderer ?? 0) > 0 && Object.keys(spawns).every((k) => k === 'cinderling' || k === 'smoulderer' || k === 'ashboar'), spawns);
   await ev(() => { const g = window.__bf.game; g.difficulty = 'normal'; g.player.health = 20; g.player.fireTicks = 0; });
 }
 

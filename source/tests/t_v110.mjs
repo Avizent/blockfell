@@ -18,7 +18,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
 const only = process.env.ONLY ? process.env.ONLY.split(',') : ['ids', 'save', 'craft', 'backup'];
 const run = (n) => only.includes(n);
 // the version being tested (1.10.0 when written; later releases keep these checks)
-const NEWVER = process.env.NEWVER || '2.0.1';
+const NEWVER = process.env.NEWVER || '2.1.0';
 const NEWVER_RE = NEWVER.replace(/\./g, '\\.');
 const results = [];
 const check = (name, ok, info = '') => { const s = typeof info === 'string' ? info : JSON.stringify(info); results.push([ok ? 'PASS' : 'FAIL', name, s]); console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : s.slice(0, 700)); };
