@@ -1,5 +1,6 @@
 import { RecipeManager } from './RecipeManager';
-import { DYE_COLORS, DyeColor, woolKey } from '../world/dyes';
+import { DYE_COLORS, DYE_RGB, DyeColor, woolKey } from '../world/dyes';
+import { cloneStack, type ItemStack, type Slot } from '../inventory/ItemStack';
 
 export const recipes = new RecipeManager();
 
@@ -113,3 +114,51 @@ shaped(['E', 'S'], { E: 'ember', S: 'stick' }, 'torch', 8);
 shaped([' S ', 'IOI', ' I '], { S: 'string', I: 'iron_ingot', O: 'fire_opal' }, 'cinder_charm');
 // 2.0.1: four Glimmer Dust make the block again
 shaped(['DD', 'DD'], { D: 'glimmer_dust' }, 'glimmerstone');
+
+// ---- 2.1: armour stands, Ashboar meat (smelted in a furnace), and dyed leather armour (below)
+shaped(['SSS', ' S ', 'SPS'], { S: 'stick', P: 'oak_slab' }, 'armour_stand');
+shaped(['SSS', ' S ', 'SPS'], { S: 'stick', P: 'stone_slab' }, 'armour_stand');
+
+/** The four leather armour pieces (2.1: they can be dyed). */
+export const LEATHER_PIECES = ['leather_helmet', 'leather_chestplate', 'leather_leggings', 'leather_boots'];
+
+/**
+ * Crafting that isn't a fixed recipe (2.1): a leather armour piece and one to eight
+ * dyes anywhere in the grid give the piece in that colour (several dyes mix, kept
+ * as bright as the dyes themselves); a dyed piece on its own is washed back to plain
+ * leather. Wear and runes stay with the piece.
+ */
+export function specialCraft(grid: Slot[]): ItemStack | null {
+  let piece: ItemStack | null = null;
+  const dyes: [number, number, number][] = [];
+  for (const s of grid) {
+    if (!s) continue;
+    if (LEATHER_PIECES.includes(s.id)) {
+      if (piece) return null;
+      piece = s;
+    } else if (s.id.endsWith('_dye') && (s.id.slice(0, -4) as DyeColor) in DYE_RGB) dyes.push(DYE_RGB[s.id.slice(0, -4) as DyeColor]);
+    else return null;
+  }
+  if (!piece) return null;
+  const out = cloneStack(piece)!;
+  out.count = 1;
+  if (!dyes.length) {
+    if (piece.color === undefined) return null;
+    delete out.color;
+    return out;
+  }
+  out.color = mixDyes(dyes);
+  return out;
+}
+
+/** Average of the dye colours, scaled back up to their average brightness. */
+export function mixDyes(dyes: [number, number, number][]): number {
+  let r = 0, g = 0, b = 0, peak = 0;
+  for (const [dr, dg, db] of dyes) { r += dr; g += dg; b += db; peak += Math.max(dr, dg, db); }
+  const n = dyes.length;
+  r /= n; g /= n; b /= n; peak /= n;
+  const m = Math.max(r, g, b) || 1;
+  const k = peak / m;
+  const c = (v: number) => Math.max(0, Math.min(255, Math.round(v * k)));
+  return (c(r) << 16) | (c(g) << 8) | c(b);
+}
