@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Entity, EntityHost } from './Entity';
 import type { ItemStack } from '../inventory/ItemStack';
-import { stacksMatch } from '../inventory/ItemStack';
+import { stacksMatch, visualKey } from '../inventory/ItemStack';
 import { maxStackOf } from '../inventory/ItemRegistry';
 import { AABB, moveBox } from '../player/PlayerPhysics';
 import { rayBox } from '../interaction/VoxelRaycaster';
@@ -74,16 +74,17 @@ export class ItemEntity extends Entity {
   }
 
   render(alpha: number, host: EntityHost): void {
-    if (this.meshFor !== this.stack.id) {
+    const key = visualKey(this.stack);
+    if (this.meshFor !== key) {
       this.mesh?.removeFromParent();
       this.material?.dispose();
-      const { mesh, isBlock } = host.models.createMesh(this.stack.id);
+      const { mesh, isBlock } = host.models.createMesh(key);
       this.mesh = mesh;
       this.material = mesh.material as THREE.MeshLambertMaterial;
       this.isBlock = isBlock;
       mesh.scale.setScalar(isBlock ? 0.25 : 0.42);
       this.object.add(mesh);
-      this.meshFor = this.stack.id;
+      this.meshFor = key;
     }
     super.render(alpha, host);
     const t = this.age + alpha;

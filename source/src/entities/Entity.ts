@@ -83,6 +83,11 @@ export interface EntityHost {
   ownerFightTarget(): Mob | null;
   /** A tamed companion has died. */
   petDied(pet: Mob): void;
+  // ---- 2.1
+  /** Spawns a creature (a newborn Ashboar piglet). */
+  spawnMob?(type: import('./mobModels').MobType, x: number, y: number, z: number): Mob;
+  /** Two animals had a young one. */
+  animalBred?(type: string): void;
 }
 
 let nextId = 1;

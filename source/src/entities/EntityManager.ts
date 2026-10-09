@@ -7,6 +7,9 @@ import { Villager } from './Villager';
 import { Sentinel } from './Sentinel';
 import { Hound } from './Hound';
 import { Painting } from './Painting';
+import { ArmourStand } from './ArmourStand';
+import { Ashboar } from './Ashboar';
+import { cleanStack } from '../inventory/Inventory';
 import { Boat } from './Boat';
 import { Bobber } from './Fishing';
 import { motifById } from '../render/paintingArt';
@@ -14,7 +17,7 @@ import type { Facing } from '../world/BlockRegistry';
 import type { MobType } from './mobModels';
 import type { ItemStack } from '../inventory/ItemStack';
 import { rayBox } from '../interaction/VoxelRaycaster';
-import { GRASS, IS_FLUID, IS_SOLID, AIR, SNOWY_GRASS, SAND, RED_SAND, STONE, SNOW, SPAWN_FLOOR } from '../world/BlockRegistry';
+import { GRASS, IS_FLUID, IS_SOLID, AIR, SNOWY_GRASS, SAND, RED_SAND, STONE, SNOW, SPAWN_FLOOR, EMBER_LAMP } from '../world/BlockRegistry';
 import { BIOME_BADLANDS, BIOME_DESERT, BIOME_MOUNTAINS, BIOME_SNOWY, BIOME_TAIGA, BIOME_FOREST, BIOME_BIRCH } from '../world/BiomeSystem';
 import { UNLOADED } from '../world/World';
 import { WORLD_HEIGHT } from '../world/constants';
@@ -69,7 +72,8 @@ export class EntityManager implements EntityQueries {
   }
 
   spawnMob(type: MobType, x: number, y: number, z: number, host: EntityHost): Mob {
-    const m = type === 'villager' ? new Villager(host) : type === 'sentinel' ? new Sentinel(host) : type === 'hound' ? new Hound(host) : new Mob(type, host);
+    const m = type === 'villager' ? new Villager(host) : type === 'sentinel' ? new Sentinel(host) : type === 'hound' ? new Hound(host)
+      : type === 'ashboar' ? new Ashboar(host) : new Mob(type, host);
     m.setPos(x, y, z);
     return this.add(m);
   }
@@ -176,6 +180,24 @@ export class EntityManager implements EntityQueries {
     return best;
   }
 
+  stands(): ArmourStand[] {
+    const out: ArmourStand[] = [];
+    for (const e of this.list) if (e instanceof ArmourStand && !e.removed) out.push(e);
+    return out;
+  }
+
+  /** Nearest armour stand hit by a ray (2.1). */
+  rayHitStand(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number): { stand: ArmourStand; t: number } | null {
+    let best: { stand: ArmourStand; t: number } | null = null;
+    for (const e of this.list) {
+      if (!(e instanceof ArmourStand) || e.removed) continue;
+      if (Math.abs(e.x - ox) > max + 3 || Math.abs(e.z - oz) > max + 3 || Math.abs(e.y - oy) > max + 3) continue;
+      const t = e.rayHit(ox, oy, oz, dx, dy, dz);
+      if (t !== null && t <= max && (!best || t < best.t)) best = { stand: e, t };
+    }
+    return best;
+  }
+
   /** Nearest living mob hit by a ray (used for melee targeting and arrows). */
   rayHitMob(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number): { mob: Mob & Hurtable; t: number } | null {
     let best: { mob: Mob; t: number } | null = null;
@@ -266,8 +288,14 @@ export class EntityManager implements EntityQueries {
    */
   private trySpawnDeep(host: EntityHost): void {
     const p = host.player;
-    let hostile = 0;
-    for (const e of this.list) if (e instanceof Mob && e.spec.hostile && Math.hypot(e.x - p.x, e.z - p.z) <= 80) hostile++;
+    let hostile = 0, boars = 0;
+    for (const e of this.list) {
+      if (!(e instanceof Mob) || Math.hypot(e.x - p.x, e.z - p.z) > 96) continue;
+      if (e.spec.hostile) { if (Math.hypot(e.x - p.x, e.z - p.z) <= 80) hostile++; }
+      else if (e instanceof Ashboar) boars++;
+    }
+    // 2.1: Ashboar herds graze the cavern floors (any light, but never near an Ember Lamp)
+    if (boars < 8 && Math.random() < 0.06) this.spawnHerd(host);
     const cap = host.difficulty === 'peaceful' ? 0 : host.difficulty === 'easy' ? 5 : host.difficulty === 'normal' ? 8 : 12;
     if (hostile >= cap) return;
     for (let tries = 0; tries < 4; tries++) {
@@ -284,6 +312,41 @@ export class EntityManager implements EntityQueries {
         this.spawnMob(Math.random() < 0.62 ? 'cinderling' : 'smoulderer', x + 0.5, y + 1, z + 0.5, host);
         return;
       }
+    }
+  }
+
+  /** A herd of two to four Ashboars (now and then with a piglet) on a cavern floor 24-48 blocks away. */
+  private spawnHerd(host: EntityHost): void {
+    const p = host.player, w = host.world;
+    const a = Math.random() * Math.PI * 2, r = 24 + Math.random() * 24;
+    const x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+    if (!w.isLoaded(x, z)) return;
+    const floor = (fx: number, fz: number, fromY: number): number | null => {
+      for (let y = fromY; y > LAVA_SEA; y--) {
+        const b = w.getBlock(fx, y, fz);
+        if (b === UNLOADED) return null;
+        if (!SPAWN_FLOOR[b]) { if (IS_SOLID[b] || IS_FLUID[b]) return null; continue; }
+        if (w.getBlock(fx, y + 1, fz) !== AIR || w.getBlock(fx, y + 2, fz) !== AIR) return null;
+        return y + 1;
+      }
+      return null;
+    };
+    // drop down from a random height to the first floor with headroom
+    let y: number | null = null;
+    for (let y0 = LAVA_SEA + 4 + Math.floor(Math.random() * (110 - LAVA_SEA)); y0 > LAVA_SEA && y === null; y0--) {
+      const b = w.getBlock(x, y0, z);
+      if (b === AIR && SPAWN_FLOOR[w.getBlock(x, y0 - 1, z)] && w.getBlock(x, y0 + 1, z) === AIR) y = y0;
+    }
+    if (y === null) return;
+    // Ember Lamps keep them away
+    for (let dy = -3; dy <= 3; dy++) for (let dz = -8; dz <= 8; dz++) for (let dx = -8; dx <= 8; dx++) if (w.getBlock(x + dx, y + dy, z + dz) === EMBER_LAMP) return;
+    const n = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) {
+      const ox = x + Math.floor((Math.random() - 0.5) * 5), oz = z + Math.floor((Math.random() - 0.5) * 5);
+      const fy = floor(ox, oz, y + 2);
+      if (fy === null || Math.abs(fy - y) > 2) continue;
+      const m = this.spawnMob('ashboar', ox + 0.5, fy, oz + 0.5, host) as Ashboar;
+      if (i === n - 1 && n > 2 && Math.random() < 0.35) m.makeBaby(2400 + Math.floor(Math.random() * 9600));
     }
   }
 
@@ -364,9 +427,15 @@ export class EntityManager implements EntityQueries {
         if (m instanceof Villager && d.v && typeof d.v === 'object') m.restore(d.v as Record<string, unknown>);
         if (m instanceof Sentinel && d.s && typeof d.s === 'object') m.restore(d.s as Record<string, unknown>);
         if (m instanceof Hound && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);
+        if (m instanceof Ashboar && d.a && typeof d.a === 'object') m.restore(d.a as Record<string, unknown>);
       } else if (d.t === 'painting' && typeof d.m === 'string') {
         const m = motifById(d.m);
         if (m && ['n', 'e', 's', 'w'].includes(d.f as string)) this.add(new Painting(m, d.f as Facing, d.x as number, d.y as number, d.z as number));
+      } else if (d.t === 'stand' && [d.x, d.y, d.z].every((v) => typeof v === 'number' && Number.isFinite(v))) {
+        const st = new ArmourStand(typeof d.yaw === 'number' ? d.yaw : 0);
+        st.setPos(d.x as number, d.y as number, d.z as number);
+        if (Array.isArray(d.items)) for (let i = 0; i < st.items.length; i++) st.items[i] = cleanStack(d.items[i]);
+        this.add(st);
       } else if (d.t === 'boat') {
         this.spawnBoat(d.x as number, d.y as number, d.z as number, (d.yaw as number) ?? 0);
       } else if (d.t === 'item' && d.stack) {

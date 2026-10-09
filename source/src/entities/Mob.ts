@@ -52,6 +52,7 @@ export const MOB_SPECS: Record<MobType, MobSpec> = {
   sentinel: { name: 'Sentinel', hostile: false, health: 100, speed: 0.2, width: 1.4, height: 2.6, drops: [['iron_ingot', 3, 5], ['stone_bricks', 1, 3]], xp: [0, 0], attack: 10, sound: 'sentinel', folk: 'sentinel' },
   cinderling: { name: 'Cinderling', hostile: true, health: 10, speed: 0.33, width: 0.5, height: 1.0, drops: [['ember', 0, 1]], xp: [3, 5], attack: 2, sound: 'cinderling', fireproof: true, glows: true, ignites: 60, leaps: true },
   smoulderer: { name: 'Smoulderer', hostile: true, health: 24, speed: 0.2, width: 0.6, height: 2.1, drops: [['ember', 0, 2], ['fire_opal', 1, 1, 0.08]], xp: [8, 8], attack: 3, ranged: true, embers: true, sound: 'smoulderer', fireproof: true, ignites: 40 },
+  ashboar: { name: 'Ashboar', hostile: false, health: 20, speed: 0.24, width: 1.1, height: 1.15, drops: [['raw_ashboar', 1, 3], ['leather', 0, 2]], xp: [1, 3], attack: 4, sound: 'ashboar', fireproof: true },
 };
 
 const tmpColor = new THREE.Color();

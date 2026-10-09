@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { BuiltModel, PartDef, buildModel } from './BoxModel';
 
 /**
@@ -5,7 +6,7 @@ import { BuiltModel, PartDef, buildModel } from './BoxModel';
  * feet centre is the origin and it faces +Z.
  */
 export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound'
-  | 'cinderling' | 'smoulderer';
+  | 'cinderling' | 'smoulderer' | 'ashboar';
 export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker';
 
 const quad = (name: string, x: number, z: number, h: number, w: number, base: string, paint?: PartDef['paint']): PartDef => ({
@@ -258,6 +259,48 @@ function smoulderer(): PartDef[] {
   });
 }
 
+/**
+ * Ashboar (2.1): a heavy, low-slung beast of the Cinderdeep. Charcoal hide split
+ * by glowing ember seams, a ridge of black bristles tipped with sparks, a broad
+ * head carried low, small amber eyes and two pale tusks curving up from the snout.
+ */
+function ashboar(): PartDef[] {
+  const hide = '#4b4543', dark = '#2e2928', ember = '#ff8a30', hot = '#ffd27a', tusk = '#ece4d2', bristle = '#211d1c';
+  const seams = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => {
+    for (const f of ['left', 'right'] as const) {
+      p.px(f, 3, 2, ember, 1, 3); p.px(f, 4, 4, ember, 3, 1); p.px(f, 7, 3, hot, 1, 1);
+      p.px(f, 11, 1, ember, 1, 2); p.px(f, 12, 3, ember, 2, 1); p.px(f, 15, 5, ember, 1, 2);
+      p.px(f, 0, 7, dark, 20, 2);
+    }
+    p.px('back', 4, 2, ember, 1, 3); p.px('back', 8, 4, ember, 2, 1);
+    p.fill('bottom', dark, 0.08, 9);
+  };
+  const hoof = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 6, '#171413', 4, 1); };
+  return [
+    { name: 'body', size: [14, 9, 20], pivot: [0, 7, 0], from: [-7, 0, -10], base: hide, noise: 0.12, paint: seams },
+    { name: 'mane', size: [4, 3, 15], pivot: [0, 0, 0], from: [-2, 9, -7], base: bristle, noise: 0.15, parent: 'body',
+      paint: (p) => { for (let z = 1; z < 15; z += 3) p.px('top', 1, z, ember, 2, 1); p.px('top', 1, 13, hot, 2, 1); p.px('left', 2, 0, ember, 1, 1); p.px('right', 9, 0, ember, 1, 1); } },
+    { name: 'head', size: [10, 9, 9], pivot: [0, 13, 10], from: [-5, -7, 0], base: '#524b48', noise: 0.1,
+      paint: (p) => {
+        p.px('front', 0, 0, dark, 10, 2);                                   // heavy brow
+        p.px('front', 1, 2, hot, 2, 1); p.px('front', 7, 2, hot, 2, 1);     // amber eyes
+        p.px('front', 2, 2, '#1a1414'); p.px('front', 7, 2, '#1a1414');
+        p.px('top', 3, 2, ember, 1, 4); p.px('left', 2, 3, ember, 3, 1); p.px('right', 4, 3, ember, 3, 1);
+      } },
+    { name: 'snout', size: [6, 5, 3], pivot: [0, 0, 0], from: [-3, -7, 9], base: '#5f5754', parent: 'head',
+      paint: (p) => { p.px('front', 1, 1, '#1d1817', 1, 2); p.px('front', 4, 1, '#1d1817', 1, 2); p.px('front', 0, 4, dark, 6, 1); } },
+    { name: 'tuskL', size: [1, 4, 1], pivot: [0, 0, 0], from: [3, -5, 10.5], base: tusk, parent: 'head', paint: (p) => p.fill('top', '#fffaf0', 0, 1) },
+    { name: 'tuskR', size: [1, 4, 1], pivot: [0, 0, 0], from: [-4, -5, 10.5], base: tusk, parent: 'head', paint: (p) => p.fill('top', '#fffaf0', 0, 1) },
+    { name: 'earL', size: [3, 2, 1], pivot: [0, 0, 0], from: [5, -1, 2], base: dark, parent: 'head', paint: (p) => p.px('front', 0, 0, ember, 1, 1) },
+    { name: 'earR', size: [3, 2, 1], pivot: [0, 0, 0], from: [-8, -1, 2], base: dark, parent: 'head', paint: (p) => p.px('front', 2, 0, ember, 1, 1) },
+    { name: 'tail', size: [1, 5, 1], pivot: [0, 15, -10], from: [-0.5, -5, -1], base: bristle, paint: (p) => p.fill('bottom', ember, 0, 2) },
+    quad('legFL', 4.5, 6.5, 7, 4, dark, hoof),
+    quad('legFR', -4.5, 6.5, 7, 4, dark, hoof),
+    quad('legBL', 4.5, -6.5, 7, 4, dark, hoof),
+    quad('legBR', -4.5, -6.5, 7, 4, dark, hoof),
+  ];
+}
+
 function dustwalker(): PartDef[] {
   return humanoid({
     skin: '#b39d72', shirt: '#cdb685', pants: '#8f774a', shoes: '#5e4a2c',
@@ -479,10 +522,34 @@ export function mobModel(type: MobType): BuiltModel {
   if (m) return m;
   if (type === 'villager') return villagerModel('none');
   if (type === 'hound') return houndModel(false);
-  const parts = { pig, cow, sheep, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer }[type]();
+  const parts = { pig, cow, sheep, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar }[type as Exclude<MobType, 'villager' | 'hound'>]();
   m = buildModel(parts, 64, 64, type.length * 13);
+  if (type === 'ashboar') glowSeams(m);
   cache.set(type, m);
   return m;
+}
+
+/**
+ * 2.1: the ember-coloured pixels of a model glow on their own (an emissive map of
+ * just those pixels), so an Ashboar's seams and eyes shine in the dark caverns.
+ */
+function glowSeams(m: BuiltModel): void {
+  const src = m.texture.image as HTMLCanvasElement;
+  const c = document.createElement('canvas');
+  c.width = src.width; c.height = src.height;
+  const ctx = c.getContext('2d')!;
+  ctx.drawImage(src, 0, 0);
+  const img = ctx.getImageData(0, 0, c.width, c.height), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const ember = d[i] > 200 && d[i + 1] > 90 && d[i] - d[i + 2] > 110;
+    if (!ember) { d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; }
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.colorSpace = THREE.NoColorSpace;
+  m.material.emissiveMap = t;
+  m.material.emissive.setRGB(1, 1, 1);
+  m.material.emissiveIntensity = 0.85;
 }
 
 export function playerModel(): BuiltModel {

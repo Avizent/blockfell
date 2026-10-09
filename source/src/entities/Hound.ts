@@ -8,10 +8,10 @@ const CATCH_UP_OFFSETS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1], 
 import { IS_WATER } from '../world/BlockRegistry';
 
 /** Meat a Fellhound will take from your hand. Raw meat tames; any meat heals. */
-export const HOUND_TAMING_FOOD = ['raw_porkchop', 'raw_beef', 'raw_mutton', 'raw_chicken', 'raw_rabbit'];
+export const HOUND_TAMING_FOOD = ['raw_porkchop', 'raw_beef', 'raw_mutton', 'raw_chicken', 'raw_rabbit', 'raw_ashboar'];
 export const HOUND_FOOD: Record<string, number> = {
-  raw_porkchop: 3, raw_beef: 3, raw_mutton: 2, raw_chicken: 2, raw_rabbit: 3,
-  cooked_porkchop: 8, steak: 8, cooked_mutton: 6, cooked_chicken: 6, cooked_rabbit: 5, spoiled_flesh: 4,
+  raw_porkchop: 3, raw_beef: 3, raw_mutton: 2, raw_chicken: 2, raw_rabbit: 3, raw_ashboar: 3,
+  cooked_porkchop: 8, steak: 8, cooked_mutton: 6, cooked_chicken: 6, cooked_rabbit: 5, roast_ashboar: 8, spoiled_flesh: 4,
 };
 
 export type FeedResult = 'tamed' | 'failed' | 'healed' | 'full' | 'angry' | 'no';

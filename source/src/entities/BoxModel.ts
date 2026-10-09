@@ -49,6 +49,12 @@ export class FacePainter {
     this.ctx.fillRect(fx + x, fy + y, w, h);
   }
 
+  /** Makes pixels of a face see-through (alpha-tested away): openings in armour. */
+  clear(face: FaceName, x = 0, y = 0, w?: number, h?: number): void {
+    const [fx, fy, fw, fh] = this.rect(face);
+    this.ctx.clearRect(fx + x, fy + y, w ?? fw, h ?? fh);
+  }
+
   fill(face: FaceName, color: string, noise = 0, seed = 1): void {
     const [fx, fy, fw, fh] = this.rect(face);
     paintNoise(this.ctx, fx, fy, fw, fh, color, noise, seed);
