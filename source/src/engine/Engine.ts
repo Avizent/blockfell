@@ -8,7 +8,7 @@ import { AudioManager } from '../systems/AudioManager';
 import { Options, autoGuiScale, touchGuiScale, loadOptions, saveOptions } from '../systems/Options';
 import { SaveManager, WorldRecord, DEFAULT_RULES, GameRules, OVERWORLD, type DimId } from '../systems/SaveManager';
 import { hasGenerator, newestGenVersion } from '../world/generators';
-import type { Arrival } from '../world/dims';
+import { type Arrival, DIM_NAMES } from '../world/dims';
 import { ItemIcons } from '../render/ItemIcons';
 import { ItemModels } from '../render/ItemModels';
 import { Game } from '../game/Game';
@@ -304,11 +304,13 @@ export class Engine implements EngineServices {
     if (!g || this.busy || !hasGenerator(target) || target === g.dim) return;
     this.busy = true;
     try {
-      const title = target === OVERWORLD ? (arrival.kind === 'respawn' ? 'Waking up on the surface' : 'Returning to the surface') : 'Entering the Cinderdeep';
+      const title = target === OVERWORLD
+        ? (arrival.kind === 'respawn' ? 'Waking up on the surface' : arrival.kind === 'home' ? 'Going home' : 'Returning to the surface')
+        : target === 'starhollow' ? 'Entering the Starhollow' : 'Entering the Cinderdeep';
       this.loadingTitle = title;
       ui.set({ screen: 'loading', overlay: null, loading: { title, stage: 'Saving', progress: -1, detail: g.record.name } });
       this.input.exitLock();
-      g.leaveFor(target);
+      g.leaveFor(target, arrival);
       await g.save();
       const rec = g.record;
       g.dispose();
@@ -359,7 +361,7 @@ export class Engine implements EngineServices {
         return;
       }
       const dim = playerDim(rec);
-      this.loadingTitle = dim === OVERWORLD ? 'Loading world' : 'Loading world: the Cinderdeep';
+      this.loadingTitle = dim === OVERWORLD ? 'Loading world' : `Loading world: ${DIM_NAMES[dim]}`;
       ui.set({ screen: 'loading', overlay: null, loading: { title: this.loadingTitle, stage: 'Reading save data', progress: -1, detail: rec.name } });
       this.panorama?.dispose();
       this.panorama = null;
@@ -465,8 +467,26 @@ export class Engine implements EngineServices {
     this.updateFocus();
   }
 
+  /** 2.2: the End screen, after the Hollowdrake is beaten (it shows once per world). */
+  showTheEnd(): void {
+    this.input.exitLock();
+    this.input.releaseAll();
+    ui.set({ overlay: 'theend', boss: null });
+    this.audio.play('drake_victory', undefined, undefined, undefined, 0.8);
+  }
+
+  /** The End screen is over (or skipped): home to the bed or spawn point. */
+  finishTheEnd(): void {
+    const g = this.game;
+    if (!g || ui.get().overlay !== 'theend') return;
+    if (g.record.star) g.record.star.seenEnd = true;
+    ui.set({ overlay: null });
+    void this.changeDimension(OVERWORLD, { kind: 'home', note: 'You are home again. The stars are shining a little brighter.' });
+  }
+
   closeOverlay(): void {
     const s = ui.get();
+    if (s.overlay === 'theend') { this.finishTheEnd(); return; }
     if (this.game && (s.overlay === 'inventory' || s.overlay === 'creative' || s.overlay === 'crafting' || s.overlay === 'furnace' || s.overlay === 'chest' || s.overlay === 'runes' || s.overlay === 'trade')) {
       this.game.closeScreen();
     }

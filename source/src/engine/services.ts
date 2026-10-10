@@ -28,4 +28,6 @@ export interface EngineServices {
   worldSaved?(id: string, urgent: boolean): void;
   /** 2.0: carries the player into another dimension of the open world. */
   changeDimension?(target: import('../world/dims').DimId, arrival: import('../world/dims').Arrival): Promise<void>;
+  /** 2.2: the End screen. */
+  showTheEnd?(): void;
 }
