@@ -33,7 +33,7 @@ export interface ColumnInfo {
 /** A generated structure that owns a container (chest) whose loot is created lazily. */
 export interface GeneratedContainer {
   x: number; y: number; z: number;
-  loot: 'ruin' | 'village' | 'dungeon' | 'shrine';
+  loot: 'ruin' | 'village' | 'dungeon' | 'shrine' | 'starfall';
 }
 
 /** A Monster Cage placed by generation and the creature it makes. */

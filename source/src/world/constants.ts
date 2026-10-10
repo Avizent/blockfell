@@ -38,7 +38,7 @@ export const TICKS_PER_SECOND = 20;
 export const TICK_MS = 1000 / TICKS_PER_SECOND;
 export const DAY_LENGTH_TICKS = 24000; // a full day is 20 real minutes, as the reference game
 
-export const GAME_VERSION = '2.1.0';
+export const GAME_VERSION = '2.2.0';
 /** 1 = Blockfell 1.0-1.9; 2 = 1.10 (16-bit ids, dimensions; see SaveManager). */
 export const SAVE_FORMAT = 2;
 

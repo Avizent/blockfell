@@ -19,7 +19,7 @@ export const RENDER_WALL_TORCH = 6; // torch leaning out of a wall
 export type ToolType = 'pickaxe' | 'axe' | 'shovel' | 'sword' | null;
 export type SoundType = 'stone' | 'wood' | 'grass' | 'gravel' | 'sand' | 'glass' | 'wool' | 'snow';
 export type Facing = 'n' | 'e' | 's' | 'w';
-export type Interaction = 'crafting' | 'furnace' | 'chest' | 'runes' | 'door' | 'bed' | 'gate' | 'trapdoor' | 'sign' | 'pot' | 'bell' | null;
+export type Interaction = 'crafting' | 'furnace' | 'chest' | 'runes' | 'door' | 'bed' | 'gate' | 'trapdoor' | 'sign' | 'pot' | 'bell' | 'storm_bell' | null;
 export type Shape = 'slab' | 'stairs' | 'door' | 'bed' | 'wall_torch'
   | 'fence' | 'pane' | 'gate' | 'ladder' | 'trapdoor' | 'sign' | 'wall_sign' | 'lantern' | 'pot' | null;
 
@@ -771,8 +771,44 @@ export const GLIMMERSTONE = reg('glimmerstone', 'Glimmerstone', {
   drops: [{ item: 'glimmer_dust', min: 2, max: 4 }],
 }).id;
 
+// ---- 2.2 the Starhollow
+/** Starstone: the pale, star-flecked rock of the Starhollow's floating islands. */
+export const STARSTONE = reg('starstone', 'Starstone', { tex: 'starstone', hardness: 1.5, tool: 'pickaxe', requiresTool: true }).id;
+/** Starstone Bricks: cut Starstone (the Roost and the pylons are built of it). */
+export const STARSTONE_BRICKS = reg('starstone_bricks', 'Starstone Bricks', { tex: 'starstone_bricks', hardness: 2, tool: 'pickaxe', requiresTool: true }).id;
+/** Starbloom: a glowing flower of the Starhollow; grows on any solid floor. */
+export const STARBLOOM = reg('starbloom', 'Starbloom', {
+  render: RENDER_CROSS, tex: 'starbloom', opaque: false, solid: false, cutout: true, lightOpacity: 0, lightEmission: 9,
+  hardness: 0, sound: 'grass', selection: [0.2, 0, 0.2, 0.8, 0.8, 0.8],
+}).id;
+/**
+ * Stargate: the shimmering surface inside a lit ring of eight Glimmerstone (lit with
+ * a Star Lens). Standing in it carries you to the Starhollow and back.
+ */
+export const STARGATE = reg('stargate', 'Stargate', {
+  render: RENDER_MODEL, tex: 'stargate', opaque: false, solid: false, lightOpacity: 0, lightEmission: 13,
+  hardness: -1, drops: [], item: null, model: [0, 12, 0, 16, 13, 16], collision: null,
+  selection: [0, 0.7, 0, 1, 0.82, 1],
+}).id;
+const STORM_POSTS = ['starstone_bricks', 'starstone_bricks', 'starstone_bricks', 'starstone_bricks', 'starstone_bricks', 'starstone_bricks'];
+const STORM_MOUNT = ['storm_bell_mount', 'storm_bell_mount', 'storm_bell_mount', 'storm_bell_mount', 'storm_bell_mount', 'storm_bell_mount'];
+const STORM_BELL_SHAPE: Opts = {
+  render: RENDER_MODEL, opaque: false, lightOpacity: 0, hardness: -1, drops: [], item: null, sound: 'glass',
+  model: [1, 0, 6, 3, 16, 10, 13, 0, 6, 15, 16, 10, 3, 14, 7, 13, 16, 9, 7, 12, 7, 9, 14, 9, 5, 5, 5, 11, 12, 11, 4, 3, 4, 12, 5, 12],
+  modelFaces: [STORM_POSTS, STORM_POSTS, STORM_POSTS, STORM_MOUNT, null, null],
+  collision: [1, 0, 1, 15, 16, 15],
+};
+/** Storm Bell: a crystal bell on top of each pylon round the Roost. While it rings, it shields the Hollowdrake. */
+export const STORM_BELL = reg('storm_bell', 'Storm Bell', { ...STORM_BELL_SHAPE, tex: 'storm_bell', lightEmission: 12, interact: 'storm_bell' }).id;
+/** A Storm Bell that has been rung: dark and silent. */
+export const STORM_BELL_RUNG = reg('storm_bell_rung', 'Silent Storm Bell', { ...STORM_BELL_SHAPE, tex: 'storm_bell_rung' }).id;
+/** The Roost Stone: the middle of the Hollowdrake's ring of Glimmerstone. */
+export const ROOST = reg('roost', 'Roost Stone', { tex: 'roost', hardness: -1, drops: [], item: null, lightEmission: 4 }).id;
+
 /** Blocks a Deepgate's ring may be made of. */
 export const GATE_RING = [CINDERSTONE, CINDERSTONE_BRICKS];
+/** 2.2: a Stargate's ring is eight Glimmerstone. */
+export const STAR_RING = [GLIMMERSTONE];
 
 /** Number of registered blocks (not the highest id: see BLOCK_LIMIT). */
 export const BLOCK_COUNT = defs.length;

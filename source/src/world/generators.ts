@@ -2,6 +2,7 @@ import { TerrainGenerator, GEN_VERSION, type ColumnInfo, type GeneratedChunk, ty
 import type { VillagePlanner } from './Villages';
 import { type DimId, OVERWORLD } from './dims';
 import { CinderGenerator, CINDER_GEN_VERSION } from './Cinderdeep';
+import { StarGenerator, STAR_GEN_VERSION } from './Starhollow';
 
 /**
  * PLUGGABLE GENERATION (1.10)
@@ -33,6 +34,7 @@ interface GeneratorEntry {
 const GENERATORS: Partial<Record<DimId, GeneratorEntry>> = {
   overworld: { version: GEN_VERSION, create: (seed, opts) => new TerrainGenerator(seed, opts) },
   cinderdeep: { version: CINDER_GEN_VERSION, create: (seed, opts) => new CinderGenerator(seed, opts) },
+  starhollow: { version: STAR_GEN_VERSION, create: (seed, opts) => new StarGenerator(seed, opts) },
 };
 
 /** Can this Blockfell make the landscape of `dim`? */

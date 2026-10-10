@@ -12,6 +12,8 @@ export const BIOME_TAIGA = 9;
 export const BIOME_BADLANDS = 10;
 /** The Cinderdeep (2.0): a whole dimension, not an overworld biome. */
 export const BIOME_CINDERDEEP = 11;
+/** The Starhollow (2.2): a whole dimension of floating islands. */
+export const BIOME_STARHOLLOW = 12;
 
 export interface BiomeInfo {
   name: string;
@@ -33,4 +35,5 @@ export const BIOMES: BiomeInfo[] = [
   { name: 'Taiga', treeChance: 0.7, grassChance: 0.1, flowerChance: 0.002 },
   { name: 'Badlands', treeChance: 0, grassChance: 0, flowerChance: 0 },
   { name: 'Cinderdeep', treeChance: 0, grassChance: 0, flowerChance: 0 },
+  { name: 'Starhollow', treeChance: 0, grassChance: 0, flowerChance: 0 },
 ];
