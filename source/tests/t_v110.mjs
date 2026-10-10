@@ -18,7 +18,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
 const only = process.env.ONLY ? process.env.ONLY.split(',') : ['ids', 'save', 'craft', 'backup'];
 const run = (n) => only.includes(n);
 // the version being tested (1.10.0 when written; later releases keep these checks)
-const NEWVER = process.env.NEWVER || '2.1.0';
+const NEWVER = process.env.NEWVER || '2.2.0';
 const NEWVER_RE = NEWVER.replace(/\./g, '\\.');
 const results = [];
 const check = (name, ok, info = '') => { const s = typeof info === 'string' ? info : JSON.stringify(info); results.push([ok ? 'PASS' : 'FAIL', name, s]); console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : s.slice(0, 700)); };
@@ -308,7 +308,9 @@ if (run('ids') || run('save') || run('craft') || run('backup')) {
       };
     }, NEWVER);
     // 1.10 could only make the overworld (the Cinderdeep id was reserved); 2.0 makes both
-    check('dimensions: the overworld (generator 6) and, from 2.0, the Cinderdeep can be made; both ids are known', g.over && g.cinder === (NEWVER !== '1.10.0') && g.ver === 6 && JSON.stringify(g.dims) === '["overworld","cinderdeep"]', g);
+    // (2.2 adds the Starhollow)
+    const dimsWanted = /^(1\.|2\.0|2\.1)/.test(NEWVER) ? '["overworld","cinderdeep"]' : '["overworld","cinderdeep","starhollow"]';
+    check('dimensions: the overworld (generator 6) and, from 2.0, the Cinderdeep (and from 2.2 the Starhollow) can be made; their ids are known', g.over && g.cinder === (NEWVER !== '1.10.0') && g.ver === 6 && JSON.stringify(g.dims) === dimsWanted, { ...g, dimsWanted });
     check('dimensions: worlds with a newer landscape or a dimension this version lacks count as "needs a newer Blockfell"', JSON.stringify(g.n) === '[false,true,true,true,false]', g.n);
     // a world saved in format 2 keeps fields it does not use (other players, dimension notes)
     const id = await h.create('Keep Fields', 'keep');
