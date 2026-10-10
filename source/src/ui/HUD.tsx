@@ -168,6 +168,19 @@ function RaidBar() {
   );
 }
 
+/** 2.2: the Hollowdrake's health bar, and how many Storm Bells still shield it. */
+function BossBar() {
+  const boss = useStore(ui, (s) => s.boss);
+  const raid = useStore(ui, (s) => !!s.raid);
+  if (!boss) return null;
+  return (
+    <div className="boss-bar" data-testid="boss-bar" style={{ top: raid ? '34rem' : '12rem' }}>
+      <div className="boss-label shadow">{boss.name}{boss.shield ? ` \u00b7 shielded by ${boss.bells} Storm Bell${boss.bells === 1 ? '' : 's'}` : ''}</div>
+      <div className={'boss-track' + (boss.shield ? ' shielded' : '')}><div className="boss-fill" style={{ width: `${Math.round(boss.hp * 180)}rem` }} /></div>
+    </div>
+  );
+}
+
 export function HUD() {
   const hide = useStore(ui, (s) => s.hideHud);
   const debug = useStore(ui, (s) => s.showDebug);
@@ -177,13 +190,14 @@ export function HUD() {
   const inLava = useStore(ui, (s) => !!s.hud.inLava);
   const burning = useStore(ui, (s) => !!s.hud.burning);
   const gate = useStore(ui, (s) => s.hud.gate ?? 0);
+  const gateStar = useStore(ui, (s) => !!s.hud.gateStar);
   const hurt = useStore(ui, (s) => s.hud.hurtTick);
   return (
     <div className="hud">
       {under && <div className="underwater" />}
       {inLava && <div className="in-lava" data-testid="in-lava" />}
       {burning && <div className="on-fire" data-testid="on-fire" />}
-      {gate > 0 && <div className="deepgate-glow" data-testid="gate-glow" style={{ opacity: gate }} />}
+      {gate > 0 && <div className={gateStar ? 'deepgate-glow stargate-glow' : 'deepgate-glow'} data-testid="gate-glow" style={{ opacity: gate }} />}
       {hurt > 0 && <div className="hurt-vignette" style={{ opacity: hurt / 10 }} />}
       {!hide && (
         <>
@@ -193,6 +207,7 @@ export function HUD() {
           <HeldName />
           <Chat />
           <RaidBar />
+          <BossBar />
           {overlay === null && <VillagerCardView />}
           {overlay === null && <MapCompass />}
         </>

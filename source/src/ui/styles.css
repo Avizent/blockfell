@@ -504,3 +504,14 @@ html.touch .hotbar-wrap, html.touch .tc-hotbar { bottom: calc(env(safe-area-inse
 .map-screen-panel .ms-you { position: absolute; width: 6rem; height: 6rem; margin: -3rem 0 0 -3rem; background: #ffffff; border: 1rem solid #2a2a2a; transform: rotate(45deg); }
 /* (on a phone the Pause button sits in the top-left corner: the map compass moves over) */
 html.touch .map-compass { left: calc(62px + env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top)); }
+
+/* 2.2: the Hollowdrake's bar, and the End screen */
+.boss-bar { position: absolute; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2rem; pointer-events: none; }
+.boss-label { color: #efe8ff; font-size: 8rem; white-space: nowrap; }
+.boss-track { width: 182rem; height: 5rem; background: #1d1430; box-shadow: 0 0 0 1rem #0b0716; }
+.boss-track.shielded { box-shadow: 0 0 0 1rem #0b0716, 0 0 4rem 1rem #8fdcff; }
+.boss-fill { height: 5rem; background: linear-gradient(#c49bff, #7a4fd6); }
+.the-end { z-index: 200; }   /* above the hotbar's numbers and the touch buttons */
+.the-end .end-skip { position: absolute; right: calc(6rem + env(safe-area-inset-right)); bottom: calc(6rem + env(safe-area-inset-bottom)); opacity: 0.8; }
+.the-end .end-title { font-size: 16rem; line-height: 20rem !important; min-height: 20rem !important; }
+.stargate-glow { background: radial-gradient(ellipse at center, rgba(170, 140, 255, 0.05) 20%, rgba(140, 110, 255, 0.5) 70%, rgba(30, 10, 80, 0.92) 100%); }

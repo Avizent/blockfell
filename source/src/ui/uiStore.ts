@@ -2,7 +2,7 @@ import { Store } from '../core/store';
 import type { CloudUi } from '../systems/CloudSync';
 
 export type Screen = 'title' | 'worlds' | 'create' | 'edit' | 'loading' | 'game' | 'quit' | 'options' | 'import' | 'cloud';
-export type Overlay = null | 'pause' | 'inventory' | 'crafting' | 'furnace' | 'chest' | 'creative' | 'death' | 'options' | 'advancements' | 'stats' | 'sleep' | 'runes' | 'trade' | 'sign' | 'map';
+export type Overlay = null | 'pause' | 'inventory' | 'crafting' | 'furnace' | 'chest' | 'creative' | 'death' | 'options' | 'advancements' | 'stats' | 'sleep' | 'runes' | 'trade' | 'sign' | 'map' | 'theend';
 
 /** 1.8: the card shown when looking at a villager (or a Sentinel). */
 export interface VillagerCard {
@@ -31,6 +31,9 @@ export interface HudState {
   /** 2.0: 0..1 while standing in a Deepgate (the glow that builds before you are carried away). */
   gate?: number;
   offhand: boolean;
+  /** 2.2: the gate being stood in is a Stargate (a violet glow), and gliding on Starwings. */
+  gateStar?: boolean;
+  gliding?: boolean;
   saturationShake: boolean;
 }
 
@@ -80,6 +83,8 @@ export interface UIState {
   furnace: { burn: number; cook: number };
   /** Night raid bar (null when no raid). */
   raid: { label: string; progress: number } | null;
+  /** 2.2: the Hollowdrake's health bar (null when it isn't about). */
+  boss: { name: string; hp: number; shield: boolean; bells: number } | null;
   /** On-screen touch controls are on. */
   touch: boolean;
   /** Dropbox sync (1.9). */
@@ -121,6 +126,7 @@ export const ui = new Store<UIState>({
   optionsVersion: 0,
   furnace: { burn: 0, cook: 0 },
   raid: null,
+  boss: null,
   touch: false,
   cloud: {
     available: false, why: '', hasKey: false, builtInKey: false, linked: false, account: '', busy: false, offline: false,
