@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { BuiltModel, PartDef, buildModel } from './BoxModel';
+import { drakeModel } from './drakeModel';
 
 /**
  * ORIGINAL cuboid creature designs. Coordinates are in model pixels; the model's
  * feet centre is the origin and it faces +Z.
  */
 export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound'
-  | 'cinderling' | 'smoulderer' | 'ashboar';
+  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter';
 export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker';
 
 const quad = (name: string, x: number, z: number, h: number, w: number, base: string, paint?: PartDef['paint']): PartDef => ({
@@ -301,6 +302,26 @@ function ashboar(): PartDef[] {
   ];
 }
 
+/**
+ * Drifter (2.2): a floating bell of soft starlight - pale blue with a lilac rim and
+ * a bright crown - trailing four slow tendrils.
+ */
+function drifter(): PartDef[] {
+  const glow = '#bfe6ff', rim = '#a99bff', crown = '#f4ecff', tend = '#9fd0ff';
+  const spots = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => {
+    for (const f of ['front', 'back', 'left', 'right'] as const) { p.px(f, 2, 2, '#ffffff', 1, 1); p.px(f, 6, 1, '#e6f6ff', 1, 1); p.px(f, 4, 4, '#ffffff', 1, 1); p.px(f, 0, 6, rim, 10, 1); }
+    p.fill('bottom', '#7fb6ef', 0.08, 3);
+  };
+  const tendril = (i: number, x: number, z: number): PartDef => ({ name: `tendril${i}`, size: [1, 8, 1], pivot: [x, 10, z], from: [-0.5, -8, -0.5], base: tend,
+    paint: (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 7, '#ffffff', 1, 1); } });
+  return [
+    { name: 'bell', size: [10, 7, 10], pivot: [0, 10, 0], from: [-5, 0, -5], base: glow, noise: 0.06, paint: spots },
+    { name: 'crown', size: [6, 2, 6], pivot: [0, 0, 0], from: [-3, 7, -3], base: crown, parent: 'bell' },
+    { name: 'rim', size: [12, 1, 12], pivot: [0, 0, 0], from: [-6, 0, -6], base: rim, parent: 'bell' },
+    tendril(0, 2.5, 2.5), tendril(1, -2.5, 2.5), tendril(2, 2.5, -2.5), tendril(3, -2.5, -2.5),
+  ];
+}
+
 function dustwalker(): PartDef[] {
   return humanoid({
     skin: '#b39d72', shirt: '#cdb685', pants: '#8f774a', shoes: '#5e4a2c',
@@ -522,9 +543,11 @@ export function mobModel(type: MobType): BuiltModel {
   if (m) return m;
   if (type === 'villager') return villagerModel('none');
   if (type === 'hound') return houndModel(false);
-  const parts = { pig, cow, sheep, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar }[type as Exclude<MobType, 'villager' | 'hound'>]();
+  if (type === 'hollowdrake') return drakeModel();
+  const parts = { pig, cow, sheep, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter }[type as Exclude<MobType, 'villager' | 'hound' | 'hollowdrake'>]();
   m = buildModel(parts, 64, 64, type.length * 13);
   if (type === 'ashboar') glowSeams(m);
+  if (type === 'drifter') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.45; }
   cache.set(type, m);
   return m;
 }

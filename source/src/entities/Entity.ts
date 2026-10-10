@@ -88,6 +88,11 @@ export interface EntityHost {
   spawnMob?(type: import('./mobModels').MobType, x: number, y: number, z: number): Mob;
   /** Two animals had a young one. */
   animalBred?(type: string): void;
+  // ---- 2.2
+  /** A Hollowdrake's star bolt. */
+  spawnStarBolt?(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob, damage: number): void;
+  /** A blow bounced off the Hollowdrake's shield. */
+  drakeShieldHit?(): void;
 }
 
 let nextId = 1;

@@ -13,7 +13,7 @@ import type { Slot } from '../inventory/ItemStack';
 /** The colour plain (undyed) leather is tinted with. */
 export const LEATHER_TINT = 0xa66a3e;
 
-type Mat = 'leather' | 'iron';
+type Mat = 'leather' | 'iron' | 'wings';
 /** One box of a piece: which humanoid part it sits on, its box, and how much bigger than the part it is drawn. */
 interface Shell { on: string; def: PartDef; grow: number }
 
@@ -22,7 +22,20 @@ const HIDE = { base: '#ece6df', light: '#f8f4ef', dark: '#c2b8ad', deep: '#9e928
 
 const SIDES = ['front', 'back', 'left', 'right'] as const;
 
+/** 2.2: Starwings - two violet, star-speckled wings on the back, edged with pale bone. */
+function wingShells(): Shell[] {
+  const wing = (name: string, x0: number): Shell => ({ on: 'body', grow: 1, def: { name, size: [10, 14, 1], pivot: [0, 11, -2.6], from: [x0, -13, -0.5], base: '#5b3f92', noise: 0.08,
+    paint: (p) => {
+      for (const f of ['front', 'back'] as const) {
+        for (let i = 0; i < 9; i++) p.px(f, (i * 7 + 3) % 10, (i * 5 + 2) % 14, '#ece6ff');
+        p.px(f, x0 < 0 ? 0 : 9, 0, '#ddd6c6', 1, 14); p.px(f, 0, 0, '#ddd6c6', 10, 1);
+      }
+    } } });
+  return [wing('a_wingL', 0.5), wing('a_wingR', -10.5)];
+}
+
 function shells(mat: Mat, slot: number): Shell[] {
+  if (mat === 'wings') return wingShells();
   const c = mat === 'iron' ? IRON : HIDE;
   const iron = mat === 'iron';
   const box = (name: string, on: string, size: [number, number, number], from: [number, number, number], grow: number, paint: (p: FacePainter) => void): Shell =>
@@ -114,6 +127,9 @@ function pieceModel(mat: Mat, slot: number): { model: BuiltModel; on: Map<string
     // drawn a little bigger than the body part, around its own centre
     const pivot = model.parts.get(s.def.name)!;
     pivot.children[0].scale.setScalar(s.grow);
+    // the wings spread a little outwards and back
+    if (s.def.name === 'a_wingL') { pivot.rotation.z = 0.32; pivot.rotation.y = -0.25; }
+    if (s.def.name === 'a_wingR') { pivot.rotation.z = -0.32; pivot.rotation.y = 0.25; }
   }
   m = { model, on };
   cache.set(key, m);
@@ -122,6 +138,7 @@ function pieceModel(mat: Mat, slot: number): { model: BuiltModel; on: Map<string
 
 /** Which armour material an item is made of (null: not armour this can show). */
 function materialOf(id: string): Mat | null {
+  if (id === 'star_wings') return 'wings';
   if (id.startsWith('leather_')) return 'leather';
   if (id.startsWith('iron_')) return 'iron';
   return null;

@@ -9,6 +9,9 @@ import { Hound } from './Hound';
 import { Painting } from './Painting';
 import { ArmourStand } from './ArmourStand';
 import { Ashboar } from './Ashboar';
+import { Hollowdrake } from './Hollowdrake';
+import { Drifter } from './Drifter';
+import { StarBolt } from './StarBolt';
 import { cleanStack } from '../inventory/Inventory';
 import { Boat } from './Boat';
 import { Bobber } from './Fishing';
@@ -73,7 +76,7 @@ export class EntityManager implements EntityQueries {
 
   spawnMob(type: MobType, x: number, y: number, z: number, host: EntityHost): Mob {
     const m = type === 'villager' ? new Villager(host) : type === 'sentinel' ? new Sentinel(host) : type === 'hound' ? new Hound(host)
-      : type === 'ashboar' ? new Ashboar(host) : new Mob(type, host);
+      : type === 'ashboar' ? new Ashboar(host) : type === 'hollowdrake' ? new Hollowdrake(host) : type === 'drifter' ? new Drifter(host) : new Mob(type, host);
     m.setPos(x, y, z);
     return this.add(m);
   }
@@ -112,6 +115,16 @@ export class EntityManager implements EntityQueries {
     e.setPos(x, y, z);
     e.vx = vx; e.vy = vy; e.vz = vz;
     this.add(e);
+  }
+
+  /** 2.2: a Hollowdrake's star bolt. */
+  spawnStarBolt(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob, damage: number): void {
+    const b = new StarBolt();
+    b.shooter = shooter;
+    b.damage = damage;
+    b.setPos(x, y, z);
+    b.vx = vx; b.vy = vy; b.vz = vz;
+    this.add(b);
   }
 
   itemsNear(x: number, y: number, z: number, r: number): Entity[] {
@@ -245,6 +258,7 @@ export class EntityManager implements EntityQueries {
 
   private trySpawn(host: EntityHost): void {
     if (host.world.dim === 'cinderdeep') { this.trySpawnDeep(host); return; }
+    if (host.world.dim === 'starhollow') return;   // 2.2: Drifters come and go with the Starhollow system
     const p = host.player;
     let passive = 0, hostile = 0;
     for (const e of this.list) {

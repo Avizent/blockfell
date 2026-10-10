@@ -53,6 +53,9 @@ export const MOB_SPECS: Record<MobType, MobSpec> = {
   cinderling: { name: 'Cinderling', hostile: true, health: 10, speed: 0.33, width: 0.5, height: 1.0, drops: [['ember', 0, 1]], xp: [3, 5], attack: 2, sound: 'cinderling', fireproof: true, glows: true, ignites: 60, leaps: true },
   smoulderer: { name: 'Smoulderer', hostile: true, health: 24, speed: 0.2, width: 0.6, height: 2.1, drops: [['ember', 0, 2], ['fire_opal', 1, 1, 0.08]], xp: [8, 8], attack: 3, ranged: true, embers: true, sound: 'smoulderer', fireproof: true, ignites: 40 },
   ashboar: { name: 'Ashboar', hostile: false, health: 20, speed: 0.24, width: 1.1, height: 1.15, drops: [['raw_ashboar', 1, 3], ['leather', 0, 2]], xp: [1, 3], attack: 4, sound: 'ashboar', fireproof: true },
+  // 2.2: the Starhollow (the Hollowdrake's Star Scales are left on the Roost by the Starhollow system)
+  hollowdrake: { name: 'Hollowdrake', hostile: false, health: 200, speed: 0.5, width: 3.6, height: 2.8, drops: [], xp: [0, 0], attack: 6, sound: 'drake', fireproof: true },
+  drifter: { name: 'Drifter', hostile: false, health: 8, speed: 0.05, width: 0.9, height: 0.9, drops: [['drift_silk', 1, 2]], xp: [1, 3], sound: 'drifter', fireproof: true },
 };
 
 const tmpColor = new THREE.Color();
