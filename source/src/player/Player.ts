@@ -51,6 +51,8 @@ export class Player {
   /** Standing in a ladder cell (climb by walking into it or holding jump). */
   onLadder = false;
   flying = false;
+  /** 2.2: gliding on Starwings (the Game starts and stops it). */
+  gliding = false;
   sprinting = false;
   sneaking = false;
   readonly box = new AABB();
@@ -85,7 +87,7 @@ export class Player {
   prevBob = 0;
 
   // statistics accumulators (centimetres, like the reference game's stats)
-  statWalk = 0; statSprint = 0; statSwim = 0; statFly = 0; statFall = 0; statJumps = 0;
+  statWalk = 0; statSprint = 0; statSwim = 0; statFly = 0; statFall = 0; statJumps = 0; statGlide = 0;
   onLanded?: (fallDistance: number) => void;
 
   get creative(): boolean {
@@ -211,6 +213,37 @@ export class Player {
     if (this.inWater) this.addExhaustion(0.01 * cm / 100);
   }
 
+  /**
+   * 2.2: gliding on Starwings. Look down to dive and pick up speed, level out to
+   * glide far, look up to trade speed for height. Falling speed turns into forward
+   * speed, and the velocity swings round to follow where you look. A landing never
+   * hurts (you come down gently).
+   */
+  private glide(world: World): void {
+    const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
+    const lx = -Math.sin(this.yaw) * cp, lz = -Math.cos(this.yaw) * cp;
+    const hl = Math.max(1e-4, cp);
+    const hs = Math.hypot(this.vx, this.vz);
+    const lift = cp * cp;
+    this.vy += -0.08 + lift * 0.06;
+    if (this.vy < 0 && cp > 0) {
+      const d = this.vy * -0.1 * lift;
+      this.vy += d; this.vx += (lx / hl) * d; this.vz += (lz / hl) * d;
+    }
+    if (sp > 0 && cp > 0) {
+      const d = hs * sp * 0.04;
+      this.vy += d * 3.2; this.vx -= (lx / hl) * d; this.vz -= (lz / hl) * d;
+    }
+    this.vx += ((lx / hl) * hs - this.vx) * 0.1;
+    this.vz += ((lz / hl) * hs - this.vz) * 0.1;
+    this.vx *= 0.99; this.vy *= 0.98; this.vz *= 0.99;
+    const x0 = this.x, z0 = this.z;
+    this.move(world);
+    this.fallDistance = 0;
+    this.statGlide += Math.hypot(this.x - x0, this.z - z0) * 100;
+    if (this.collidedH && hs > 0.5) { this.vx *= 0.3; this.vz *= 0.3; }
+  }
+
   tickMovement(world: World, input: MoveInput): void {
     this.prevX = this.x; this.prevY = this.y; this.prevZ = this.z;
     this.prevEyeHeight = this.eyeHeight;
@@ -263,6 +296,8 @@ export class Player {
         const test = this.box.clone().offset(this.vx, this.vy + 0.6, this.vz);
         if (!boxCollides(world, test)) this.vy = 0.3;
       }
+    } else if (this.gliding) {
+      this.glide(world);
     } else if (this.inWater) {
       this.moveRelative(fwd, str, 0.02);
       if (input.jump) this.vy += 0.04;
