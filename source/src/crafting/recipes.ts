@@ -118,6 +118,11 @@ shaped(['DD', 'DD'], { D: 'glimmer_dust' }, 'glimmerstone');
 // ---- 2.1: armour stands, Ashboar meat (smelted in a furnace), and dyed leather armour (below)
 shaped(['SSS', ' S ', 'SPS'], { S: 'stick', P: 'oak_slab' }, 'armour_stand');
 shaped(['SSS', ' S ', 'SPS'], { S: 'stick', P: 'stone_slab' }, 'armour_stand');
+// ---- 2.2: the Starhollow
+shaped([' R ', 'GOG', ' R '], { R: 'rune_shard', G: 'glimmer_dust', O: 'fire_opal' }, 'star_lens');
+shaped(['S S', 'SDS', 'S S'], { S: 'star_scale', D: 'drift_silk' }, 'star_wings');
+shaped(['SS', 'SS'], { S: 'starstone' }, 'starstone_bricks', 4);
+shapeless(['starbloom'], 'purple_dye', 2);
 
 /** The four leather armour pieces (2.1: they can be dyed). */
 export const LEATHER_PIECES = ['leather_helmet', 'leather_chestplate', 'leather_leggings', 'leather_boots'];
@@ -129,6 +134,8 @@ export const LEATHER_PIECES = ['leather_helmet', 'leather_chestplate', 'leather_
  * leather. Wear and runes stay with the piece.
  */
 export function specialCraft(grid: Slot[]): ItemStack | null {
+  const wings = mendWings(grid);
+  if (wings !== undefined) return wings;
   let piece: ItemStack | null = null;
   const dyes: [number, number, number][] = [];
   for (const s of grid) {
@@ -161,4 +168,24 @@ export function mixDyes(dyes: [number, number, number][]): number {
   const k = peak / m;
   const c = (v: number) => Math.max(0, Math.min(255, Math.round(v * k)));
   return (c(r) << 16) | (c(g) << 8) | c(b);
+}
+
+/**
+ * 2.2: worn Starwings and one to three Star Scales give the wings back mended, a
+ * third of their full wear for each scale. (undefined: the grid isn't wings and scales)
+ */
+function mendWings(grid: Slot[]): ItemStack | null | undefined {
+  let wings: ItemStack | null = null, scales = 0;
+  for (const s of grid) {
+    if (!s) continue;
+    if (s.id === 'star_wings') { if (wings) return undefined; wings = s; } else if (s.id === 'star_scale') scales++;
+    else return undefined;
+  }
+  if (!wings || scales === 0 || scales > 3) return undefined;
+  if (!wings.damage) return null;
+  const out = cloneStack(wings)!;
+  out.count = 1;
+  const left = Math.max(0, (wings.damage ?? 0) - scales * 144);
+  if (left > 0) out.damage = left; else delete out.damage;
+  return out;
 }
