@@ -252,13 +252,25 @@ blockItem('glimmerstone', 'decoration');
 add({ id: 'glimmer_dust', name: 'Glimmer Dust', category: 'ingredients' });
 // ---- 2.1 armour stands
 add({ id: 'armour_stand', name: 'Armour Stand', category: 'decoration', maxStack: 16 });
+// ---- 2.2 the Starhollow
+blockItem('starstone', 'building');
+blockItem('starstone_bricks', 'building');
+blockItem('starbloom', 'natural');
+/** Star Lens: lights a Stargate on the surface (and, used on the Roost's gate, calls the Hollowdrake back). */
+add({ id: 'star_lens', name: 'Star Lens', category: 'tools', maxStack: 16 });
+/** Star Scale: left on the Roost by the beaten Hollowdrake. */
+add({ id: 'star_scale', name: 'Star Scale', category: 'ingredients' });
+/** Drift Silk: from Drifters. */
+add({ id: 'drift_silk', name: 'Drift Silk', category: 'ingredients' });
+/** Starwings: worn in the chest slot; jump while falling to glide. */
+add({ id: 'star_wings', name: 'Starwings', kind: 'armor', maxStack: 1, category: 'combat', armor: { slot: 1, points: 1 }, durability: 432 });
 
 // ---- spawn items
 const MOBS: [string, string][] = [
   ['pig', 'Pig'], ['cow', 'Cow'], ['sheep', 'Sheep'], ['chicken', 'Chicken'], ['shambler', 'Shambler'], ['skeleton', 'Bone Archer'],
   ['goat', 'Goat'], ['rabbit', 'Rabbit'], ['crawler', 'Crawler'], ['dustwalker', 'Dustwalker'],
   ['villager', 'Villager'], ['sentinel', 'Sentinel'], ['hound', 'Fellhound'],
-  ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'], ['ashboar', 'Ashboar'],
+  ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'], ['ashboar', 'Ashboar'], ['drifter', 'Drifter'],
 ];
 for (const [mob, name] of MOBS) {
   add({ id: `spawn_${mob}`, name: `${name} Spawn Egg`, kind: 'spawn', category: 'spawn', spawn: mob });
