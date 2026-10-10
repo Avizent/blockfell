@@ -78,6 +78,8 @@ export interface WorldRecord {
   dims?: Partial<Record<DimId, DimInfo>>;
   /** Other players' saved state by player id (1.10, for multiplayer; empty in single player). */
   players?: Record<string, OtherPlayerSave>;
+  /** 2.2: the Starhollow: where the Stargate on the surface is, and the Hollowdrake's state. */
+  star?: import('../game/StarhollowSystem').StarState;
 }
 
 export interface WorldExtra {

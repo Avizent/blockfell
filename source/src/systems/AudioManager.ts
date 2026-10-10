@@ -249,6 +249,13 @@ export class AudioManager {
       case 'gate_travel': this.noiseBurst(dest, t, 1.6, 400, 0.5, 'lowpass', 0.8, 0.2); this.tone(dest, t, 1.6, 220, 55, 'sawtooth', 0.14, 0.05); this.tone(dest, t, 1.4, 440, 110, 'sine', 0.08); break;
       case 'ember_throw': this.noiseBurst(dest, t, 0.3, 1600 * pitch, 0.8, 'bandpass', 0.35); this.tone(dest, t, 0.25, 260 * pitch, 520 * pitch, 'triangle', 0.08); break;
       case 'ember_hit': this.noiseBurst(dest, t, 0.35, 2600 * pitch, 0.7, 'highpass', 0.35); this.noiseBurst(dest, t, 0.2, 500, 1, 'lowpass', 0.4); break;
+      // ---- 2.2 the Starhollow
+      case 'star_light': [784, 988, 1175, 1568].forEach((f, i) => this.tone(dest, t + i * 0.07, 0.9, f, f * 1.01, 'sine', 0.1)); this.noiseBurst(dest, t, 0.8, 5000, 1, 'highpass', 0.12); break;
+      case 'star_travel': this.tone(dest, t, 1.6, 220, 880, 'sine', 0.14, 0.05); this.tone(dest, t + 0.2, 1.4, 330, 1320, 'triangle', 0.06); this.noiseBurst(dest, t, 1.4, 3000, 0.5, 'highpass', 0.15, 0.3); break;
+      case 'star_burst': this.noiseBurst(dest, t, 0.3, 4200 * pitch, 0.8, 'bandpass', 0.35); this.tone(dest, t, 0.3, 1400 * pitch, 700 * pitch, 'sine', 0.1); break;
+      case 'storm_bell': [523, 659, 784, 1046, 1318].forEach((f, i) => this.tone(dest, t + i * 0.03, 3.2 - i * 0.3, f, f * 0.995, 'sine', 0.14 - i * 0.015, 0.4)); this.noiseBurst(dest, t, 0.5, 6000, 1, 'highpass', 0.15); break;
+      case 'glide': this.noiseBurst(dest, t, 0.9 * pitch, 900, 0.6, 'bandpass', 0.35, 0.3); break;
+      case 'drake_victory': [392, 494, 587, 784, 988].forEach((f, i) => this.tone(dest, t + i * 0.22, 2.4, f, f, 'triangle', 0.12, 0.3)); this.tone(dest, t + 1.1, 3, 1568, 1568, 'sine', 0.06, 1); break;
       case 'deep_rumble': this.noiseBurst(dest, t, 3.2, 90 * pitch, 0.6, 'lowpass', 0.7, 0.8); this.tone(dest, t, 3, 41 * pitch, 36 * pitch, 'sine', 0.2, 0.6); break;
       default: this.creature(dest, t, name, pitch);
     }
@@ -282,6 +289,16 @@ export class AudioManager {
         else if (death) { this.tone(dest, t, 0.9, 120 * p, 45 * p, 'sawtooth', 0.16, 0.1); this.noiseBurst(dest, t, 0.7, 300, 1, 'lowpass', 0.3); }
         else { this.tone(dest, t, hurt ? 0.25 : 0.4, (hurt ? 150 : 96) * p, (hurt ? 110 : 72) * p, 'sawtooth', 0.17, 0.04); this.noiseBurst(dest, t, 0.3, 380 * p, 1.4, 'bandpass', 0.28); }
         break;
+      case 'drake':
+        if (what === 'roar') { this.tone(dest, t, 1.4, 110 * p, 70 * p, 'sawtooth', 0.2, 0.1); this.noiseBurst(dest, t, 1.2, 420 * p, 0.8, 'bandpass', 0.4, 0.2); this.tone(dest, t, 1.2, 330 * p, 220 * p, 'triangle', 0.06); }
+        else if (what === 'wings') { this.noiseBurst(dest, t, 0.5, 300, 0.7, 'lowpass', 0.6, 0.15); this.noiseBurst(dest, t + 0.45, 0.5, 280, 0.7, 'lowpass', 0.5, 0.15); }
+        else if (what === 'bolt') { this.tone(dest, t, 0.4, 900 * p, 300 * p, 'square', 0.06); this.noiseBurst(dest, t, 0.35, 2600, 1, 'bandpass', 0.25); }
+        else if (what === 'shield') { this.tone(dest, t, 0.6, 1760 * p, 1700 * p, 'sine', 0.12, 0.2); this.tone(dest, t, 0.5, 2637 * p, 2600 * p, 'sine', 0.06, 0.2); }
+        else if (death) { this.tone(dest, t, 3.5, 220, 55, 'sawtooth', 0.16, 0.5); this.tone(dest, t + 0.5, 3, 660, 1320, 'sine', 0.06, 1); }
+        else if (hurt) { this.tone(dest, t, 0.5, 260 * p, 140 * p, 'sawtooth', 0.16); this.noiseBurst(dest, t, 0.4, 700, 1, 'bandpass', 0.3); }
+        else { this.tone(dest, t, 1, 120 * p, 90 * p, 'sawtooth', 0.12, 0.1); }
+        break;
+      case 'drifter': this.tone(dest, t, 0.8, (hurt ? 1400 : death ? 900 : 1200) * pitch, (hurt ? 1100 : death ? 400 : 1300) * pitch, 'sine', 0.08, 0.2); this.tone(dest, t + 0.1, 0.7, 1800 * pitch, 1850 * pitch, 'sine', 0.04, 0.2); break;
       case 'hound':
         if (what === 'growl') { this.tone(dest, t, 0.7, 95 * p, 80 * p, 'sawtooth', 0.12, 0.05); this.noiseBurst(dest, t, 0.6, 260, 2, 'bandpass', 0.25); }
         else if (what === 'bite') { this.noiseBurst(dest, t, 0.07, 1400, 1, 'bandpass', 0.6); this.tone(dest, t, 0.08, 260, 140, 'square', 0.1); }
@@ -352,17 +369,20 @@ export class AudioManager {
   }
 
   /** Called ~once a second: occasionally plays a short generative ambient phrase. */
-  updateMusic(dt: number, night: boolean, deep = false): void {
+  updateMusic(dt: number, night: boolean, mode: boolean | 'deep' | 'star' = false): void {
+    const deep = mode === true || mode === 'deep', star = mode === 'star';
     if (!this.enabled || !this.ctx || this.ctx.state !== 'running' || !this.musicEnabled || this.volumes.music <= 0) return;
     this.musicTimer -= dt;
     if (this.musicTimer > 0) return;
     this.musicTimer = 60 + Math.random() * 120;
     // the Cinderdeep (2.0): a darker mode, lower, with a slow drone underneath
-    const scale = deep ? [0, 1, 5, 7, 8, 12, 13] : night ? [0, 3, 5, 7, 10, 12, 15] : [0, 2, 4, 7, 9, 12, 14];
-    const root = deep ? 147 : night ? 196 : 220;
+    // the Starhollow (2.2): a bright, floating mode, high up, with a shimmering pad
+    const scale = deep ? [0, 1, 5, 7, 8, 12, 13] : star ? [0, 2, 4, 6, 7, 11, 12, 14] : night ? [0, 3, 5, 7, 10, 12, 15] : [0, 2, 4, 7, 9, 12, 14];
+    const root = deep ? 147 : star ? 262 : night ? 196 : 220;
     const ctx = this.ctx;
     let t = ctx.currentTime + 0.2;
     if (deep) this.tone(this.reverb, t, 9, root / 2, root / 2 * 0.98, 'sine', 0.06, 1.5);
+    if (star) { this.tone(this.reverb, t, 10, root * 2, root * 2.01, 'sine', 0.025, 2.5); this.tone(this.reverb, t + 0.5, 9, root * 3, root * 3.02, 'sine', 0.015, 2.5); }
     const notes = 8 + Math.floor(Math.random() * 8);
     let deg = Math.floor(Math.random() * 4);
     for (let i = 0; i < notes; i++) {

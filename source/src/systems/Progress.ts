@@ -53,6 +53,11 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   { id: 'stand', title: 'On Display', description: 'Put armour on an Armour Stand', icon: 'armour_stand', parent: 'armor' },
   { id: 'dye_armour', title: 'Dressed to Impress', description: 'Dye a piece of leather armour', icon: 'leather_chestplate', parent: 'dye' },
   { id: 'ashboar_breed', title: 'Ember Piglet', description: 'Feed two Ashboars Glowcaps so they have a piglet', icon: 'glowcap', parent: 'deepgate' },
+  // 2.2: the Starhollow
+  { id: 'stargate', title: 'Among the Stars', description: 'Go through a Stargate to the Starhollow', icon: 'star_lens', parent: 'deepgate' },
+  { id: 'storm_bells', title: 'Silence the Bells', description: 'Ring all four Storm Bells', icon: 'starstone_bricks', parent: 'stargate' },
+  { id: 'hollowdrake', title: 'Free the Stars', description: 'Defeat the Hollowdrake', icon: 'star_scale', parent: 'storm_bells' },
+  { id: 'glide', title: 'Take Wing', description: 'Glide on Starwings', icon: 'star_wings', parent: 'hollowdrake' },
 ];
 
 export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = [
@@ -83,6 +88,9 @@ export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = 
   ['bells_rung', 'Bells Rung', 'count'],
   ['maps_followed', 'Maps Followed', 'count'],
   ['animals_bred', 'Animals Bred', 'count'],
+  ['star_visits', 'Trips to the Starhollow', 'count'],
+  ['drakes_beaten', 'Hollowdrakes Defeated', 'count'],
+  ['glide', 'Distance Glided', 'cm'],
 ];
 
 export function formatStat(v: number, kind: 'count' | 'cm' | 'ticks' | 'hp'): string {
