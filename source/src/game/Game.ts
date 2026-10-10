@@ -21,7 +21,7 @@ import type { WorldRecord, WorldExtra, GameRules } from '../systems/SaveManager'
 import { DEFAULT_RULES } from '../systems/SaveManager';
 import { type DimId, type Arrival, OVERWORLD } from '../world/dims';
 import { LAVA_SEA } from '../world/Cinderdeep';
-import { BIOME_CINDERDEEP } from '../world/BiomeSystem';
+import { BIOME_CINDERDEEP, BIOME_STARHOLLOW } from '../world/BiomeSystem';
 import { newestGenVersion } from '../world/generators';
 import { WeatherSystem, WeatherKind } from '../systems/WeatherSystem';
 import { Precipitation, PrecipSource, PRECIP_NONE, PRECIP_RAIN, PRECIP_SNOW } from '../render/Precipitation';
@@ -51,6 +51,8 @@ import { compassName } from '../render/mapImage';
 import { Hound, HOUND_FOOD, HOUND_TAMING_FOOD } from '../entities/Hound';
 import { ArmourStand, STAND_HAND, STAND_HEIGHT, STAND_WIDTH } from '../entities/ArmourStand';
 import { Ashboar, ASHBOAR_FOOD } from '../entities/Ashboar';
+import { StarhollowSystem } from './StarhollowSystem';
+import { ROOST, ARRIVAL } from '../world/Starhollow';
 import type { Trade } from '../entities/Trades';
 import type { VillagePlan } from '../world/Villages';
 
@@ -69,6 +71,8 @@ interface Breaking {
  * (hand, outline, cracks, particles) are driven from here too.
  */
 const UNLIT_EFFECT: Partial<Record<EffectKind, true>> = { smoke: true, poof: true, splash: true, drip: true, ash: true };
+/** 2.2: the Starhollow's islands are lit by the stars: a cool, soft light everywhere. */
+const STAR_AMBIENT = 0.6;
 /** 2.0: the Cinderdeep is never pitch dark: a dull red glow from the lava sea everywhere. */
 export const DEEP_AMBIENT = 0.44;
 /** A standing or wall torch. */
@@ -171,10 +175,18 @@ export class Game implements EntityHost, PrecipSource {
   private arrival: Arrival | null;
   /** 2.0: set while the player is being carried to another dimension (the next save records it). */
   private leaving: DimId | null = null;
+  /** 2.2: where the player will come out there (saved as their position, so the right chunks load first). */
+  private leavingAt: { x: number; y: number; z: number } | null = null;
   /** 2.0: ticks spent standing in a Deepgate; when it fills up, the gate carries you away. */
   gateTicks = 0;
   /** 2.0: no travelling again straight after arriving. */
   private gateCooldown = 0;
+  /** 2.2: is the gate being stood in a Stargate (rather than a Deepgate)? */
+  gateStar = false;
+  /** 2.2: the Starhollow's rules (only while playing there). */
+  readonly star: StarhollowSystem | null;
+  /** 2.2: ticks spent gliding (Starwings wear by one every second). */
+  private glideTicks = 0;
 
   constructor(private engine: EngineServices, record: WorldRecord, deltas: Map<string, Map<number, number>>, extra: WorldExtra | undefined, dim: DimId = OVERWORLD, arrival: Arrival | null = null) {
     this.record = record;
@@ -198,6 +210,7 @@ export class Game implements EntityHost, PrecipSource {
     this.spawners = new SpawnerSystem(this.world, this.entities, this);
     this.villages = new VillageManager(this);
     this.villages.load(extra?.villages);
+    this.star = dim === 'starhollow' ? new StarhollowSystem(this) : null;
     // water the player changed keeps flowing when its chunk is loaded again; villages get their people
     this.chunks.onChunkLoaded = (c) => { this.wakeWater(c); this.villages.onChunkLoaded(c); this.spawners.scanChunk(c); };
     this.chunks.greedy = engine.options.greedyMeshing;
@@ -278,7 +291,7 @@ export class Game implements EntityHost, PrecipSource {
   brightnessAt(x: number, y: number, z: number): number {
     const l = this.world.getLight(Math.floor(x), Math.floor(y), Math.floor(z));
     const b = lightToBrightness(l, this.dayNight.light.daylight);
-    return this.dim === 'cinderdeep' ? Math.max(DEEP_AMBIENT, b) : b;
+    return this.dim === 'cinderdeep' ? Math.max(DEEP_AMBIENT, b) : this.dim === 'starhollow' ? Math.max(STAR_AMBIENT, b) : b;
   }
   sound(name: string, x?: number, y?: number, z?: number, volume = 1, pitch = 1): void {
     this.engine.audio.play(name, x, y, z, volume, pitch);
@@ -308,6 +321,7 @@ export class Game implements EntityHost, PrecipSource {
       this.progress.grant('kill');
       if (mob) this.villages.onHostileKilled(mob.x, mob.z);   // defending a village earns standing there
     }
+    if (type === 'hollowdrake') this.star?.victory();
   }
   spawnItem(stack: ItemStack, x: number, y: number, z: number, vel?: [number, number, number]): void {
     this.entities.spawnItem(stack, x, y, z, vel);
@@ -357,6 +371,12 @@ export class Game implements EntityHost, PrecipSource {
     pushChat(`Your ${pet.spec.name} has died.`);
     this.progress.add('pets_lost');
   }
+
+  // ---- 2.2
+  spawnStarBolt(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob, damage: number): void {
+    this.entities.spawnStarBolt(x, y, z, vx, vy, vz, shooter, damage);
+  }
+  drakeShieldHit(): void { this.star?.shieldHit(); }
 
   // ---- 2.1
   spawnMob(type: MobType, x: number, y: number, z: number): Mob {
@@ -420,8 +440,9 @@ export class Game implements EntityHost, PrecipSource {
     // 2.0: coming in through a Deepgate, or back on the surface after dying in the Cinderdeep
     const arr = this.arrival;
     this.arrival = null;
-    if (arr?.kind === 'gate') this.arriveThroughGate(arr.x, arr.z);
+    if (arr?.kind === 'gate') this.arriveThroughGate(arr.x, arr.z, arr.gate === 'star');
     else if (arr?.kind === 'respawn') this.respawn();
+    else if (arr?.kind === 'home') this.wakeAtHome(arr.note);
     else if (this.started && !p.dead && this.insideRock()) this.freeFromRock();
     if (p.dead) ui.set({ overlay: 'death' });
     // back into the boat the player was sitting in
@@ -494,6 +515,7 @@ export class Game implements EntityHost, PrecipSource {
     this.progress.stats.swim = (this.progress.stats.swim ?? 0) + p.statSwim; p.statSwim = 0;
     this.progress.stats.fly = (this.progress.stats.fly ?? 0) + p.statFly; p.statFly = 0;
     this.progress.stats.jumps = (this.progress.stats.jumps ?? 0) + p.statJumps; p.statJumps = 0;
+    this.progress.stats.glide = (this.progress.stats.glide ?? 0) + Math.round(p.statGlide); p.statGlide = 0;
     // items sitting in a crafting grid or on the cursor are folded into the SAVED
     // copy of the inventory (live UI state is left untouched)
     const invCopy = new PlayerInventory();
@@ -512,7 +534,7 @@ export class Game implements EntityHost, PrecipSource {
       stats: { ...this.progress.stats },
       advancements: [...this.progress.done],
       player: {
-        x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch,
+        x: this.leavingAt?.x ?? p.x, y: this.leavingAt?.y ?? p.y, z: this.leavingAt?.z ?? p.z, yaw: p.yaw, pitch: p.pitch,
         health: p.health, food: p.food, saturation: p.saturation, exhaustion: p.exhaustion, air: p.air,
         xpLevel: p.xpLevel, xpProgress: p.xpProgress, xpTotal: p.xpTotal, runeSeed: p.runeSeed,
         flying: p.flying, gameMode: p.gameMode, dead: p.dead,
@@ -847,6 +869,7 @@ export class Game implements EntityHost, PrecipSource {
     const rng = mulberry32(hash4(this.world.seed, x, y, z));
     if (be.loot === 'dungeon') { this.fillDungeonLoot(be, rng); return; }
     if (be.loot === 'shrine') { this.fillShrineLoot(be, rng); return; }
+    if (be.loot === 'starfall') { this.fillStarfallLoot(be, rng); return; }
     const table: [string, number, number, number][] = be.loot === 'village' ? [
       ['bread', 1, 4, 0.7], ['wheat', 2, 8, 0.5], ['wheat_seeds', 2, 6, 0.5], ['carrot', 1, 5, 0.5], ['apple', 1, 3, 0.4],
       ['amber', 1, 3, 0.45], ['torch', 2, 6, 0.4], ['iron_ingot', 1, 2, 0.2], ['stone_hoe', 1, 1, 0.15], ['bone_meal', 2, 6, 0.3],
@@ -955,7 +978,7 @@ export class Game implements EntityHost, PrecipSource {
     this.schedule(x, y, z + 1, 2); this.schedule(x, y, z - 1, 2);
     this.fluids.onBlockChanged(x, y, z, this.tickCount);
     if (id === B.SAND || id === B.GRAVEL) this.schedule(x, y, z, 2);
-    if (id !== B.DEEPGATE) this.checkGatesAround(x, y, z);
+    if (id !== B.DEEPGATE && id !== B.STARGATE) this.checkGatesAround(x, y, z);
     if (B.GATE_RING.includes(id) && cause === 'player') this.lightWaitingTorch(x, y, z);
     if (B.getBlock(old).interact === 'furnace' && B.getBlock(id).interact !== 'furnace') this.furnaces.delete(posKey(x, y, z));
     if (B.getBlock(old).interact === 'sign' || B.getBlock(id).interact === 'sign') this.signs.refresh();
@@ -1075,6 +1098,7 @@ export class Game implements EntityHost, PrecipSource {
   trySleep(x: number, y: number, z: number): void {
     const p = this.player;
     if (this.dim === 'cinderdeep') { pushChat('It is far too hot to sleep down here'); return; }
+    if (this.dim === 'starhollow') { pushChat('There is no night to sleep through up here, only the stars'); return; }
     const id = this.world.getBlock(x, y, z);
     const d = B.getBlock(id);
     if (d.shape !== 'bed' || !d.facing) return;
@@ -1168,9 +1192,11 @@ export class Game implements EntityHost, PrecipSource {
     const jumpDown = inGame && input.isDown('Space');
     // taps are taken from the key-press queue so quick double taps are never missed
     for (let n = input.consumePresses('Space'); n > 0 && inGame; n--) {
-      if (p.creative && this.jumpTap > 0) { p.flying = !p.flying; if (p.flying) p.vy = 0; this.jumpTap = 0; }
+      if (p.creative && this.jumpTap > 0) { p.flying = !p.flying; if (p.flying) { p.vy = 0; p.gliding = false; } this.jumpTap = 0; }
+      else if (this.canStartGlide()) { p.gliding = true; this.glideTicks = 0; this.sound('glide', p.x, p.y + 1, p.z, 0.6, 1); this.jumpTap = input.touchMode ? 10 : 7; }
       else this.jumpTap = input.touchMode ? 10 : 7; // a thumb on glass double-taps a little slower than a finger on a key
     }
+    this.tickGlide();
     for (let n = input.consumePresses('KeyW'); n > 0 && inGame; n--) {
       if (this.forwardTap > 0) p.sprinting = true;
       this.forwardTap = 7;
@@ -1211,6 +1237,8 @@ export class Game implements EntityHost, PrecipSource {
 
     // ---- survival rules
     if (!p.dead) this.tickSurvival();
+    // ---- 2.2: the Starhollow's rules (the Hollowdrake, the Storm Bells, Drifters, the void)
+    if (this.star && !p.dead) this.star.tick();
 
     // ---- interaction
     this.tickInteraction(inGame);
@@ -1253,7 +1281,7 @@ export class Game implements EntityHost, PrecipSource {
       this.autosaveTimer = 0;
       void this.save();
     }
-    if (++this.musicTimer >= 20) { this.musicTimer = 0; this.engine.audio.updateMusic(1, night, this.dim === 'cinderdeep'); }
+    if (++this.musicTimer >= 20) { this.musicTimer = 0; this.engine.audio.updateMusic(1, night, this.dim === 'cinderdeep' ? 'deep' : this.dim === 'starhollow' ? 'star' : false); }
     this.pushHud(false);
   }
 
@@ -1481,11 +1509,39 @@ export class Game implements EntityHost, PrecipSource {
   /** The eight cells round a gate's centre. */
   private static readonly RING: [number, number][] = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
 
-  /** A complete ring of Cinderstone round (x, y, z), with something solid underneath the centre. */
-  gateRingComplete(x: number, y: number, z: number): boolean {
+  /** A complete ring of Cinderstone (or, 2.2, of Glimmerstone for a Stargate) round (x, y, z), with something solid underneath the centre. */
+  gateRingComplete(x: number, y: number, z: number, ring: number[] = B.GATE_RING): boolean {
     if (!B.IS_SOLID[this.world.getBlock(x, y - 1, z)]) return false;
-    for (const [dx, dz] of Game.RING) if (!B.GATE_RING.includes(this.world.getBlock(x + dx, y, z + dz))) return false;
+    for (const [dx, dz] of Game.RING) if (!ring.includes(this.world.getBlock(x + dx, y, z + dz))) return false;
     return true;
+  }
+
+  /**
+   * 2.2: a Star Lens used on the open middle of a ring of eight Glimmerstone lights a
+   * Stargate (on the surface, or in the Starhollow; the Cinderdeep is too far from the
+   * stars). Used on the Roost's gate after a victory it calls the Hollowdrake back.
+   */
+  private tryLightStargate(t: RayHit, slot: number): boolean {
+    if (this.star && t.block === B.STARGATE && t.x === ROOST.x && t.y === ROOST.y && t.z === ROOST.z) {
+      if (!this.star.summon()) return false;
+      if (!this.player.creative) this.consume(slot);
+      return true;
+    }
+    const cands: [number, number, number][] = [[t.px, t.py, t.pz]];
+    if (B.STAR_RING.includes(t.block)) for (const [dx, dz] of Game.RING) cands.push([t.x + dx, t.y, t.z + dz]);
+    for (const [x, y, z] of cands) {
+      const here = this.world.getBlock(x, y, z);
+      if (here === UNLOADED || here === B.STARGATE || B.IS_FLUID[here] || (here !== B.AIR && !B.getBlock(here).replaceable)) continue;
+      if (!this.gateRingComplete(x, y, z, B.STAR_RING)) continue;
+      if (this.dim === 'cinderdeep') { pushChat('The stars are too far away down here: light a Stargate on the surface.'); return true; }
+      this.world.setBlock(x, y, z, B.STARGATE, 'player');
+      this.sound('star_light', x + 0.5, y + 0.8, z + 0.5, 1, 1);
+      this.effect('star', x + 0.5, y + 0.9, z + 0.5, 24);
+      if (!this.player.creative) this.consume(slot);
+      pushChat(this.dim === OVERWORLD ? 'The Stargate is lit: stand in it to rise to the Starhollow' : 'The Stargate is lit: it leads home');
+      return true;
+    }
+    return false;
   }
 
   /** A torch or a lava bucket used on the open middle of a ring lights a Deepgate there. */
@@ -1526,10 +1582,11 @@ export class Game implements EntityHost, PrecipSource {
     }
   }
 
-  /** A Deepgate goes out when its ring or the block under it is broken. */
+  /** A Deepgate (or Stargate) goes out when its ring or the block under it is broken. */
   private checkGatesAround(x: number, y: number, z: number): void {
     const check = (gx: number, gy: number, gz: number) => {
-      if (this.world.getBlock(gx, gy, gz) !== B.DEEPGATE || this.gateRingComplete(gx, gy, gz)) return;
+      const id = this.world.getBlock(gx, gy, gz);
+      if (id === B.DEEPGATE ? this.gateRingComplete(gx, gy, gz) : id === B.STARGATE ? this.gateRingComplete(gx, gy, gz, B.STAR_RING) : true) return;
       this.world.setBlock(gx, gy, gz, B.AIR, 'physics');
       this.sound('fizz', gx + 0.5, gy + 0.8, gz + 0.5, 0.7, 0.7);
       this.effect('smoke', gx + 0.5, gy + 0.9, gz + 0.5, 10);
@@ -1545,43 +1602,129 @@ export class Game implements EntityHost, PrecipSource {
     const gx = Math.floor(p.x), gz = Math.floor(p.z);
     let gy = Math.floor(p.y + 0.05);
     // in the glow, or just above it (flying in Creative, or not yet dropped into the middle)
-    if (this.world.getBlock(gx, gy, gz) !== B.DEEPGATE && this.world.getBlock(gx, gy - 1, gz) === B.DEEPGATE) gy--;
-    const inGate = !p.dead && !this.riding && this.world.getBlock(gx, gy, gz) === B.DEEPGATE;
+    const isGate = (id: number) => id === B.DEEPGATE || id === B.STARGATE;
+    if (!isGate(this.world.getBlock(gx, gy, gz)) && isGate(this.world.getBlock(gx, gy - 1, gz))) gy--;
+    const gid = this.world.getBlock(gx, gy, gz);
+    const inGate = !p.dead && !this.riding && isGate(gid) && ui.get().overlay !== 'theend';
+    if (inGate) this.gateStar = gid === B.STARGATE;
     // ambient: gates nearby breathe out sparks
     if (this.tickCount % 6 === 0) {
       for (let i = 0; i < 3; i++) {
         const x = Math.floor(p.x + (Math.random() - 0.5) * 24), y = Math.floor(p.y + (Math.random() - 0.5) * 12), z = Math.floor(p.z + (Math.random() - 0.5) * 24);
-        if (this.world.getBlock(x, y, z) === B.DEEPGATE) this.effect('flame', x + Math.random(), y + 0.85, z + Math.random(), 1);
+        const id = this.world.getBlock(x, y, z);
+        if (id === B.DEEPGATE) this.effect('flame', x + Math.random(), y + 0.85, z + Math.random(), 1);
+        else if (id === B.STARGATE) this.effect('star', x + Math.random(), y + 0.85, z + Math.random(), 1);
       }
     }
     if (!inGate || this.gateCooldown > 0) { this.gateTicks = Math.max(0, this.gateTicks - 2); return; }
     this.gateTicks++;
-    if (this.gateTicks % 4 === 0) this.effect('flame', p.x + (Math.random() - 0.5), p.y + Math.random() * 1.8, p.z + (Math.random() - 0.5), 2);
-    if (this.gateTicks % 20 === 1) this.sound('gate_hum', p.x, p.y + 1, p.z, 0.8, 0.8 + this.gateTicks / this.gateTime() * 0.5);
+    if (this.gateTicks % 4 === 0) this.effect(this.gateStar ? 'star' : 'flame', p.x + (Math.random() - 0.5), p.y + Math.random() * 1.8, p.z + (Math.random() - 0.5), 2);
+    if (this.gateTicks % 20 === 1) this.sound('gate_hum', p.x, p.y + 1, p.z, 0.8, (this.gateStar ? 1.4 : 0.8) + this.gateTicks / this.gateTime() * 0.5);
     if (this.gateTicks >= this.gateTime() && this.engine.changeDimension) {
       this.gateTicks = 0;
       this.gateCooldown = 100;
+      if (this.gateStar) { this.travelByStargate(gx, gz); return; }
       const target: DimId = this.dim === OVERWORLD ? 'cinderdeep' : OVERWORLD;
       this.sound('gate_travel', p.x, p.y + 1, p.z, 1, 1);
       void this.engine.changeDimension(target, { kind: 'gate', x: gx, z: gz });
     }
   }
 
+  /**
+   * 2.2: a Stargate's glow is full. From the surface: up to the Starhollow (the spot is
+   * remembered: the way back comes out there). From the Starhollow: home - after a
+   * victory, the Roost's gate shows the End screen first (once per world).
+   */
+  private travelByStargate(gx: number, gz: number): void {
+    const p = this.player, change = this.engine.changeDimension!;
+    this.sound('star_travel', p.x, p.y + 1, p.z, 1, 1);
+    if (this.dim !== 'starhollow') {
+      const st = this.record.star ?? (this.record.star = { dragon: 'alive', health: 200 });
+      st.from = { x: gx, z: gz };
+      void change.call(this.engine, 'starhollow', { kind: 'gate', x: gx, z: gz, gate: 'star' });
+      return;
+    }
+    const st = this.record.star;
+    if (gx === ROOST.x && gz === ROOST.z && st?.dragon === 'dead' && !st.seenEnd && this.engine.showTheEnd) {
+      this.gateCooldown = 400;
+      this.engine.showTheEnd();
+      return;
+    }
+    if (st?.from) void change.call(this.engine, OVERWORLD, { kind: 'gate', x: st.from.x, z: st.from.z, gate: 'star' });
+    else void change.call(this.engine, OVERWORLD, { kind: 'home' });
+  }
+
+  /** 2.2: are Starwings worn (and not worn out)? */
+  wearingWings(): boolean {
+    const w = this.inventory.get(ARMOR_START + 1);
+    return !!w && w.id === 'star_wings' && (w.damage ?? 0) < (getItem('star_wings').durability ?? 1) - 1;
+  }
+
+  /** 2.2: jump in mid-air while falling, wearing Starwings, to start gliding. */
+  private canStartGlide(): boolean {
+    const p = this.player;
+    return !p.onGround && !p.flying && !p.inWater && !p.inLava && !p.gliding && !this.riding && p.vy < 0.08 && !p.dead && this.wearingWings();
+  }
+
+  /** 2.2: gliding stops on landing, in water, when flying or without wings; the wings wear a little every second. */
+  private tickGlide(): void {
+    const p = this.player;
+    if (!p.gliding) return;
+    if (p.onGround || p.inWater || p.inLava || p.flying || p.dead || this.riding || !this.wearingWings()) { p.gliding = false; return; }
+    if (++this.glideTicks % 20 === 0) {
+      this.progress.grant('glide');
+      if (!p.creative && this.inventory.damageItem(ARMOR_START + 1, 1)) { this.sound('tool_break', p.x, p.eyeY, p.z); p.gliding = false; }
+    }
+    if (this.glideTicks % 30 === 1) this.sound('glide', p.x, p.y + 1, p.z, 0.25, 0.9 + Math.random() * 0.2);
+  }
+
+  /** 2.2: fallen off the Starhollow: the stars catch you and carry you home, with everything you had. */
+  catchFromVoid(): void {
+    this.player.vy = 0;
+    void this.engine.changeDimension?.(OVERWORLD, { kind: 'home', note: 'You fell from the Starhollow, but the stars caught you and carried you home.' });
+  }
+
+  /** 2.2: arriving home (not by dying): at your bed, or the world's spawn point; nothing is lost. */
+  private wakeAtHome(note?: string): void {
+    const p = this.player;
+    p.flying = false;
+    const bed = p.bed;
+    if (bed && this.world.isLoaded(bed.x, bed.z) && B.getBlock(this.world.getBlock(bed.x, bed.y, bed.z)).shape === 'bed') {
+      const spot = this.freeSpotNear(bed.x, bed.y, bed.z);
+      p.setPosition(spot.x, spot.y, spot.z);
+    } else {
+      const top = this.world.isLoaded(Math.floor(p.spawnX), Math.floor(p.spawnZ)) ? this.world.highestSolid(Math.floor(p.spawnX), Math.floor(p.spawnZ)) : -1;
+      p.setPosition(p.spawnX, top > 0 ? top + 1 : p.spawnY, p.spawnZ);
+    }
+    p.invulnerable = 40;
+    this.gateCooldown = 100;
+    if (note) pushChat(note);
+  }
+
   /** Prepares the next save to put the player in another dimension (the Engine then reloads). */
-  leaveFor(dim: DimId): void {
+  leaveFor(dim: DimId, arrival?: Arrival): void {
     this.leaving = dim;
+    // 2.2: the next landscape loads round where the player will come out (the Starhollow's
+    // arrival gate, the Stargate on the surface, or home), not round where they stand now
+    const p = this.player;
+    if (arrival?.kind === 'gate' && dim === 'starhollow') this.leavingAt = { x: ARRIVAL.x + 0.5, y: ARRIVAL.y + 1, z: ARRIVAL.z - 0.5 };
+    else if (arrival?.kind === 'gate' && arrival.gate === 'star') this.leavingAt = { x: arrival.x + 0.5, y: Math.max(p.y, 70), z: arrival.z + 0.5 };
+    else if (arrival && arrival.kind !== 'gate') {
+      const b = p.bed;
+      this.leavingAt = b ? { x: b.x + 0.5, y: b.y + 1, z: b.z + 0.5 } : { x: p.spawnX, y: p.spawnY, z: p.spawnZ };
+    }
     if (this.riding) this.dismount();
   }
 
-  /** The nearest lit Deepgate within `r` blocks of (x, z), at any height, among loaded chunks. */
-  findGate(x: number, z: number, r = 16): { x: number; y: number; z: number } | null {
+  /** The nearest lit Deepgate (or Stargate) within `r` blocks of (x, z), at any height, among loaded chunks. */
+  findGate(x: number, z: number, r = 16, gate: number = B.DEEPGATE): { x: number; y: number; z: number } | null {
     let best: { x: number; y: number; z: number } | null = null, bd = Infinity;
     for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
       const wx = x + dx, wz = z + dz;
       const c = this.world.getChunk(wx >> 4, wz >> 4);
       if (!c) continue;
       for (let y = 1; y < WORLD_HEIGHT - 1; y++) {
-        if (c.blocks[localIndex(wx & 15, y, wz & 15)] !== B.DEEPGATE) continue;
+        if (c.blocks[localIndex(wx & 15, y, wz & 15)] !== gate) continue;
         const d = dx * dx + dz * dz;
         if (d < bd) { bd = d; best = { x: wx, y, z: wz }; }
       }
@@ -1594,7 +1737,7 @@ export class Game implements EntityHost, PrecipSource {
    * little platform over water), on a cavern floor in the Cinderdeep - or, if there is
    * none close by, in a chamber carved out of the rock.
    */
-  buildGate(x: number, z: number): { x: number; y: number; z: number } {
+  buildGate(x: number, z: number, star = false): { x: number; y: number; z: number } {
     const w = this.world;
     let gx = x, gz = z, gy = -1;
     if (this.dim === 'cinderdeep') {
@@ -1646,18 +1789,21 @@ export class Game implements EntityHost, PrecipSource {
       }
     }
     if (!B.IS_SOLID[w.getBlock(gx, gy - 1, gz)]) w.setBlock(gx, gy - 1, gz, this.dim === 'cinderdeep' ? B.ASHROCK : B.STONE, 'system');
-    for (const [dx, dz] of Game.RING) w.setBlock(gx + dx, gy, gz + dz, B.CINDERSTONE, 'system');
-    w.setBlock(gx, gy, gz, B.DEEPGATE, 'system');
+    for (const [dx, dz] of Game.RING) w.setBlock(gx + dx, gy, gz + dz, star ? B.GLIMMERSTONE : B.CINDERSTONE, 'system');
+    w.setBlock(gx, gy, gz, star ? B.STARGATE : B.DEEPGATE, 'system');
     return { x: gx, y: gy, z: gz };
   }
 
-  /** Coming out of a Deepgate: beside the gate that leads back (built if there isn't one). */
-  private arriveThroughGate(x: number, z: number): void {
-    const gate = this.findGate(x, z) ?? this.buildGate(x, z);
+  /** Coming out of a Deepgate (or Stargate): beside the gate that leads back (built if there isn't one). */
+  private arriveThroughGate(x: number, z: number, star = false): void {
+    if (this.dim === 'starhollow') { x = ARRIVAL.x; z = ARRIVAL.z; star = true; }
+    const gate = star ? this.findGate(x, z, 16, B.STARGATE) ?? this.buildGate(x, z, true) : this.findGate(x, z) ?? this.buildGate(x, z);
     const p = this.player;
     // stand on the ring, facing away from the gate, where there is head room
     let spot: [number, number] = [gate.x + 1, gate.z];
-    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    // (in the Starhollow, on the side facing the Roost, so the pylons are the first thing you see)
+    const sides = this.dim === 'starhollow' ? [[0, -1], [1, 0], [-1, 0], [0, 1]] : [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (const [dx, dz] of sides) {
       const sx = gate.x + dx, sz = gate.z + dz;
       if (!B.IS_SOLID[this.world.getBlock(sx, gate.y + 1, sz)] && !B.IS_SOLID[this.world.getBlock(sx, gate.y + 2, sz)]) { spot = [sx, sz]; break; }
     }
@@ -1670,6 +1816,11 @@ export class Game implements EntityHost, PrecipSource {
     if (this.dim === 'cinderdeep') {
       this.progress.grant('deepgate');
       this.progress.add('deep_visits');
+    }
+    if (this.dim === 'starhollow') {
+      this.progress.grant('stargate');
+      this.progress.add('star_visits');
+      if (this.record.star?.dragon !== 'dead') pushChat('Somewhere above the Roost, the Hollowdrake is circling. Four Storm Bells shield it.');
     }
   }
 
@@ -1692,6 +1843,20 @@ export class Game implements EntityHost, PrecipSource {
           return;
         }
       }
+    }
+  }
+
+  /** 2.2: Starfall shrine chests: Glimmer Dust, Starblooms, Drift Silk, Rune Shards, and now and then a Star Lens or a Star Scale. */
+  private fillStarfallLoot(be: ChestEntity, rng: () => number): void {
+    const table: [string, number, number, number][] = [
+      ['glimmer_dust', 3, 8, 0.85], ['starbloom', 1, 4, 0.6], ['drift_silk', 1, 3, 0.5], ['rune_shard', 1, 4, 0.5], ['amber', 2, 6, 0.4],
+      ['fire_opal', 1, 1, 0.2], ['star_lens', 1, 1, 0.18], ['star_scale', 1, 2, 0.15], ['roast_ashboar', 2, 5, 0.3], ['arrow', 6, 14, 0.3],
+    ];
+    const free = () => { for (let t = 0; t < 40; t++) { const i = Math.floor(rng() * 27); if (!be.items[i]) return i; } return be.items.indexOf(null); };
+    for (const [id, lo, hi, ch] of table) {
+      if (rng() >= ch) continue;
+      const i = free();
+      if (i >= 0) be.items[i] = makeStack(id, lo + Math.floor(rng() * (hi - lo + 1)));
     }
   }
 
@@ -2038,6 +2203,7 @@ export class Game implements EntityHost, PrecipSource {
         return;
       }
       if (t && pressed && (held.id === 'torch' || held.id === 'lava_bucket') && this.tryLightGate(t, slotIndex)) { this.hand.swing(); return; }
+      if (t && pressed && held.id === 'star_lens' && this.tryLightStargate(t, slotIndex)) { this.hand.swing(); return; }
       if (def.kind === 'bucket' && pressed) {
         const pour = held.id === 'water_bucket' ? B.WATER : held.id === 'lava_bucket' ? B.LAVA : null;
         if (this.useBucket(slotIndex, pour)) { this.hand.swing(); return; }
@@ -2155,6 +2321,7 @@ export class Game implements EntityHost, PrecipSource {
     else if (kind === 'sign') this.useSign(x, y, z);
     else if (kind === 'pot') this.usePot(x, y, z);
     else if (kind === 'bell') this.villages.ring(x, y, z);
+    else if (kind === 'storm_bell') { if (this.star) this.star.ringBell(x, y, z); else pushChat('The Storm Bell is silent here.'); }
     else this.engine.openBlockScreen(x, y, z, kind);
   }
 
@@ -2611,7 +2778,7 @@ export class Game implements EntityHost, PrecipSource {
     if (v !== undefined) return v;
     const col = this.world.generator.column(x, z);
     const b = col.biome;
-    if (b === BIOME_DESERT || b === BIOME_BADLANDS || b === BIOME_CINDERDEEP) v = PRECIP_NONE;
+    if (b === BIOME_DESERT || b === BIOME_BADLANDS || b === BIOME_CINDERDEEP || b === BIOME_STARHOLLOW) v = PRECIP_NONE;
     else if (b === BIOME_SNOWY || (b === BIOME_MOUNTAINS && col.height >= 90) || col.height >= 108) v = PRECIP_SNOW;
     else v = PRECIP_RAIN;
     if (this.precipCache.size > 60000) this.precipCache.clear();
@@ -2878,6 +3045,7 @@ export class Game implements EntityHost, PrecipSource {
     if (p.flying) fovMul *= 1.06;
     if (this.bowTicks > 0) fovMul *= 1 - Math.min(1, this.bowTicks / 20) * 0.15;
     if (p.eyeInWater) fovMul *= 0.9;
+    if (p.gliding) fovMul *= 1.12;
     this.fovCurrent += (fovMul - this.fovCurrent) * Math.min(1, dt * 10);
     const fov = opts.fov * this.fovCurrent;
     if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
@@ -2885,7 +3053,13 @@ export class Game implements EntityHost, PrecipSource {
 
     // ---- sky & lighting
     this.weather.flash = Math.max(0, this.weather.flash - dt * 3.5);
-    this.dayNight.update(this.paused ? 0 : alpha, this.weather);
+    if (this.dim === 'starhollow') {
+      // 2.2: the Starhollow's sky is always a clear night full of stars (the world's own clock runs on)
+      const t = this.dayNight.time;
+      this.dayNight.time = 18000;
+      this.dayNight.update(0, { rain: 0, thunder: 0, flash: 0 });
+      this.dayNight.time = t;
+    } else this.dayNight.update(this.paused ? 0 : alpha, this.weather);
     const L = this.dayNight.light;
     const u = r.uniforms;
     u.uDaylight.value = L.daylight;
@@ -2900,6 +3074,8 @@ export class Game implements EntityHost, PrecipSource {
     // the Cinderdeep has no sky: a warm glow from the lava sea lights everything a little (the Brightness option scales it)
     u.uAmbient.value = deep ? DEEP_AMBIENT * (0.85 + 0.3 * opts.brightness) : 0.045;
     if (deep) u.uAmbientTint.value.setRGB(1, 0.8, 0.7); else u.uAmbientTint.value.setRGB(1, 1, 1);
+    const starry = this.dim === 'starhollow';
+    if (starry) { u.uAmbient.value = STAR_AMBIENT * (0.85 + 0.3 * opts.brightness); u.uAmbientTint.value.setRGB(0.82, 0.82, 1); }
     if (deep) { u.uDaylight.value = 0; u.uSunStrength.value = 0; }
     r.sky.group.visible = !deep;
     if (p.eyeInLava) {
@@ -2910,6 +3086,11 @@ export class Game implements EntityHost, PrecipSource {
       u.uFogColor.value.setRGB(0.08, 0.16, 0.42).multiplyScalar(0.4 + 0.6 * L.daylight);
       u.uFogNear.value = 0;
       u.uFogFar.value = 18;
+    } else if (starry) {
+      // the islands fade into a deep violet haze of starlight
+      u.uFogColor.value.setRGB(0.1, 0.075, 0.21);
+      u.uFogNear.value = far * 0.55;
+      u.uFogFar.value = far;
     } else if (deep) {
       // a smoky red haze: the far caverns fade into the glow of the lava sea
       u.uFogColor.value.setRGB(0.2, 0.06, 0.04);
@@ -2921,7 +3102,7 @@ export class Game implements EntityHost, PrecipSource {
       u.uFogNear.value = far * (0.62 - 0.32 * wet);
       u.uFogFar.value = far * (1 - 0.12 * wet);
     }
-    r.sky.cloudsEnabled = opts.clouds;
+    r.sky.cloudsEnabled = opts.clouds && !starry;
     r.sky.update(cam.position, this.dayNight.sky, performance.now() / 1000, far);
     r.sunLight.position.set(cam.position.x + 30, cam.position.y + 100, cam.position.z + 50);
     r.sunLight.target.position.copy(cam.position);
@@ -2983,6 +3164,8 @@ export class Game implements EntityHost, PrecipSource {
       regenTick: 0, underwater: p.eyeInWater, offhand: !!this.inventory.get(OFFHAND),
       inLava: p.eyeInLava, burning: p.fireTicks > 0 && !p.creative && !p.dead,
       gate: this.gateTicks > 0 ? Math.round(Math.min(1, this.gateTicks / this.gateTime()) * 20) / 20 : 0,
+      gateStar: this.gateStar,
+      gliding: this.player.gliding,
       saturationShake: p.food <= 4 && p.food > 0,
     };
     const key = JSON.stringify(hud);
