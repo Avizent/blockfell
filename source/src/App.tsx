@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useStore } from './core/store';
 import { ui } from './ui/uiStore';
 import { TitleScreen, WorldSelect, CreateWorld, EditWorld, LoadingScreen, QuitScreen, ImportWorld, CloudScreen } from './ui/Menus';
+import { TheEnd } from './ui/TheEnd';
 import { OptionsScreen, PauseMenu, DeathScreen, AdvancementsScreen, StatsScreen, SleepScreen, SignEditor, MapScreen } from './ui/GameMenus';
 import { HUD, Toasts } from './ui/HUD';
 import { SurvivalInventory, CraftingTableScreen, ChestScreen, FurnaceScreen, CreativeScreen, RuneTableScreen, TradeScreen } from './ui/InventoryUI';
@@ -40,6 +41,7 @@ export function App() {
           {overlay === 'advancements' && <AdvancementsScreen />}
           {overlay === 'stats' && <StatsScreen />}
           {overlay === 'death' && <DeathScreen />}
+          {overlay === 'theend' && <TheEnd onDone={() => engine.finishTheEnd()} />}
           {overlay === 'inventory' && <SurvivalInventory />}
           {overlay === 'crafting' && <CraftingTableScreen />}
           {overlay === 'chest' && <ChestScreen />}
