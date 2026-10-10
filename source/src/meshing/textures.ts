@@ -1,6 +1,7 @@
 import { mulberry32 } from '../core/rng';
 import { DESTROY_STAGES, LAVA_FRAMES, TEXTURE_NAMES, WATER_FRAMES } from './textureNames';
 import { DYE_COLORS, DYE_RGB } from '../world/dyes';
+import { starstone, starstoneBricks, starbloom, stargate, stormBell, stormBellMount, roost } from './starTextures';
 
 /**
  * ORIGINAL procedural 16x16 pixel-art block textures.
@@ -1487,6 +1488,15 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   m.set('ember_lamp', emberLamp(R('ember_lamp')));
   m.set('deepgate', deepgate(R('deepgate')));
   m.set('glimmerstone', glimmerstone(R('glimmerstone')));
+  // 2.2: the Starhollow
+  m.set('starstone', starstone(R('starstone')));
+  m.set('starstone_bricks', starstoneBricks(R('starstone_bricks')));
+  m.set('starbloom', starbloom(R('starbloom')));
+  m.set('stargate', stargate(R('stargate')));
+  m.set('storm_bell', stormBell(R('storm_bell'), true));
+  m.set('storm_bell_rung', stormBell(R('storm_bell_rung'), false));
+  m.set('storm_bell_mount', stormBellMount(R('storm_bell_mount')));
+  m.set('roost', roost(R('roost')));
   m.set('spawner', spawnerCage(R('spawner')));
   m.set('bell', bellBronze(R('bell')));
   m.set('bell_mount', bellMount(R('bell_mount')));

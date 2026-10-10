@@ -48,6 +48,8 @@ const base = [
   'ashrock', 'ash', 'ember_ore', 'fire_opal_ore', 'glowcap', 'ashrock_bricks', 'ember_lamp', 'deepgate',
   // 2.0.1
   'glimmerstone',
+  // 2.2: the Starhollow
+  'starstone', 'starstone_bricks', 'starbloom', 'stargate', 'storm_bell', 'storm_bell_rung', 'storm_bell_mount', 'roost',
 ];
 
 export const TEXTURE_NAMES: string[] = [
