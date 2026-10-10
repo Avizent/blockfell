@@ -410,6 +410,92 @@ SPRITES.glimmer_dust = {
   pal: { W: [255, 255, 250], Y: [250, 222, 140], g: [196, 146, 70] },
 };
 
+// ---- 2.2 the Starhollow
+SPRITES.star_lens = {
+  map: [
+    '................',
+    '.....oooooo.....',
+    '....oGGGGGGo....',
+    '...oGLLLLLLGo...',
+    '..oGLLWWLLLLGo..',
+    '..oGLWWLLLLLGo..',
+    '..oGLLLLOOLLGo..',
+    '..oGLLLOROLLGo..',
+    '..oGLLLLOOLLGo..',
+    '..oGLLLLLLLLGo..',
+    '...oGLLLLLLGo...',
+    '....oGGGGGGo....',
+    '.....oooooo.....',
+    '................',
+    '................',
+    '................',
+  ],
+  pal: { o: [70, 50, 30], G: [222, 180, 80], L: [176, 150, 236], W: [250, 248, 255], O: [255, 140, 60], R: [255, 220, 150] },
+};
+SPRITES.star_scale = {
+  map: [
+    '................',
+    '................',
+    '......oooo......',
+    '....ooSSSSoo....',
+    '...oSSWWSSSSo...',
+    '..oSSWSSSSPSSo..',
+    '..oSSSSSPPSSSo..',
+    '.oSSSSPPSSSSSSo.',
+    '.oSSPPSSSSPPSSo.',
+    '.oSSSSSSPPSSSSo.',
+    '..oSSPPSSSSSSo..',
+    '...oSSSSPPSSo...',
+    '....ooSSSSoo....',
+    '......oooo......',
+    '................',
+    '................',
+  ],
+  pal: { o: [90, 80, 70], S: [226, 220, 206], W: [255, 255, 255], P: [176, 156, 220] },
+};
+SPRITES.drift_silk = {
+  map: [
+    '................',
+    '...........oo...',
+    '.........ooBBo..',
+    '.......ooBBWo...',
+    '.....ooBBWBo....',
+    '....oBBWBBo.....',
+    '...oBWBBBo......',
+    '..oBBBBBo.......',
+    '..oBWBBBBo......',
+    '...oBBBWBBo.....',
+    '....ooBBBBBo....',
+    '......ooBWBBo...',
+    '........ooBBo...',
+    '..........oo....',
+    '................',
+    '................',
+  ],
+  pal: { o: [90, 120, 170], B: [170, 220, 250], W: [240, 252, 255] },
+};
+SPRITES.star_wings = {
+  map: [
+    '................',
+    '.oo..........oo.',
+    'oWWo........oWWo',
+    'oVVVo......oVVVo',
+    'oVSVVo....oVVSVo',
+    'oVVVVVo..oVVVVVo',
+    'oVVSVVVooVVVSVVo',
+    '.oVVVVVBBVVVVVo.',
+    '.oVVVVSBBSVVVVo.',
+    '..oVVVVBBVVVVo..',
+    '..oVVSVooVSVVo..',
+    '...oVVo..oVVo...',
+    '...oVo....oVo...',
+    '....o......o....',
+    '................',
+    '................',
+  ],
+  pal: { o: [40, 26, 70], W: [226, 220, 206], V: [100, 70, 160], S: [236, 230, 255], B: [200, 192, 176] },
+};
+
 // ---- 1.2 items
 SPRITES.wheat_seeds = {
   map: [
@@ -613,6 +699,7 @@ export const EGG_COLORS: Record<string, [RGBA, RGBA]> = {
   cinderling: [[60, 44, 40], [255, 150, 50]],
   smoulderer: [[96, 90, 88], [232, 86, 34]],
   ashboar: [[66, 60, 58], [242, 124, 44]],
+  drifter: [[184, 226, 255], [168, 152, 246]],
 };
 for (const [mob, [a, s]] of Object.entries(EGG_COLORS)) {
   const L: RGBA = [Math.min(255, a[0] + 30), Math.min(255, a[1] + 30), Math.min(255, a[2] + 30)];

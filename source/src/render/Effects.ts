@@ -90,7 +90,7 @@ interface Particle {
  * with ONE InstancedMesh (single draw call). Capacity is fixed; the oldest
  * particles are recycled.
  */
-export type EffectKind = 'poof' | 'smoke' | 'flame' | 'crit' | 'splash' | 'happy' | 'angry' | 'drip' | 'heart' | 'ash';
+export type EffectKind = 'poof' | 'smoke' | 'flame' | 'crit' | 'splash' | 'happy' | 'angry' | 'drip' | 'heart' | 'ash' | 'star';
 
 export class Particles {
   private mesh: THREE.InstancedMesh;
@@ -163,6 +163,11 @@ export class Particles {
         const g = 0.32 + Math.random() * 0.2;
         this.spawn({ x: x + j() * 0.6, y, z: z + j() * 0.6, vx: j() * 0.02, vy: ember ? 0.012 : -0.006, vz: j() * 0.02,
           max: 50 + Math.random() * 40, size: ember ? 0.04 : 0.035, r: ember ? 1 : g * k, g: ember ? 0.5 : g * k, b: ember ? 0.15 : g * k, gravity: 0, glow: ember });
+      } else if (kind === 'star') {
+        // 2.2: sparkles of starlight, violet, cyan and white, drifting slowly
+        const c = Math.random();
+        this.spawn({ x: x + j() * 0.8, y: y + j() * 0.8, z: z + j() * 0.8, vx: j() * 0.06, vy: j() * 0.06 + 0.01, vz: j() * 0.06,
+          max: 18 + Math.random() * 14, size: 0.05 + Math.random() * 0.04, r: c < 0.4 ? 0.72 : c < 0.7 ? 0.6 : 1, g: c < 0.4 ? 0.55 : c < 0.7 ? 0.95 : 1, b: 1, gravity: 0, glow: true });
       } else if (kind === 'crit') {
         this.spawn({ x, y, z, vx: j() * 0.3, vy: Math.random() * 0.2, vz: j() * 0.3,
           max: 10, size: 0.06, r: 0.9, g: 0.9, b: 0.95, gravity: 0.02, glow: true });
