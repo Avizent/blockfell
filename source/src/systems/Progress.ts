@@ -1,3 +1,5 @@
+import { NAMES } from '../world/names';
+
 export interface AdvancementDef {
   id: string;
   title: string;
@@ -58,6 +60,14 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   { id: 'storm_bells', title: 'Silence the Bells', description: 'Ring all four Storm Bells', icon: 'starstone_bricks', parent: 'stargate' },
   { id: 'hollowdrake', title: 'Free the Stars', description: 'Defeat the Hollowdrake', icon: 'star_scale', parent: 'storm_bells' },
   { id: 'glide', title: 'Take Wing', description: 'Glide on Starwings', icon: 'star_wings', parent: 'hollowdrake' },
+  // 2.3: snow day, pets and farm animals
+  { id: 'snowball', title: 'Snowball Fight!', description: 'Throw a snowball', icon: 'snowball' },
+  { id: 'snowpal', title: 'A Frosty Friend', description: `Build a ${NAMES.snowpal}`, icon: 'snow', parent: 'snowball' },
+  { id: 'sledge', title: 'Downhill Dash', description: `Ride a ${NAMES.sledge} fast down a snowy hill`, icon: 'sledge', parent: 'snowball' },
+  { id: 'fox', title: 'Best Friends', description: `Tame a ${NAMES.fox}`, icon: 'raw_trout' },
+  { id: 'nametag', title: "What's Your Name?", description: 'Give a creature a name with a Name Tag', icon: 'name_tag' },
+  { id: 'farm_baby', title: 'Little Ones', description: 'Feed two farm animals so they have a baby', icon: 'wheat', parent: 'harvest' },
+  { id: 'dye_sheep', title: 'Woolly Rainbow', description: 'Dye a sheep', icon: 'pink_dye', parent: 'dye' },
 ];
 
 export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = [
@@ -91,6 +101,12 @@ export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = 
   ['star_visits', 'Trips to the Starhollow', 'count'],
   ['drakes_beaten', 'Hollowdrakes Defeated', 'count'],
   ['glide', 'Distance Glided', 'cm'],
+  ['snowballs_thrown', 'Snowballs Thrown', 'count'],
+  ['snowpals_built', `${NAMES.snowpal}s Built`, 'count'],
+  ['sledge', `Distance by ${NAMES.sledge}`, 'cm'],
+  ['foxes_tamed', `${NAMES.fox}s Tamed`, 'count'],
+  ['sheep_sheared', 'Sheep Sheared', 'count'],
+  ['names_given', 'Creatures Named', 'count'],
 ];
 
 export function formatStat(v: number, kind: 'count' | 'cm' | 'ticks' | 'hp'): string {

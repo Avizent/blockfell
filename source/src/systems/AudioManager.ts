@@ -257,6 +257,11 @@ export class AudioManager {
       case 'glide': this.noiseBurst(dest, t, 0.9 * pitch, 900, 0.6, 'bandpass', 0.35, 0.3); break;
       case 'drake_victory': [392, 494, 587, 784, 988].forEach((f, i) => this.tone(dest, t + i * 0.22, 2.4, f, f, 'triangle', 0.12, 0.3)); this.tone(dest, t + 1.1, 3, 1568, 1568, 'sine', 0.06, 1); break;
       case 'deep_rumble': this.noiseBurst(dest, t, 3.2, 90 * pitch, 0.6, 'lowpass', 0.7, 0.8); this.tone(dest, t, 3, 41 * pitch, 36 * pitch, 'sine', 0.2, 0.6); break;
+      // 2.3: snow day, pets and farm animals
+      case 'throw': this.noiseBurst(dest, t, 0.16, 1400 * pitch, 0.9, 'bandpass', 0.35); this.tone(dest, t, 0.12, 520 * pitch, 260 * pitch, 'triangle', 0.06); break;
+      case 'snow_hit': this.noiseBurst(dest, t, 0.14, 2600 * pitch, 0.7, 'lowpass', 0.55); this.noiseBurst(dest, t + 0.02, 0.1, 900 * pitch, 1.2, 'bandpass', 0.3); break;
+      case 'shear': for (let i = 0; i < 2; i++) { this.noiseBurst(dest, t + i * 0.12, 0.06, 4200 * pitch, 2, 'bandpass', 0.45); this.tone(dest, t + i * 0.12, 0.05, 2600 * pitch, 1900 * pitch, 'square', 0.04); } break;
+      case 'sledge': this.noiseBurst(dest, t, 0.42, 2000 * pitch, 0.5, 'bandpass', 0.3, 0.12); break;
       default: this.creature(dest, t, name, pitch);
     }
   }
@@ -305,6 +310,17 @@ export class AudioManager {
         else if (hurt) { this.tone(dest, t, 0.22, 900 * p, 640 * p, 'triangle', 0.14); }
         else if (death) { this.tone(dest, t, 0.6, 700 * p, 300 * p, 'triangle', 0.14); }
         else { this.tone(dest, t, 0.12, 340 * p, 190 * p, 'sawtooth', 0.16); this.noiseBurst(dest, t, 0.1, 700, 1.5, 'bandpass', 0.3); this.tone(dest, t + 0.2, 0.1, 360 * p, 200 * p, 'sawtooth', 0.12); }
+        break;
+      case 'fox':
+        // a high little yip (two when happy), a squeak when hurt
+        if (hurt) this.tone(dest, t, 0.16, 1500 * p, 1000 * p, 'triangle', 0.12);
+        else if (death) this.tone(dest, t, 0.5, 1200 * p, 500 * p, 'triangle', 0.12);
+        else { this.tone(dest, t, 0.08, 900 * p, 1350 * p, 'triangle', 0.12); this.tone(dest, t + 0.13, 0.07, 950 * p, 1300 * p, 'triangle', 0.09); }
+        break;
+      case 'snowpal':
+        // a soft crunchy hum
+        if (hurt || death) { this.noiseBurst(dest, t, death ? 0.5 : 0.18, 2200 * p, 0.6, 'lowpass', 0.5); this.tone(dest, t, death ? 0.6 : 0.2, 300 * p, 180 * p, 'sine', 0.1); }
+        else { this.tone(dest, t, 0.35, 330 * p, 392 * p, 'sine', 0.1, 0.05); this.noiseBurst(dest, t, 0.12, 2400 * p, 0.6, 'lowpass', 0.2); }
         break;
       default: this.tone(dest, t, 0.1, 440, 440, 'sine', 0.1);
     }
