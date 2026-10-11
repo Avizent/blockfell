@@ -8,6 +8,7 @@ import { ADVANCEMENTS, STAT_LABELS, formatStat } from '../systems/Progress';
 import type { Difficulty } from '../player/Player';
 import type { WeatherKind } from '../systems/WeatherSystem';
 import { mapImage, MAP_PX, MAP_SCALE, compassName } from '../render/mapImage';
+import { NAME_TAG_MAX } from '../entities/Mob';
 
 const WEATHER_NAMES: Record<WeatherKind, string> = { clear: 'Clear', rain: 'Rain', thunder: 'Thunderstorm' };
 
@@ -19,7 +20,7 @@ const CONTROLS: [string, string][] = [
   ['Esc', 'Pause menu'], ['M', 'Sound on / off'], ['F1', 'Hide HUD'], ['F3', 'Debug / performance overlay'],
   ['In inventories', 'Shift-click moves, right-click splits, drag spreads, double-click collects, 1-9 swaps'],
   ['Touch: left thumb', 'Joystick - walk; push past the rim to sprint'],
-  ['Touch: right thumb', 'Drag to look; tap to use or place (tap a creature to attack); hold to mine'],
+  ['Touch: right thumb', 'Drag to look; tap to use or place (tap a creature to attack it, or to use the food, dye, shears or Name Tag you hold on it); hold to mine'],
   ['Touch: buttons', 'Jump (double-tap: fly), Sneak on/off, Inventory, Pause; tap a hotbar slot, hold to drop'],
 ];
 
@@ -195,6 +196,43 @@ export function SignEditor() {
       <div className="sign-post" style={short ? { height: '6rem' } : undefined} />
       <div style={{ flex: 1 }} />
       <div className="menu-footer" style={{ position: 'relative' }}><Button testId="btn-sign-done" onClick={() => engine.closeOverlay()}>Done</Button></div>
+    </div>
+  );
+}
+
+/** 2.3: writing a name on a Name Tag for the creature it was used on. */
+export function NameTagScreen() {
+  const g = engine.game;
+  const mob = g?.nameTagFor ?? null;
+  const [name, setName] = useState(mob?.nameTag ?? '');
+  const field = useRef<HTMLInputElement | null>(null);
+  const touch = useStore(ui, (s) => s.touch);
+  const gui = useStore(ui, (s) => s.gui);
+  const short = window.innerHeight / gui < 250;
+  useEffect(() => { field.current?.focus(); }, []);
+  const done = () => {
+    if (g && name.trim()) g.applyNameTag(name);
+    engine.closeOverlay();
+  };
+  const kind = mob ? mob.spec.name : 'creature';
+  return (
+    <div className="screen" data-testid="nametag-screen">
+      <div className="overlay-dim" />
+      <div className="menu-header" style={{ position: 'relative', marginTop: short ? '2rem' : '24rem' }}>
+        <Title>{`Name this ${kind}`}</Title>
+      </div>
+      <div className="nametag-card" style={short ? { marginTop: '2rem' } : undefined}>
+        <div className="nametag-hole" />
+        <input ref={field} className="nametag-input" data-testid="nametag-input" value={name} spellCheck={false}
+          placeholder={touch ? 'Tap to write a name' : 'Type a name'}
+          onChange={(e) => setName(e.target.value.replace(/^\s+/, '').replace(/\s{2,}/g, ' ').slice(0, NAME_TAG_MAX))}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); done(); } }} />
+      </div>
+      <div style={{ flex: 1 }} />
+      <div className="menu-footer" style={{ position: 'relative', display: 'flex', gap: '4rem', justifyContent: 'center' }}>
+        <Button testId="btn-nametag-done" onClick={done} disabled={!name.trim()}>Name it</Button>
+        <Button testId="btn-nametag-cancel" onClick={() => engine.closeOverlay()}>Cancel</Button>
+      </div>
     </div>
   );
 }

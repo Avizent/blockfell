@@ -3,9 +3,6 @@ import { engine } from '../engine/Engine';
 import { useStore } from '../core/store';
 import { ui } from './uiStore';
 import { getItem } from '../inventory/ItemRegistry';
-import { Villager } from '../entities/Villager';
-import { Hound } from '../entities/Hound';
-import { Ashboar, ASHBOAR_FOOD } from '../entities/Ashboar';
 import type { Game } from '../game/Game';
 
 /**
@@ -15,7 +12,8 @@ import type { Game } from '../game/Game';
  *    push past the rim to sprint.
  *  - Drag anywhere else to look around.
  *  - Tap: use / place (open doors and chests, place the held block, eat...) at the
- *    crosshair; tapping a creature attacks it (villagers and Fellhounds are used).
+ *    crosshair; tapping a creature attacks it (unless there is something to do
+ *    with it: villagers, pets, an animal's food, dye or shears on a sheep, a Name Tag).
  *  - Touch and hold: mine the block at the crosshair (or keep eating, draw a bow).
  *    You can keep dragging while holding to aim.
  *  - Buttons: Jump (double-tap to fly in Creative), Sneak (on/off), Inventory, Pause.
@@ -54,9 +52,9 @@ function holdButton(): number {
 function tapButton(): number {
   const g = engine.game;
   const m = g?.targetMob;
-  // a tap feeds an Ashboar a Glowcap; otherwise a tap on a creature is a hit (villagers and hounds: a right-click)
-  if (m instanceof Ashboar && g?.inventory.selectedStack?.id === ASHBOAR_FOOD) return 2;
-  if (m && !(m instanceof Villager) && !(m instanceof Hound)) return 0;
+  // a tap on a creature is a hit - unless there's something to do with it: talk to a villager, call a
+  // pet, feed an animal its food, dye or shear a sheep, give a name with a Name Tag...
+  if (m && g) return g.mobUseWanted(m) ? 2 : 0;
   return 2;
 }
 

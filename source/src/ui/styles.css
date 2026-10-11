@@ -430,6 +430,39 @@ body {
 }
 .sign-line:focus { background: rgba(255, 255, 255, 0.12); }
 
+/* ---------------------------------------------------------------- 2.3 name tag */
+.nametag-card {
+  position: relative;
+  width: 200rem;
+  height: 44rem;
+  margin-top: 16rem;
+  background: #d6b070;
+  background-image: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.05) 0 1rem, transparent 1rem 9rem);
+  border: 3rem solid #6e4f2c;
+  box-shadow: 0 0 0 1rem #000;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding-left: 22rem;
+}
+.nametag-hole { position: absolute; left: 7rem; top: 50%; width: 8rem; height: 8rem; margin-top: -4rem; background: #3a2a18; box-shadow: 0 0 0 1rem #f1e8d4; }
+.nametag-input {
+  width: 100%;
+  height: 24rem;
+  background: transparent;
+  border: none;
+  outline: none;
+  text-align: center;
+  font: inherit;
+  font-size: 15rem;
+  line-height: 24rem;
+  color: #2a1c10;
+  caret-color: #2a1c10;
+  padding: 0 6rem 0 0;
+}
+.nametag-input::placeholder { color: rgba(42, 28, 16, 0.45); }
+.nametag-input:focus { background: rgba(255, 255, 255, 0.14); }
+
 /* ---------------------------------------------------------------- touch controls (phones and tablets) */
 html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; touch-action: manipulation; }
 .touch-controls {
