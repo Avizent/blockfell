@@ -1,13 +1,15 @@
 # Blockfell
 
-An original browser voxel sandbox: explore a generated world, mine, craft, build, farm, trade with villagers, survive the night, go down into the fiery Cinderdeep and up to the floating islands of the Starhollow. All art, sounds, fonts and models are original (drawn and synthesised in code). Not affiliated with Mojang or Microsoft.
+An original browser voxel sandbox: explore a generated world, mine, craft, build, farm, trade with villagers, raise animals and pets, survive the night, go down into the fiery Cinderdeep and up to the floating islands of the Starhollow. All art, sounds, fonts and models are original (drawn and synthesised in code). Not affiliated with Mojang or Microsoft.
 
 **Play:** https://avizent.github.io/blockfell/
 
 - **Computer:** Chrome, Edge, Firefox or Safari. Click the game to capture the mouse; WASD to move, mouse to look, E for the inventory, Esc to pause.
 - **iPhone / iPad (iOS 15 or later):** open the link in Safari, hold the device sideways, and use the on-screen controls. Tap **Share › Add to Home Screen** to play full screen with its own icon.
 
-**New in 2.2 — the Starhollow:** a third world high above, in every world old and new: islands floating among the stars. Lay **8 Glimmerstone** in a ring on the surface and use a **Star Lens** (2 Rune Shards, 2 Glimmer Dust and a Fire Opal) on the middle: a **Stargate**. Up there the **Hollowdrake**, an original star dragon, circles over its Roost, shielded until you climb the four pylons and ring their **Storm Bells**. Beat it for **Star Scales** and **the End** (a short poem and the credits over the stars); make **Starwings** to glide between the islands; meet the gentle **Drifters**. Fall off an island and the stars carry you home with everything you had. Four new advancements (47 in all). Guide section 23 and a new page in the Explorer's Guide. Update every device the same day: a device still on 2.1 won't open a synced world saved by 2.2 (it asks you to update).
+**New in 2.3 — snow day, pets and farm animals** (the new creatures were named by a young Blockfell player): break **Snow Blocks** for **snowballs** and throw them; stack two Snow Blocks and use **Coal** on them to build **John**, a snowman helper who pelts creatures of the night with snowballs and follows you or guards a spot; craft **Sledgy** the sledge (sticks and planks) and race down snowy hills. Sneak up on **Tim**, a shy fox cub of the taiga (red) and the snowy lands (white), and tame one with fish: it follows you, sits when told and brings you little presents. Give any creature a name with a **Name Tag** (string and leather). Hold an animal's food and it follows you; feed two pigs, cows, sheep or chickens and they have a **young one**. **Dye sheep** any colour and clip their coloured wool with **Shears**; lambs mix their parents' colours. Seven new advancements (54 in all). Guide section 24 and a new page in the Explorer's Guide. Update every device the same day: a device still on 2.2 won't open a synced world saved by 2.3 (it asks you to update).
+
+**2.2 — the Starhollow:** a third world high above, in every world old and new: islands floating among the stars. Lay **8 Glimmerstone** in a ring on the surface and use a **Star Lens** (2 Rune Shards, 2 Glimmer Dust and a Fire Opal) on the middle: a **Stargate**. Up there the **Hollowdrake**, an original star dragon, circles over its Roost, shielded until you climb the four pylons and ring their **Storm Bells**. Beat it for **Star Scales** and **the End** (a short poem and the credits over the stars); make **Starwings** to glide between the islands; meet the gentle **Drifters**. Fall off an island and the stars carry you home with everything you had. Four new advancements (47 in all). Guide section 23 and a new page in the Explorer's Guide. Update every device the same day: a device still on 2.1 won't open a synced world saved by 2.2 (it asks you to update).
 
 **2.1:** **Armour stands** (6 sticks and a slab: dress one in a spare set, or put an item in its hand; sneak and use it to swap your whole outfit); **dyeable leather armour** (any leather piece plus up to 8 dyes in the crafting grid — mix colours; a dyed piece alone washes clean); and the **Ashboar**, a tusked beast that roams the Cinderdeep in herds: calm unless you hit it (then the herd charges), it keeps away from Ember Lamps, and feeding two of them a Glowcap each brings a piglet. Three new advancements (43 in all). Guide sections 19 and 22.
 
@@ -25,7 +27,7 @@ An original browser voxel sandbox: explore a generated world, mine, craft, build
 
 Worlds are saved in the browser you play in. Use **Dropbox sync** (1.9), or **Export World** / **Import World** in the world list, to move a world between devices.
 
-**Player's guide:** [How to Play (PDF, 56 pages)](guide/Blockfell-How-to-Play.pdf) · **For young players:** [Explorer's Guide (PDF, 5 pages)](guide/Blockfell-Explorers-Guide.pdf)
+**Player's guide:** [How to Play (PDF, 59 pages)](guide/Blockfell-How-to-Play.pdf) · **For young players:** [Explorer's Guide (PDF, 6 pages)](guide/Blockfell-Explorers-Guide.pdf)
 
 **Source code:** [`source/`](source/) — TypeScript, React, Three.js (WebGL 2), Vite and Web Workers. See [source/README.md](source/README.md) for features, architecture and tests. To build: `cd source && npm install && npm run build:single`.
 
