@@ -1,5 +1,5 @@
 import { RecipeManager } from './RecipeManager';
-import { DYE_COLORS, DYE_RGB, DyeColor, woolKey } from '../world/dyes';
+import { DYE_COLORS, DYE_RGB, DyeColor, DYE_MIXES, woolKey } from '../world/dyes';
 import { cloneStack, type ItemStack, type Slot } from '../inventory/ItemStack';
 
 export const recipes = new RecipeManager();
@@ -22,6 +22,11 @@ shaped(['SS', 'SS'], { S: 'stone' }, 'stone_bricks', 4);
 shaped(['SS', 'SS'], { S: 'string' }, 'wool');
 shaped([' TS', 'T S', ' TS'], { T: 'stick', S: 'string' }, 'bow');
 shaped(['F', 'S', 'E'], { F: 'flint', S: 'stick', E: 'feather' }, 'arrow', 4);
+// ---- 2.3 snow day, pets and farm animals
+shaped(['SS', 'SS'], { S: 'snowball' }, 'snow');
+shaped([' I', 'I '], { I: 'iron_ingot' }, 'shears');
+shapeless(['string', 'leather'], 'name_tag');
+shaped(['S  ', 'PPP', 'S S'], { S: 'stick', P: 'planks' }, 'sledge');
 // ---- 1.6 boats and fishing
 shaped(['P P', 'PPP'], { P: 'planks' }, 'boat');
 shaped(['  T', ' TS', 'T S'], { T: 'stick', S: 'string' }, 'fishing_rod');
@@ -89,12 +94,7 @@ shapeless(['coal'], 'black_dye');
 shapeless(['dead_bush'], 'brown_dye');
 // (cactus smelts into green dye)
 // ...and two dyes mix into a new one
-const MIX: [DyeColor, DyeColor, DyeColor][] = [
-  ['red', 'yellow', 'orange'], ['red', 'white', 'pink'], ['green', 'white', 'lime'], ['blue', 'white', 'light_blue'],
-  ['black', 'white', 'gray'], ['gray', 'white', 'light_gray'], ['blue', 'green', 'cyan'], ['red', 'blue', 'purple'],
-  ['purple', 'pink', 'magenta'], ['red', 'green', 'brown'],
-];
-for (const [a, b, out] of MIX) shapeless([`${a}_dye`, `${b}_dye`], `${out}_dye`, 2);
+for (const [a, b, out] of DYE_MIXES) shapeless([`${a}_dye`, `${b}_dye`], `${out}_dye`, 2);
 shapeless(['black_dye', 'white_dye', 'white_dye'], 'light_gray_dye', 3);
 
 // wool: any wool + a dye = wool of that colour; eight white wool around a dye = eight dyed
