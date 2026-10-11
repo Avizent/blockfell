@@ -221,11 +221,14 @@ if (run('travel')) {
   await ticks(25);
   const glow = await ev(() => ({ t: window.__bf.game.gateTicks, hud: window.__bf.ui.get().hud.gate }));
   check('travel: standing in the gate, a glow builds up (HUD)', glow.t > 10 && glow.hud > 0.1, glow);
+  // (the game is paused for the picture: a slow screenshot must not carry the player through)
+  await ev(() => { window.__bf.game.paused = true; });
   await page.screenshot({ path: `${SHOTS}/v20_gate_glow.png` });
   // step out: it fades
-  await ev(([x, y, z]) => window.__bf.game.teleport(x - 2 + 0.5, y + 1, z + 0.5), [ring.x, ring.y, ring.z]);
+  await ev(([x, y, z]) => { const g = window.__bf.game; g.teleport(x - 2 + 0.5, y + 1, z + 0.5); g.paused = false; }, [ring.x, ring.y, ring.z]);
   await ticks(20);
-  check('travel: stepping out lets the glow fade', (await ev(() => window.__bf.game.gateTicks)) === 0);
+  await waitFor(async () => (await ev(() => window.__bf.game.gateTicks)) === 0, 4000);
+  check('travel: stepping out lets the glow fade', (await ev(() => window.__bf.game.gateTicks)) === 0 && (await ev(() => window.__bf.game.world.dim)) === 'overworld');
   await ev(([x, y, z]) => { const g = window.__bf.game; g.teleport(x + 0.5, y + 0.3, z + 0.5); }, [ring.x, ring.y, ring.z]);
   const sawLoading = await waitFor(async () => (await screen()) === 'loading', 8000);
   const title = await ev(() => window.__bf.ui.get().loading?.title);
