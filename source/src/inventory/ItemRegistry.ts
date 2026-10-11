@@ -1,5 +1,6 @@
 import * as B from '../world/BlockRegistry';
 import { DYE_COLORS, DYE_NAMES, woolKey } from '../world/dyes';
+import { NAMES } from '../world/names';
 
 export type ItemKind = 'block' | 'item' | 'tool' | 'food' | 'armor' | 'spawn' | 'bow' | 'bucket' | 'boat' | 'rod';
 export type Category = 'building' | 'decoration' | 'natural' | 'functional' | 'tools' | 'combat' | 'food' | 'ingredients' | 'spawn';
@@ -265,12 +266,23 @@ add({ id: 'drift_silk', name: 'Drift Silk', category: 'ingredients' });
 /** Starwings: worn in the chest slot; jump while falling to glide. */
 add({ id: 'star_wings', name: 'Starwings', kind: 'armor', maxStack: 1, category: 'combat', armor: { slot: 1, points: 1 }, durability: 432 });
 
+// ---- 2.3 snow day, pets and farm animals
+/** Snowball: throw it (right-click). Four make a Snow Block. */
+add({ id: 'snowball', name: 'Snowball', category: 'combat', maxStack: 16 });
+/** Shears: clip the wool off a sheep. */
+add({ id: 'shears', name: 'Shears', category: 'tools', maxStack: 1, durability: 238 });
+/** Name Tag: right-click a creature to give it a name. */
+add({ id: 'name_tag', name: 'Name Tag', category: 'tools' });
+/** Sledge: put it down on snow and ride it downhill. */
+add({ id: 'sledge', name: NAMES.sledge, kind: 'boat', maxStack: 1, category: 'tools', fuel: 300 });
+
 // ---- spawn items
 const MOBS: [string, string][] = [
   ['pig', 'Pig'], ['cow', 'Cow'], ['sheep', 'Sheep'], ['chicken', 'Chicken'], ['shambler', 'Shambler'], ['skeleton', 'Bone Archer'],
   ['goat', 'Goat'], ['rabbit', 'Rabbit'], ['crawler', 'Crawler'], ['dustwalker', 'Dustwalker'],
   ['villager', 'Villager'], ['sentinel', 'Sentinel'], ['hound', 'Fellhound'],
   ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'], ['ashboar', 'Ashboar'], ['drifter', 'Drifter'],
+  ['fox', NAMES.fox], ['snowpal', NAMES.snowpal],
 ];
 for (const [mob, name] of MOBS) {
   add({ id: `spawn_${mob}`, name: `${name} Spawn Egg`, kind: 'spawn', category: 'spawn', spawn: mob });
