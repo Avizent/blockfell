@@ -51,3 +51,10 @@ export function dyedLabel(color: number): string {
   }
   return bd === 0 ? `Dyed ${DYE_NAMES[best]}` : `Dyed (a mix, close to ${DYE_NAMES[best]})`;
 }
+
+/** Two dyes that mix into a third (crafting, and the wool of a lamb whose parents are those colours). */
+export const DYE_MIXES: [DyeColor, DyeColor, DyeColor][] = [
+  ['red', 'yellow', 'orange'], ['red', 'white', 'pink'], ['green', 'white', 'lime'], ['blue', 'white', 'light_blue'],
+  ['black', 'white', 'gray'], ['gray', 'white', 'light_gray'], ['blue', 'green', 'cyan'], ['red', 'blue', 'purple'],
+  ['purple', 'pink', 'magenta'], ['red', 'green', 'brown'],
+];

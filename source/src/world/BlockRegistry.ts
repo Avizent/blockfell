@@ -253,7 +253,7 @@ export const SANDSTONE = reg('sandstone', 'Sandstone', {
   side: 'sandstone_side', top: 'sandstone_top', bottom: 'sandstone_bottom', hardness: 0.8,
   tool: 'pickaxe', requiresTool: true,
 }).id;
-export const SNOW = reg('snow', 'Snow Block', { tex: 'snow', hardness: 0.2, tool: 'shovel', sound: 'snow' }).id;
+export const SNOW = reg('snow', 'Snow Block', { tex: 'snow', hardness: 0.2, tool: 'shovel', sound: 'snow', drops: [{ item: 'snowball', min: 4, max: 4 }], item: 'snow' }).id;
 export const SNOWY_GRASS = reg('snowy_grass', 'Snowy Grass Block', {
   top: 'snow', side: 'grass_side_snow', bottom: 'dirt', hardness: 0.6, tool: 'shovel',
   drops: [{ item: 'dirt', min: 1, max: 1 }], sound: 'snow', item: 'snowy_grass',
