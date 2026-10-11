@@ -33,7 +33,7 @@ import { SignRenderer } from '../render/SignRenderer';
 import { SpawnerRenderer } from '../render/SpawnerRenderer';
 import { SpawnerSystem } from './Spawners';
 import { Painting, placePainting } from '../entities/Painting';
-import { Boat, BOAT_SEAT, BOAT_HEIGHT, BOAT_WIDTH, BOAT_DRAFT, waterSurfaceAt } from '../entities/Boat';
+import { Boat, BOAT_HEIGHT, BOAT_WIDTH, BOAT_DRAFT, waterSurfaceAt } from '../entities/Boat';
 import { Bobber, rollCatch } from '../entities/Fishing';
 import { DYE_COLORS } from '../world/dyes';
 import { FluidSystem, waterFlow } from '../world/Fluids';
@@ -51,6 +51,13 @@ import { compassName } from '../render/mapImage';
 import { Hound, HOUND_FOOD, HOUND_TAMING_FOOD } from '../entities/Hound';
 import { ArmourStand, STAND_HAND, STAND_HEIGHT, STAND_WIDTH } from '../entities/ArmourStand';
 import { Ashboar, ASHBOAR_FOOD } from '../entities/Ashboar';
+import { FarmAnimal, Sheep, FARM_FOOD, FARM_TYPES } from '../entities/FarmAnimal';
+import { Fox, FOX_FOOD, FOX_TAMING_FOOD } from '../entities/Fox';
+import { SnowPal } from '../entities/SnowPal';
+import { Sledge, SLEDGE_WIDTH, SLEDGE_HEIGHT } from '../entities/Sledge';
+import { UNNAMEABLE, NAME_TAG_MAX } from '../entities/Mob';
+import { NAMES } from '../world/names';
+import type { DyeColor } from '../world/dyes';
 import { StarhollowSystem } from './StarhollowSystem';
 import { ROOST, ARRIVAL } from '../world/Starhollow';
 import type { Trade } from '../entities/Trades';
@@ -70,7 +77,7 @@ interface Breaking {
  * entities, time, and all per-tick gameplay rules. Rendering-side helpers
  * (hand, outline, cracks, particles) are driven from here too.
  */
-const UNLIT_EFFECT: Partial<Record<EffectKind, true>> = { smoke: true, poof: true, splash: true, drip: true, ash: true };
+const UNLIT_EFFECT: Partial<Record<EffectKind, true>> = { smoke: true, poof: true, splash: true, drip: true, ash: true, snow: true };
 /** 2.2: the Starhollow's islands are lit by the stars: a cool, soft light everywhere. */
 const STAR_AMBIENT = 0.6;
 /** 2.0: the Cinderdeep is never pitch dark: a dull red glow from the lava sea everywhere. */
@@ -368,8 +375,10 @@ export class Game implements EntityHost, PrecipSource {
   }
 
   petDied(pet: Mob): void {
-    pushChat(`Your ${pet.spec.name} has died.`);
-    this.progress.add('pets_lost');
+    const melted = pet instanceof SnowPal;
+    const what = melted ? 'melted' : 'died';
+    pushChat(pet.nameTag ? `${pet.nameTag} (your ${pet.spec.name}) has ${what}.` : `Your ${pet.spec.name} has ${what}.`);
+    if (!melted) this.progress.add('pets_lost');
   }
 
   // ---- 2.2
@@ -384,10 +393,24 @@ export class Game implements EntityHost, PrecipSource {
   }
 
   animalBred(type: string): void {
-    const p = this.player;
     this.progress.add('animals_bred');
     if (type === 'ashboar') this.progress.grant('ashboar_breed');
-    void p;
+    if ((FARM_TYPES as string[]).includes(type)) this.progress.grant('farm_baby');
+  }
+
+  // ---- 2.3
+  heldItem(): string | null {
+    return this.inventory.selectedStack?.id ?? null;
+  }
+
+  spawnSnowball(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob): void {
+    this.entities.spawnSnowball(x, y, z, vx, vy, vz, shooter);
+  }
+
+  foxGift(fox: Mob, item: string): void {
+    const name = getItem(item).name.toLowerCase();
+    const who = fox.nameTag ?? `Your ${fox.spec.name}`;
+    pushChat(`${who} brought you ${/^[aeiou]/.test(name) ? 'an' : 'a'} ${name}!`);
   }
 
   damagePlayer(amount: number, source: { x: number; y: number; z: number; kind: string; mob?: Mob }): void {
@@ -448,7 +471,7 @@ export class Game implements EntityHost, PrecipSource {
     // back into the boat the player was sitting in
     if (this.rideOnLoad && !p.dead) {
       let best: Boat | null = null, bd = 3;
-      for (const b of this.entities.boats()) { const d = b.distanceTo(p.x, p.y - BOAT_SEAT, p.z); if (d < bd) { bd = d; best = b; } }
+      for (const b of this.entities.boats()) { const d = b.distanceTo(p.x, p.y - b.seat, p.z); if (d < bd) { bd = d; best = b; } }
       if (best) this.mount(best, true);
     }
     this.rideOnLoad = false;
@@ -1222,7 +1245,9 @@ export class Game implements EntityHost, PrecipSource {
     if (this.sleepTicks > 0) { move.forward = 0; move.strafe = 0; move.jump = false; move.sneak = false; move.sprint = false; }
     // ---- in a boat: W/S row, A/D turn, Shift (the Sneak button) climbs out
     if (this.riding && (this.riding.removed || p.dead)) this.dismount();
-    if (this.riding && inGame && (input.consumePress('ShiftLeft') || input.consumePress('ShiftRight'))) this.dismount();
+    // (Shift presses are taken every tick, so one made before climbing in can't throw you straight out)
+    const shiftPress = input.consumePresses('ShiftLeft') + input.consumePresses('ShiftRight') > 0;
+    if (this.riding && inGame && shiftPress) this.dismount();
     if (this.riding) {
       this.riding.control.forward = inGame ? move.forward : 0;
       this.riding.control.turn = inGame ? move.strafe : 0;
@@ -1961,6 +1986,13 @@ export class Game implements EntityHost, PrecipSource {
     } else if (mmbPress && this.targetPainting) this.inventory.pickBlock('painting', p.creative);
     else if (mmbPress && this.targetStand) this.inventory.pickBlock('armour_stand', p.creative);
 
+    // ---- 2.3: name tags, sheep (dye, shears), farm animals (their food), Fox Cubs, Snow Pals
+    if (rmbPress && this.targetMob?.alive && this.useOnMob(this.targetMob, false)) {
+      this.hand.swing();
+      this.useDelay = 4;
+      return;
+    }
+
     // ---- Fellhounds: tame with raw meat, heal with meat, sit / follow
     if (rmbPress && this.targetMob instanceof Hound && this.targetMob.alive && !p.sneaking) {
       const h = this.targetMob;
@@ -2043,9 +2075,113 @@ export class Game implements EntityHost, PrecipSource {
     }
   }
 
+  /**
+   * 2.3: a right-click on a creature with what is in hand: a Name Tag, shears or a
+   * dye on a sheep, an animal's food, a Fox Cub's fish (or a sit/follow), a Snow
+   * Pal's guard/follow. Returns true if it did something. `dry`: only say whether
+   * it would (a tap on a touch screen then uses the creature instead of hitting it).
+   */
+  private useOnMob(m: Mob, dry: boolean): boolean {
+    const p = this.player;
+    const slot = this.inventory.selected;
+    const id = this.inventory.selectedStack?.id ?? null;
+    const who = m.nameTag ?? `Your ${m.spec.name}`;
+    if (id === 'name_tag') {
+      if (!dry) {
+        if (UNNAMEABLE.has(m.mobType)) pushChat(m.mobType === 'villager' ? 'Villagers have names already.' : `The ${m.spec.name} can't be given a name.`);
+        else { this.nameTagFor = m; this.engine.openOverlay('nametag'); }
+      }
+      return true;
+    }
+    if (m instanceof Sheep) {
+      if (id === 'shears') {
+        if (dry) return true;
+        const r = m.shear(this);
+        if (r === 'sheared') {
+          this.progress.add('sheep_sheared');
+          if (!p.creative && this.inventory.damageItem(slot, 1)) this.sound('tool_break', p.x, p.eyeY, p.z);
+        } else if (r === 'young') pushChat('This lamb is too young to shear.');
+        else if (r === 'bare') pushChat('This sheep has no wool yet. It grows back after it eats some grass.');
+        return true;
+      }
+      const c = id && id.endsWith('_dye') ? id.slice(0, -4) as DyeColor : null;
+      if (c && (DYE_COLORS as readonly string[]).includes(c)) {
+        if (dry) return true;
+        if (m.dye(this, c) === 'dyed') {
+          if (!p.creative) this.consume(slot);
+          this.progress.grant('dye_sheep');
+        }
+        return true;
+      }
+    }
+    if (m instanceof FarmAnimal && id && (FARM_FOOD[m.mobType] ?? []).includes(id)) {
+      if (dry) return true;
+      const r = m.feed(this);
+      if (r !== 'no' && !p.creative) this.consume(slot);
+      return true;   // (never eats the apple or carrot you meant for it)
+    }
+    if (m instanceof Fox) {
+      const food = id && FOX_FOOD[id] !== undefined ? id : null;
+      if (!m.tamed && !(food && FOX_TAMING_FOOD.includes(food))) return false;
+      if (!food && p.sneaking) return false;
+      if (dry) return true;
+      const r = food ? m.feed(this, food) : 'no';
+      if ((r === 'tamed' || r === 'failed' || r === 'healed') && !p.creative) this.consume(slot);
+      if (r === 'tamed') {
+        this.progress.grant('fox');
+        this.progress.add('foxes_tamed');
+        pushChat(`${NAMES.fox} is your pet now! Right-click it to make it sit or follow. A Name Tag gives it a name of its own.`);
+      } else if (m.tamed && (r === 'no' || r === 'full')) {
+        m.toggleSit(this);
+        pushChat(m.sitting ? `${who} sits and stays.` : `${who} follows you.`);
+      }
+      return true;
+    }
+    if (m instanceof SnowPal && !p.sneaking) {
+      if (dry) return true;
+      m.toggleFollow(this);
+      pushChat(m.following ? `${who} will follow you.` : `${who} will guard this spot.`);
+      return true;
+    }
+    return false;
+  }
+
+  /** 2.3 (touch): should a tap on this creature use it (right-click) rather than hit it? */
+  mobUseWanted(m: Mob): boolean {
+    if (m instanceof Villager || m instanceof Hound) return true;
+    if (m instanceof Ashboar && this.inventory.selectedStack?.id === ASHBOAR_FOOD) return true;
+    return this.useOnMob(m, true);
+  }
+
+  /** The creature a Name Tag is being written for (the name-tag screen is open). */
+  nameTagFor: Mob | null = null;
+
+  /** The name-tag screen's Done: names the creature and uses up the tag. */
+  applyNameTag(text: string): boolean {
+    const m = this.nameTagFor;
+    this.nameTagFor = null;
+    const p = this.player;
+    const name = text.replace(/\s+/g, ' ').trim().slice(0, NAME_TAG_MAX);
+    if (!m || !name || !m.alive || m.removed || m.distanceTo(p.x, p.y, p.z) > 10) return false;
+    const slot = this.inventory.selectedStack?.id === 'name_tag' ? this.inventory.selected : -1;
+    if (!p.creative) {
+      if (slot < 0) return false;
+      this.consume(slot);
+    }
+    const old = m.nameTag;
+    m.nameTag = name;
+    m.persistent = true;
+    this.sound('pop', m.x, m.y + m.height, m.z, 0.6, 1.2);
+    this.effect('happy', m.x, m.y + m.height, m.z, 8);
+    this.progress.grant('nametag');
+    this.progress.add('names_given');
+    pushChat(old ? `${old} is now called ${name}.` : `This ${m.spec.name} is now called ${name}.`);
+    return true;
+  }
+
   private attack(mob: Mob): void {
     const p = this.player;
-    if (mob.petOfPlayer) {   // your own companion shrugs off a stray swipe
+    if (mob.petOfPlayer && !(mob instanceof SnowPal && p.sneaking)) {   // your own companion shrugs off a stray swipe (sneak and hit a Snow Pal to break it up)
       this.hand.swing();
       return;
     }
@@ -2202,6 +2338,9 @@ export class Game implements EntityHost, PrecipSource {
         this.hand.swing();
         return;
       }
+      // 2.3: throw a snowball (holding the button keeps throwing); Coal on two stacked Snow Blocks makes a Snow Pal
+      if (held.id === 'snowball' && slotIndex !== OFFHAND) { this.throwSnowball(slotIndex); this.hand.swing(); return; }
+      if (t && pressed && held.id === 'coal' && t.block === B.SNOW && this.buildSnowPal(t.x, t.y, t.z, slotIndex)) { this.hand.swing(); return; }
       if (t && pressed && (held.id === 'torch' || held.id === 'lava_bucket') && this.tryLightGate(t, slotIndex)) { this.hand.swing(); return; }
       if (t && pressed && held.id === 'star_lens' && this.tryLightStargate(t, slotIndex)) { this.hand.swing(); return; }
       if (def.kind === 'bucket' && pressed) {
@@ -2504,6 +2643,43 @@ export class Game implements EntityHost, PrecipSource {
     st.dropAll(this.entities, !p.creative);
   }
 
+  // ======================================================================= 2.3 snow day
+  /** Throws a snowball where the player is looking. */
+  private throwSnowball(slot: number): void {
+    const p = this.player;
+    const [ex, ey, ez] = this.eye();
+    const [dx, dy, dz] = this.lookDir();
+    const speed = 1.5;
+    this.entities.spawnSnowball(ex + dx * 0.4, ey - 0.1 + dy * 0.4, ez + dz * 0.4, dx * speed + p.vx, dy * speed + (p.onGround ? 0 : p.vy * 0.5), dz * speed + p.vz, null);
+    this.sound('throw', p.x, p.eyeY, p.z, 0.5, 0.9 + Math.random() * 0.25);
+    if (!p.creative) this.consume(slot);
+    this.progress.grant('snowball');
+    this.progress.add('snowballs_thrown');
+    this.useDelay = 5;
+  }
+
+  /** Coal used on a Snow Block with another under (or over) it: the two become a Snow Pal. */
+  private buildSnowPal(x: number, y: number, z: number, slot: number): boolean {
+    const w = this.world;
+    let base: number;
+    if (w.getBlock(x, y - 1, z) === B.SNOW) base = y - 1;
+    else if (w.getBlock(x, y + 1, z) === B.SNOW) base = y;
+    else { pushChat(`Stack two Snow Blocks, then use Coal on them to build a ${NAMES.snowpal}.`); return true; }
+    w.setBlock(x, base, z, B.AIR, 'player');
+    w.setBlock(x, base + 1, z, B.AIR, 'player');
+    const pal = this.entities.spawnMob('snowpal', x + 0.5, base, z + 0.5, this) as SnowPal;
+    pal.setHome(x + 0.5, base, z + 0.5);
+    const p = this.player;
+    pal.yaw = pal.prevYaw = Math.atan2(-(p.x - pal.x), -(p.z - pal.z));
+    this.effect('snow', x + 0.5, base + 1, z + 0.5, 24);
+    this.sound('snowpal', x + 0.5, base + 1.2, z + 0.5, 0.8, 1.1);
+    if (!this.player.creative) this.consume(slot);
+    this.progress.grant('snowpal');
+    this.progress.add('snowpals_built');
+    pushChat(`You built a ${NAMES.snowpal}! It throws snowballs at creatures of the night. Right-click it to make it follow you or guard a spot.`);
+    return true;
+  }
+
   // ======================================================================= boats
   /** Climbs into a boat. */
   mount(b: Boat, quiet = false): void {
@@ -2513,11 +2689,13 @@ export class Game implements EntityHost, PrecipSource {
     b.rider = true;
     this.breaking = null; this.eatTicks = 0; this.bowTicks = 0;
     this.hand.eating = 0; this.hand.drawing = 0;
-    p.ride(b.x, b.y + BOAT_SEAT, b.z);
+    p.ride(b.x, b.y + b.seat, b.z);
     p.prevX = p.x; p.prevY = p.y; p.prevZ = p.z;
     if (!quiet) {
       this.sound('place:wood', b.x, b.y + 0.4, b.z, 0.5, 1.2);
-      pushChat(this.engine.input.touchMode ? 'Row with the joystick. Tap Sneak to climb out.' : 'Row with W and S, steer with A and D. Press Shift to climb out.');
+      const touch = this.engine.input.touchMode;
+      if (b instanceof Sledge) pushChat(touch ? 'Push off with the joystick and steer left and right. Snowy hills are fastest! Tap Sneak to get off.' : 'Push off with W, steer with A and D, brake with S. Snowy hills are fastest! Press Shift to get off.');
+      else pushChat(touch ? 'Row with the joystick. Tap Sneak to climb out.' : 'Row with W and S, steer with A and D. Press Shift to climb out.');
     }
   }
 
@@ -2549,13 +2727,16 @@ export class Game implements EntityHost, PrecipSource {
     return { x: b.x, y: b.y + BOAT_HEIGHT, z: b.z };
   }
 
-  /** Keeps the player in the seat after the boat has moved; counts the distance rowed. */
+  /** Keeps the player in the seat after the boat has moved; counts the distance rowed (or sledged). */
   private carryRider(): void {
     const b = this.riding!, p = this.player;
     const ox = p.x, oz = p.z;
-    p.ride(b.x, b.y + BOAT_SEAT, b.z);
+    p.ride(b.x, b.y + b.seat, b.z);
     const d = Math.hypot(p.x - ox, p.z - oz);
-    if (b.afloat && d > 0.001) {
+    if (b instanceof Sledge) {
+      if (d > 0.001 && !b.afloat) this.progress.add('sledge', d * 100);
+      if (d > 0.3 && b.onSnow) this.progress.grant('sledge');
+    } else if (b.afloat && d > 0.001) {
       this.progress.add('boat', d * 100);
       if (d > 0.05) this.progress.grant('boat');
     }
@@ -2568,7 +2749,7 @@ export class Game implements EntityHost, PrecipSource {
     b.removed = true;
     this.sound('break:wood', b.x, b.y + 0.3, b.z, 0.8, 1);
     this.particles.blockBreak(b.x - 0.5, b.y, b.z - 0.5, this.models.particleColors(B.PLANKS), this.brightnessAt(b.x, b.y + 0.6, b.z), 16);
-    if (!p.creative) this.entities.spawnItem(makeStack('boat'), b.x, b.y + 0.4, b.z);
+    if (!p.creative) this.entities.spawnItem(makeStack(b.itemId), b.x, b.y + 0.4, b.z);
   }
 
   /** Puts a boat on the water (or on the ground) where the player is looking. */
@@ -2578,23 +2759,26 @@ export class Game implements EntityHost, PrecipSource {
     const [dx, dy, dz] = this.lookDir();
     const hit = raycast(this.world, ex, ey, ez, dx, dy, dz, this.reach(), true);
     if (!hit) return false;
+    const sledge = this.inventory.get(slot)?.id === 'sledge';
+    const W = sledge ? SLEDGE_WIDTH : BOAT_WIDTH, H = sledge ? SLEDGE_HEIGHT : BOAT_HEIGHT;
     let y: number;
     if (B.IS_WATER[hit.block]) {
       const s = waterSurfaceAt(this.world, hit.x, hit.y, hit.z);
       if (s === null) return false;
-      y = s - BOAT_DRAFT;
+      y = s - (sledge ? 0.12 : BOAT_DRAFT);
     } else if (hit.face === 2 && B.IS_SOLID[hit.block]) y = hit.y + 1;
     else return false;
     const others = this.entities.boats();
     const fits = (x: number, z: number) => {
-      const box = AABB.fromFeet(x, y, z, BOAT_WIDTH, BOAT_HEIGHT);
+      const box = AABB.fromFeet(x, y, z, W, H);
       if (boxCollides(this.world, box)) return false;
-      return !others.some((o) => Math.abs(o.x - x) < BOAT_WIDTH && Math.abs(o.z - z) < BOAT_WIDTH && Math.abs(o.y - y) < 1);
+      return !others.some((o) => Math.abs(o.x - x) < (W + o.width) / 2 && Math.abs(o.z - z) < (W + o.width) / 2 && Math.abs(o.y - y) < 1);
     };
     const spots: [number, number][] = [[hit.hx, hit.hz], [hit.x + 0.5, hit.z + 0.5]];
     const at = spots.find(([x, z]) => fits(x, z));
     if (!at) return false;
-    this.entities.spawnBoat(at[0], y, at[1], p.yaw);
+    if (sledge) this.entities.spawnSledge(at[0], y, at[1], p.yaw);
+    else this.entities.spawnBoat(at[0], y, at[1], p.yaw);
     this.sound('place:wood', at[0], y + 0.3, at[1], 0.8, 1);
     if (!p.creative) this.consume(slot);
     return true;
