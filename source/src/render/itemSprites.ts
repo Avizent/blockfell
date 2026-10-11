@@ -700,6 +700,8 @@ export const EGG_COLORS: Record<string, [RGBA, RGBA]> = {
   smoulderer: [[96, 90, 88], [232, 86, 34]],
   ashboar: [[66, 60, 58], [242, 124, 44]],
   drifter: [[184, 226, 255], [168, 152, 246]],
+  fox: [[216, 116, 44], [246, 240, 230]],
+  snowpal: [[240, 244, 250], [200, 66, 58]],
 };
 for (const [mob, [a, s]] of Object.entries(EGG_COLORS)) {
   const L: RGBA = [Math.min(255, a[0] + 30), Math.min(255, a[1] + 30), Math.min(255, a[2] + 30)];
@@ -801,3 +803,89 @@ function rasterise(def: SpriteDef): Uint8ClampedArray {
   });
   return out;
 }
+
+// ---- 2.3 snow day, pets and farm animals
+SPRITES.snowball = {
+  map: [
+    '................',
+    '................',
+    '................',
+    '................',
+    '......oooo......',
+    '....ooWWWWoo....',
+    '...oWWWWWWLWo...',
+    '...oWWLWWWWWo...',
+    '..oWWWWWWWWWBo..',
+    '..oWWWWWWLWWBo..',
+    '...oWWWWWWWBo...',
+    '...oBWWWWWBBo...',
+    '....ooBBBBoo....',
+    '......oooo......',
+    '................',
+    '................',
+  ],
+  pal: { o: [120, 136, 160], W: [250, 252, 255], L: [222, 232, 246], B: [196, 212, 232] },
+};
+SPRITES.shears = {
+  map: [
+    '................',
+    '................',
+    '..........oo....',
+    '.........oSSo...',
+    '........oSSo....',
+    '..oo...oSSo.....',
+    '.oSSo.oSSo......',
+    '..oSSoSSo.......',
+    '...oSSSo........',
+    '....oSSo........',
+    '...oRoSSo.......',
+    '..oR.RoSSo......',
+    '..oR..Ro.oo.....',
+    '..oR..Ro........',
+    '...oRRo.........',
+    '....oo..........',
+  ],
+  pal: { o: [40, 40, 46], S: [214, 218, 226], R: [190, 58, 50] },
+};
+SPRITES.name_tag = {
+  map: [
+    '................',
+    '................',
+    '........SS......',
+    '.......S..S.....',
+    '......S....S....',
+    '.....ooooooooo..',
+    '....oTTTTTTTTTo.',
+    '...oTTHTTTTTTTo.',
+    '..oTTTTTTTTTTTo.',
+    '..oTTTTKKKKKTTo.',
+    '..oTTTTTTTTTTTo.',
+    '...oTTTKKKTTTTo.',
+    '....oTTTTTTTTTo.',
+    '.....ooooooooo..',
+    '................',
+    '................',
+  ],
+  pal: { o: [92, 62, 34], T: [214, 176, 112], H: [92, 62, 34], K: [120, 86, 50], S: [236, 230, 214] },
+};
+SPRITES.sledge = {
+  map: [
+    '................',
+    '................',
+    '................',
+    '................',
+    '..R.............',
+    '..RR............',
+    '...RooooooooooH.',
+    '...oPPPPPPPPPPo.',
+    '...oLLLLLLLLLLo.',
+    '....oPoooooPo...',
+    '....oPo...oPo...',
+    '.RRRRRRRRRRRRRR.',
+    '.RDDDDDDDDDDDDR.',
+    '..RR..........R.',
+    '................',
+    '................',
+  ],
+  pal: { o: [60, 40, 20], P: [176, 136, 84], L: [140, 104, 60], R: [200, 62, 50], D: [150, 40, 34], H: [222, 206, 160] },
+};
