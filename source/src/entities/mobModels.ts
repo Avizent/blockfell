@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { BuiltModel, PartDef, buildModel } from './BoxModel';
 import { drakeModel } from './drakeModel';
+import { DYE_RGB, type DyeColor } from '../world/dyes';
 
 /**
  * ORIGINAL cuboid creature designs. Coordinates are in model pixels; the model's
  * feet centre is the origin and it faces +Z.
  */
 export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound'
-  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter';
+  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal';
 export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker';
 
 const quad = (name: string, x: number, z: number, h: number, w: number, base: string, paint?: PartDef['paint']): PartDef => ({
@@ -58,23 +59,45 @@ function cow(): PartDef[] {
   ];
 }
 
-function sheep(): PartDef[] {
-  return [
-    { name: 'body', size: [12, 10, 16], pivot: [0, 12, 0], from: [-6, 0, -8], base: '#e9e9e4', noise: 0.08 },
-    { name: 'head', size: [6, 6, 7], pivot: [0, 18, 8], from: [-3, -3, 0], base: '#cbb89f',
+/**
+ * SHEEP. 2.3: its wool can be any of the sixteen dye colours, and once sheared it
+ * is a slimmer pinkish-tan animal until the wool grows back.
+ */
+function sheep(color: DyeColor = 'white', sheared = false): PartDef[] {
+  const [r, g, b] = DYE_RGB[color];
+  const hex = (k: number) => '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v * k))).toString(16).padStart(2, '0')).join('');
+  const wool = hex(1), woolHi = hex(1.08), skin = '#d8c0a2', face = '#cbb89f';
+  const woolLeg = (p: FacePainterLike) => { for (const f of ['front', 'left', 'right', 'back'] as const) p.px(f, 0, 0, wool, 4, 4); };
+  const parts: PartDef[] = [
+    sheared
+      ? { name: 'body', size: [10, 8, 14], pivot: [0, 12, 0], from: [-5, 1, -7], base: skin, noise: 0.05,
+        paint: (p) => { p.fill('top', '#cfb595', 0.06, 4); } }
+      : { name: 'body', size: [12, 10, 16], pivot: [0, 12, 0], from: [-6, 0, -8], base: wool, noise: 0.08,
+        paint: (p) => { p.fill('top', woolHi, 0.1, 5); } },
+    { name: 'head', size: [6, 6, 7], pivot: [0, 18, 8], from: [-3, -3, 0], base: face,
       paint: (p) => {
-        p.fill('top', '#ecece6', 0.08, 3);
-        p.px('front', 0, 0, '#ecece6', 6, 1);
+        if (!sheared) { p.fill('top', wool, 0.08, 3); p.px('front', 0, 0, wool, 6, 1); }
         p.px('front', 1, 2, '#2a2420'); p.px('front', 4, 2, '#2a2420');
         p.px('front', 2, 4, '#a58f78', 2, 1);
       } },
     { name: 'earL', size: [2, 1, 2], pivot: [0, 0, 0], from: [3, 1, 3], base: '#bba58c', parent: 'head' },
     { name: 'earR', size: [2, 1, 2], pivot: [0, 0, 0], from: [-5, 1, 3], base: '#bba58c', parent: 'head' },
-    quad('legFL', 4, 5, 12, 4, '#cbb89f', (p) => { p.px('front', 0, 0, '#e9e9e4', 4, 4); p.px('left', 0, 0, '#e9e9e4', 4, 4); p.px('right', 0, 0, '#e9e9e4', 4, 4); p.px('back', 0, 0, '#e9e9e4', 4, 4); }),
-    quad('legFR', -4, 5, 12, 4, '#cbb89f'),
-    quad('legBL', 4, -5, 12, 4, '#cbb89f'),
-    quad('legBR', -4, -5, 12, 4, '#cbb89f'),
+    quad('legFL', 4, 5, 12, 4, face, sheared ? undefined : woolLeg),
+    quad('legFR', -4, 5, 12, 4, face, sheared ? undefined : woolLeg),
+    quad('legBL', 4, -5, 12, 4, face, sheared ? undefined : woolLeg),
+    quad('legBR', -4, -5, 12, 4, face, sheared ? undefined : woolLeg),
   ];
+  return parts;
+}
+
+/** 2.3: a sheep's model for a wool colour (and sheared or not). */
+export function sheepModel(color: DyeColor, sheared: boolean): BuiltModel {
+  const key = `sheep:${color}:${sheared ? 1 : 0}`;
+  let m = cache.get(key);
+  if (m) return m;
+  m = buildModel(sheep(color, sheared), 64, 64, 65);
+  cache.set(key, m);
+  return m;
 }
 
 function chicken(): PartDef[] {
@@ -488,6 +511,85 @@ function hound(collar: boolean): PartDef[] {
   return parts;
 }
 
+/**
+ * 2.3 FOX CUB: an original small fox - a round head with big pointed ears, a
+ * narrow snout with a black nose, a white chin and chest, dark stockings and a
+ * bushy tail with a white tip. Two coats: russet-orange, or snowy white with
+ * grey ear tips (the snowy lands). A tamed one wears a red collar with a brass bell.
+ */
+export type FoxCoat = 'red' | 'snow';
+function fox(coat: FoxCoat, collar: boolean): PartDef[] {
+  const snow = coat === 'snow';
+  const fur = snow ? '#eef0f4' : '#d8742c', dark = snow ? '#c3c9d4' : '#a9521c', white = snow ? '#ffffff' : '#f2ece4';
+  const sock = snow ? '#8d93a0' : '#2f2624', tip = snow ? '#7d8390' : '#2f2624';
+  const parts: PartDef[] = [
+    { name: 'body', size: [5, 5, 9], pivot: [0, 5, 0], from: [-2.5, 0, -4.5], base: fur, noise: 0.08,
+      paint: (p) => { p.fill('top', dark, 0.08, 31); p.fill('bottom', white, 0.04, 32); p.px('front', 1, 1, white, 3, 4); } },
+    { name: 'head', size: [6, 5, 5], pivot: [0, 8.5, 4.5], from: [-3, -2, 0], base: fur, noise: 0.06,
+      paint: (p) => {
+        p.px('front', 0, 3, white, 6, 2);                                       // cheeks
+        p.px('front', 1, 1, '#f0b62a'); p.px('front', 4, 1, '#f0b62a');          // amber eyes
+        p.px('front', 1, 2, '#1d1712'); p.px('front', 4, 2, '#1d1712');
+        p.fill('bottom', white, 0.04, 33);
+      } },
+    { name: 'snout', size: [3, 2, 3], pivot: [0, 0, 0], from: [-1.5, -2, 5], base: fur, parent: 'head',
+      paint: (p) => { p.px('front', 1, 0, '#1d1712', 1, 1); p.fill('bottom', white, 0.04, 34); p.px('front', 0, 1, white, 3, 1); } },
+    { name: 'earL', size: [2, 3, 1], pivot: [0, 0, 0], from: [0.5, 3, 1.5], base: fur, parent: 'head',
+      paint: (p) => { p.px('front', 0, 0, tip, 2, 1); p.px('back', 0, 0, tip, 2, 1); p.px('front', 0, 1, '#3a2a26', 2, 2); } },
+    { name: 'earR', size: [2, 3, 1], pivot: [0, 0, 0], from: [-2.5, 3, 1.5], base: fur, parent: 'head',
+      paint: (p) => { p.px('front', 0, 0, tip, 2, 1); p.px('back', 0, 0, tip, 2, 1); p.px('front', 0, 1, '#3a2a26', 2, 2); } },
+    { name: 'tail', size: [3, 3, 8], pivot: [0, 4.5, -4.5], from: [-1.5, -1.5, -8], base: fur, noise: 0.1,
+      paint: (p) => { for (const f of ['top', 'left', 'right', 'bottom'] as const) p.px(f, 0, 0, white, 3, 2); p.fill('back', white, 0.04, 35); } },
+    quad('legFL', 1.3, 3, 4, 2, sock),
+    quad('legFR', -1.3, 3, 4, 2, sock),
+    quad('legBL', 1.3, -3, 4, 2, sock),
+    quad('legBR', -1.3, -3, 4, 2, sock),
+  ];
+  if (collar) {
+    parts.push({ name: 'collar', size: [7, 1.5, 6], pivot: [0, 0, 0], from: [-3.5, -2.4, -0.5], base: '#c8423a', parent: 'head' });
+    parts.push({ name: 'tag', size: [1, 1, 1], pivot: [0, 0, 0], from: [-0.5, -3.3, 5], base: '#e3b341', parent: 'head' });
+  }
+  return parts;
+}
+
+export function foxModel(coat: FoxCoat, tamed: boolean): BuiltModel {
+  const key = `fox:${coat}:${tamed ? 1 : 0}`;
+  let m = cache.get(key);
+  if (m) return m;
+  m = buildModel(fox(coat, tamed), 64, 64, coat === 'snow' ? 151 : 150);
+  cache.set(key, m);
+  return m;
+}
+
+/**
+ * 2.3 the snowman helper: an ORIGINAL design - two packed snowballs, coal eyes and
+ * a coal smile, stick arms, a red scarf and a knitted blue bobble hat.
+ */
+function snowpal(): PartDef[] {
+  const snow = '#f2f6fb', shade = '#dfe7f0', coal = '#23252b';
+  return [
+    { name: 'body', size: [12, 11, 12], pivot: [0, 0, 0], from: [-6, 0, -6], base: snow, noise: 0.05,
+      paint: (p) => { p.fill('bottom', shade, 0.04, 41); p.px('front', 5, 2, coal, 2, 2); p.px('front', 5, 6, coal, 2, 2); } },
+    { name: 'head', size: [9, 9, 9], pivot: [0, 11, 0], from: [-4.5, 0, -4.5], base: snow, noise: 0.05,
+      paint: (p) => {
+        p.px('front', 2, 3, coal, 2, 2); p.px('front', 5, 3, coal, 2, 2);                  // eyes
+        p.px('front', 4, 5, '#e8862e', 1, 1);                                             // a pebble of a nose
+        p.px('front', 2, 7, coal); p.px('front', 3, 8, coal, 3, 1); p.px('front', 6, 7, coal);  // smile
+      } },
+    { name: 'scarf', size: [11, 2, 11], pivot: [0, 0, 0], from: [-5.5, -1, -5.5], base: '#c8423a', parent: 'head',
+      paint: (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 1, '#a83430', 11, 1); } },
+    { name: 'scarfEnd', size: [3, 5, 1], pivot: [0, 0, 0], from: [1, -5, 5.2], base: '#c8423a', parent: 'head',
+      paint: (p) => { p.px('front', 0, 4, '#f2f6fb', 3, 1); } },
+    { name: 'hat', size: [9.4, 4, 9.4], pivot: [0, 0, 0], from: [-4.7, 7, -4.7], base: '#3c6ec4', parent: 'head',
+      paint: (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) { p.px(f, 0, 3, '#e8ecf4', 10, 1); p.px(f, 0, 1, '#c8423a', 10, 1); } } },
+    { name: 'bobble', size: [3, 3, 3], pivot: [0, 0, 0], from: [-1.5, 11, -1.5], base: '#e8ecf4', parent: 'head' },
+    { name: 'armL', size: [1, 1, 9], pivot: [5.5, 8, 0], from: [-0.5, -0.5, 0], base: '#6b4a2a',
+      paint: (p) => { p.px('top', 0, 6, '#4a321c', 1, 1); } },
+    { name: 'armR', size: [1, 1, 9], pivot: [-5.5, 8, 0], from: [-0.5, -0.5, 0], base: '#6b4a2a',
+      paint: (p) => { p.px('top', 0, 6, '#4a321c', 1, 1); } },
+  ];
+}
+
 export function houndModel(tamed: boolean): BuiltModel {
   const key = tamed ? 'hound:tamed' : 'hound';
   let m = cache.get(key);
@@ -544,7 +646,9 @@ export function mobModel(type: MobType): BuiltModel {
   if (type === 'villager') return villagerModel('none');
   if (type === 'hound') return houndModel(false);
   if (type === 'hollowdrake') return drakeModel();
-  const parts = { pig, cow, sheep, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter }[type as Exclude<MobType, 'villager' | 'hound' | 'hollowdrake'>]();
+  if (type === 'sheep') return sheepModel('white', false);
+  if (type === 'fox') return foxModel('red', false);
+  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal }[type as Exclude<MobType, 'villager' | 'hound' | 'hollowdrake' | 'sheep' | 'fox'>]();
   m = buildModel(parts, 64, 64, type.length * 13);
   if (type === 'ashboar') glowSeams(m);
   if (type === 'drifter') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.45; }

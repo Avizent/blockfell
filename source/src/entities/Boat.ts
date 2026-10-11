@@ -36,7 +36,7 @@ function surfaceOf(world: World, x: number, y: number, z: number): number | null
 
 let boatTex: THREE.Texture | null = null;
 /** Planks texture that repeats along long boards (one tile per block). */
-function planks(models: ItemModels): THREE.Texture {
+export function planks(models: ItemModels): THREE.Texture {
   if (boatTex) return boatTex;
   const t = models.tileTexture('planks').clone();
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -46,7 +46,7 @@ function planks(models: ItemModels): THREE.Texture {
 }
 
 /** A box whose texture repeats once per block of its size instead of stretching. */
-function board(w: number, h: number, d: number, mat: THREE.Material): THREE.Mesh {
+export function board(w: number, h: number, d: number, mat: THREE.Material): THREE.Mesh {
   const g = new THREE.BoxGeometry(w, h, d);
   const uv = g.getAttribute('uv') as THREE.BufferAttribute;
   // face order +x, -x, +y, -y, +z, -z: each face's (u, v) span in blocks
@@ -67,7 +67,11 @@ function board(w: number, h: number, d: number, mat: THREE.Material): THREE.Mesh
  * moves on land, and breaks into a Boat item after a few hits.
  */
 export class Boat extends Entity {
-  readonly type = 'boat';
+  readonly type: string = 'boat';
+  /** The item it is placed from and breaks back into. */
+  readonly itemId: string = 'boat';
+  /** Rider's feet relative to its bottom. */
+  readonly seat: number = BOAT_SEAT;
   /** The player is sitting in it. */
   rider = false;
   /** Rowing input while ridden: forward -1..1, turn -1..1 (+ = right). */
@@ -78,10 +82,10 @@ export class Boat extends Entity {
   afloat = false;
   private oar = 0;
   private prevOar = 0;
-  private hitDecay = 0;
-  private mat: THREE.MeshLambertMaterial | null = null;
+  protected hitDecay = 0;
+  protected mat: THREE.MeshLambertMaterial | null = null;
   private oars: THREE.Group[] = [];
-  private lightTimer = 0;
+  protected lightTimer = 0;
 
   constructor() {
     super();
@@ -175,7 +179,7 @@ export class Boat extends Entity {
   }
 
   // ---------------------------------------------------------------- model
-  private build(models: ItemModels): void {
+  protected build(models: ItemModels): void {
     const mat = new THREE.MeshLambertMaterial({ map: planks(models) });
     this.mat = mat;
     const hull = new THREE.Group();

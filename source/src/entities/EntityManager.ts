@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Entity, EntityHost, EntityQueries, Hurtable } from './Entity';
-import { Mob, MOB_SPECS } from './Mob';
+import { Mob, MOB_SPECS, NAME_TAG_MAX } from './Mob';
 import { Arrow, ItemEntity, XpOrb } from './Drops';
 import { EmberBolt } from './EmberBolt';
 import { Villager } from './Villager';
@@ -12,6 +12,11 @@ import { Ashboar } from './Ashboar';
 import { Hollowdrake } from './Hollowdrake';
 import { Drifter } from './Drifter';
 import { StarBolt } from './StarBolt';
+import { FarmAnimal, Sheep, FARM_TYPES, FARM_GROW_TICKS, naturalWool } from './FarmAnimal';
+import { Fox } from './Fox';
+import { SnowPal } from './SnowPal';
+import { Snowball } from './Snowball';
+import { Sledge } from './Sledge';
 import { cleanStack } from '../inventory/Inventory';
 import { Boat } from './Boat';
 import { Bobber } from './Fishing';
@@ -37,10 +42,10 @@ function pick<T>(table: [T, number][]): T {
 /** Which animal a biome favours (desert rabbits, mountain goats...). */
 function passiveFor(biome: number, ground: number): MobType | null {
   if (biome === BIOME_DESERT || biome === BIOME_BADLANDS) return ground === SAND || ground === RED_SAND ? 'rabbit' : null;
-  if (biome === BIOME_SNOWY) return pick<MobType>([['goat', 50], ['rabbit', 15], ['sheep', 15], ['hound', 20]]);
+  if (biome === BIOME_SNOWY) return pick<MobType>([['goat', 42], ['rabbit', 14], ['sheep', 14], ['hound', 16], ['fox', 14]]);
   if (biome === BIOME_MOUNTAINS) return pick<MobType>([['goat', 65], ['rabbit', 15], ['sheep', 20]]);
   if (ground === STONE || ground === SNOW) return null;
-  if (biome === BIOME_TAIGA) return pick<MobType>([['rabbit', 27], ['sheep', 22], ['pig', 13], ['cow', 13], ['goat', 10], ['hound', 15]]);
+  if (biome === BIOME_TAIGA) return pick<MobType>([['rabbit', 24], ['sheep', 20], ['pig', 12], ['cow', 12], ['goat', 9], ['hound', 13], ['fox', 10]]);
   if (biome === BIOME_FOREST && Math.random() < 0.08) return 'hound';
   if (biome === BIOME_BIRCH && Math.random() < 0.05) return 'hound';
   return Math.random() < 0.1 ? 'rabbit' : PASSIVE[Math.floor(Math.random() * PASSIVE.length)];
@@ -76,8 +81,15 @@ export class EntityManager implements EntityQueries {
 
   spawnMob(type: MobType, x: number, y: number, z: number, host: EntityHost): Mob {
     const m = type === 'villager' ? new Villager(host) : type === 'sentinel' ? new Sentinel(host) : type === 'hound' ? new Hound(host)
-      : type === 'ashboar' ? new Ashboar(host) : type === 'hollowdrake' ? new Hollowdrake(host) : type === 'drifter' ? new Drifter(host) : new Mob(type, host);
+      : type === 'ashboar' ? new Ashboar(host) : type === 'hollowdrake' ? new Hollowdrake(host) : type === 'drifter' ? new Drifter(host)
+      : type === 'sheep' ? new Sheep(host) : FARM_TYPES.includes(type) ? new FarmAnimal(type, host)
+      : type === 'fox' ? new Fox(host) : type === 'snowpal' ? new SnowPal(host) : new Mob(type, host);
     m.setPos(x, y, z);
+    // 2.3: snowy-white foxes in the snowy lands
+    if (m instanceof Fox && host.world.dim === 'overworld') {
+      const col = host.world.generator.column(Math.floor(x), Math.floor(z));
+      if (col.biome === BIOME_SNOWY || (col.biome === BIOME_MOUNTAINS && col.height >= 90)) m.setCoat('snow');
+    }
     return this.add(m);
   }
 
@@ -159,6 +171,23 @@ export class EntityManager implements EntityQueries {
       if (t !== null && t <= max && (!best || t < best.t)) best = { boat: e, t };
     }
     return best;
+  }
+
+  /** 2.3: a snowball (thrown by the player, or by a Snow Pal). */
+  spawnSnowball(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob | null): Snowball {
+    const s = new Snowball();
+    s.shooter = shooter;
+    s.setPos(x, y, z);
+    s.vx = vx; s.vy = vy; s.vz = vz;
+    return this.add(s);
+  }
+
+  /** 2.3: a sledge. */
+  spawnSledge(x: number, y: number, z: number, yaw: number): Sledge {
+    const b = new Sledge();
+    b.setPos(x, y, z);
+    b.yaw = b.prevYaw = yaw;
+    return this.add(b);
   }
 
   spawnBoat(x: number, y: number, z: number, yaw: number): Boat {
@@ -272,11 +301,15 @@ export class EntityManager implements EntityQueries {
       const spot = this.findSpawnSpot(host, 20, 56, false);
       const type = spot ? passiveFor(host.world.generator.column(Math.floor(spot.x), Math.floor(spot.z)).biome, spot.ground) : null;
       if (spot && type) {
-        const herd = type === 'chicken' || type === 'rabbit' || type === 'goat' ? 1 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 3);
+        const herd = type === 'fox' ? 1 + Math.floor(Math.random() * 2) : type === 'chicken' || type === 'rabbit' || type === 'goat' ? 1 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 3);
         for (let i = 0; i < herd; i++) {
           const ox = spot.x + (Math.random() - 0.5) * 3, oz = spot.z + (Math.random() - 0.5) * 3;
           const y = this.groundAt(host, Math.floor(ox), Math.floor(oz), spot.y + 3);
-          if (y !== null && Math.abs(y - spot.y) <= 2) this.spawnMob(type, ox, y, oz, host);
+          if (y === null || Math.abs(y - spot.y) > 2) continue;
+          const m = this.spawnMob(type, ox, y, oz, host);
+          // 2.3: sheep come in their natural colours, and a herd may have young ones
+          if (m instanceof Sheep) m.setWool(naturalWool(), false);
+          if (m instanceof FarmAnimal && i > 0 && Math.random() < 0.12) m.makeBaby(Math.floor(FARM_GROW_TICKS * (0.3 + Math.random() * 0.7)));
         }
       }
     }
@@ -442,6 +475,11 @@ export class EntityManager implements EntityQueries {
         if (m instanceof Sentinel && d.s && typeof d.s === 'object') m.restore(d.s as Record<string, unknown>);
         if (m instanceof Hound && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);
         if (m instanceof Ashboar && d.a && typeof d.a === 'object') m.restore(d.a as Record<string, unknown>);
+        // 2.3
+        if (m instanceof FarmAnimal && d.f && typeof d.f === 'object') m.restore(d.f as Record<string, unknown>);
+        if (m instanceof Fox && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);
+        if (m instanceof SnowPal && d.sp && typeof d.sp === 'object') m.restore(d.sp as Record<string, unknown>);
+        if (typeof d.n === 'string' && d.n.trim()) m.nameTag = d.n.trim().slice(0, NAME_TAG_MAX);
       } else if (d.t === 'painting' && typeof d.m === 'string') {
         const m = motifById(d.m);
         if (m && ['n', 'e', 's', 'w'].includes(d.f as string)) this.add(new Painting(m, d.f as Facing, d.x as number, d.y as number, d.z as number));
@@ -452,6 +490,8 @@ export class EntityManager implements EntityQueries {
         this.add(st);
       } else if (d.t === 'boat') {
         this.spawnBoat(d.x as number, d.y as number, d.z as number, (d.yaw as number) ?? 0);
+      } else if (d.t === 'sledge') {
+        this.spawnSledge(d.x as number, d.y as number, d.z as number, (d.yaw as number) ?? 0);
       } else if (d.t === 'item' && d.stack) {
         const e = this.spawnItem(d.stack as ItemStack, d.x as number, d.y as number, d.z as number, [0, 0, 0], 0);
         e.age = (d.age as number) ?? 0;

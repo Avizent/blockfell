@@ -93,6 +93,13 @@ export interface EntityHost {
   spawnStarBolt?(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob, damage: number): void;
   /** A blow bounced off the Hollowdrake's shield. */
   drakeShieldHit?(): void;
+  // ---- 2.3
+  /** The id of the item in the player's hand (animals come to their food). */
+  heldItem?(): string | null;
+  /** A snowball thrown by a creature (a Snow Pal). */
+  spawnSnowball?(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob): void;
+  /** A tamed Fox Cub brought the player a present. */
+  foxGift?(fox: Mob, item: string): void;
 }
 
 let nextId = 1;

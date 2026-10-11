@@ -4,6 +4,7 @@ import { MobType, mobModel } from './mobModels';
 import { instantiate, BuiltModel } from './BoxModel';
 import { IS_LAVA, IS_SOLID, IS_WATER } from '../world/BlockRegistry';
 import { UNLOADED } from '../world/World';
+import { NAMES } from '../world/names';
 
 interface MobSpec {
   name: string;
@@ -56,7 +57,45 @@ export const MOB_SPECS: Record<MobType, MobSpec> = {
   // 2.2: the Starhollow (the Hollowdrake's Star Scales are left on the Roost by the Starhollow system)
   hollowdrake: { name: 'Hollowdrake', hostile: false, health: 200, speed: 0.5, width: 3.6, height: 2.8, drops: [], xp: [0, 0], attack: 6, sound: 'drake', fireproof: true },
   drifter: { name: 'Drifter', hostile: false, health: 8, speed: 0.05, width: 0.9, height: 0.9, drops: [['drift_silk', 1, 2]], xp: [1, 3], sound: 'drifter', fireproof: true },
+  // 2.3: a pet, and the snowman helper
+  fox: { name: NAMES.fox, hostile: false, health: 10, speed: 0.3, width: 0.5, height: 0.6, drops: [], xp: [1, 3], sound: 'fox' },
+  snowpal: { name: NAMES.snowpal, hostile: false, health: 8, speed: 0.2, width: 0.7, height: 1.5, drops: [['snowball', 2, 6]], xp: [0, 0], sound: 'snowpal' },
 };
+
+/** 2.3: the longest name a Name Tag takes. */
+export const NAME_TAG_MAX = 20;
+/** 2.3: creatures a Name Tag can't be used on (villagers already have names; the Hollowdrake is the Hollowdrake). */
+export const UNNAMEABLE = new Set<MobType>(['villager', 'sentinel', 'hollowdrake']);
+
+const plateCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+/** A name tag's plate: the name in the game's font on a dark band, always facing the camera. */
+function makePlate(name: string): THREE.Sprite {
+  const c = plateCanvas!;
+  const ctx = c.getContext('2d')!;
+  const font = '30px Blockfell, monospace';
+  ctx.font = font;
+  const w = Math.ceil(ctx.measureText(name).width) + 20, h = 40;
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  const g = cv.getContext('2d')!;
+  g.fillStyle = 'rgba(0,0,0,0.42)';
+  g.fillRect(0, 0, w, h);
+  g.font = font;
+  g.textBaseline = 'middle';
+  g.textAlign = 'center';
+  g.fillStyle = '#3a3a3a';
+  g.fillText(name, w / 2 + 2, h / 2 + 3);
+  g.fillStyle = '#ffffff';
+  g.fillText(name, w / 2, h / 2 + 1);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false });
+  const sp = new THREE.Sprite(mat);
+  const H = 0.28;
+  sp.scale.set((H * w) / h, H, 1);
+  sp.renderOrder = 15;
+  return sp;
+}
 
 const tmpColor = new THREE.Color();
 const LEGS_A = ['legFL', 'legBR'];
@@ -117,6 +156,9 @@ export class Mob extends Entity implements Hurtable {
   /** 2.0: ticks until a Cinderling may leap again. */
   protected leapCooldown = 0;
   private glowing = false;
+  /** 2.3: the name given with a Name Tag (shown above the creature; a named creature never wanders off for good). */
+  nameTag: string | null = null;
+  private plate: { name: string; sprite: THREE.Sprite } | null = null;
 
   constructor(type: MobType, host?: EntityHost, model?: BuiltModel) {
     super();
@@ -567,17 +609,41 @@ export class Mob extends Entity implements Hurtable {
     }
     if (glow) tmpColor.setRGB(Math.max(b, 0.95), Math.max(b, 0.92) * 0.95, Math.max(b, 0.7) * 0.75);
     this.material.color.copy(tmpColor);
+    this.renderPlate(host);
+  }
+
+  /** 2.3: the name tag's plate, shown when the player is within 14 blocks. */
+  protected renderPlate(host: EntityHost): void {
+    const name = this.deathTime === 0 ? this.nameTag : null;
+    if (this.plate && this.plate.name !== name) {
+      this.plate.sprite.removeFromParent();
+      this.plate.sprite.material.map?.dispose();
+      this.plate.sprite.material.dispose();
+      this.plate = null;
+    }
+    if (name && !this.plate && plateCanvas) {
+      this.plate = { name, sprite: makePlate(name) };
+      this.object.add(this.plate.sprite);
+    }
+    if (this.plate) {
+      const p = host.player;
+      this.plate.sprite.visible = Math.hypot(p.x - this.x, p.y - this.y, p.z - this.z) < 14;
+      this.plate.sprite.position.set(0, this.height + 0.38, 0);
+    }
   }
 
   dispose(): void {
     super.dispose();
     this.material.dispose();
     if (this.bow) ((this.bow as THREE.Mesh).material as THREE.Material).dispose();
+    if (this.plate) { this.plate.sprite.material.map?.dispose(); this.plate.sprite.material.dispose(); }
   }
 
   serialize(): Record<string, unknown> | null {
     if (!this.alive) return null;
-    return { t: 'mob', m: this.mobType, x: this.x, y: this.y, z: this.z, yaw: this.yaw, h: this.health, p: this.persistent || !!this.raider };
+    const s: Record<string, unknown> = { t: 'mob', m: this.mobType, x: this.x, y: this.y, z: this.z, yaw: this.yaw, h: this.health, p: this.persistent || !!this.raider };
+    if (this.nameTag) s.n = this.nameTag;
+    return s;
   }
 }
 
