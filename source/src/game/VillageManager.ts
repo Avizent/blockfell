@@ -215,6 +215,22 @@ export class VillageManager {
     return true;
   }
 
+  /** 2.4: a Party Bag for a villager: the food in it goes to the village store, and standing rises with how full it is. */
+  bagGift(v: Villager, bag: ({ id: string; count: number } | null)[]): number {
+    if (!v.villageId) return 0;
+    const st = this.state(v.villageId);
+    let food = 0, filled = 0;
+    for (const s of bag) {
+      if (!s) continue;
+      filled++;
+      const g = GIFT_FOOD[s.id];
+      if (g !== undefined) food += g * s.count;
+    }
+    st.food = Math.min(FOOD_MAX, (st.food ?? 0) + food);
+    this.addRep(v.villageId, 3 + Math.min(4, filled), 'gift');
+    return food;
+  }
+
   addFood(id: string | null, n: number): void {
     if (!id) return;
     const st = this.state(id);

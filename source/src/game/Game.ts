@@ -6,7 +6,7 @@ import { SEA_LEVEL, TICKS_PER_SECOND, WORLD_HEIGHT, chunkKey, GAME_VERSION, SAVE
 import { Player, MoveInput, Difficulty } from '../player/Player';
 import { AABB, boxCollides } from '../player/PlayerPhysics';
 import { PlayerInventory, Container, ARMOR_START, OFFHAND } from '../inventory/Inventory';
-import { ItemStack, Slot, makeStack, cloneStack, stacksMatch } from '../inventory/ItemStack';
+import { ItemStack, Slot, makeStack, cloneStack, stacksMatch, BAG_SLOTS } from '../inventory/ItemStack';
 import { getItem, itemForBlock, maxStackOf } from '../inventory/ItemRegistry';
 import { ScreenHandler } from '../inventory/ScreenHandler';
 import { canInscribe, runeLevel, runeOffers } from '../inventory/Enchantments';
@@ -55,6 +55,7 @@ import { FarmAnimal, Sheep, FARM_FOOD, FARM_TYPES } from '../entities/FarmAnimal
 import { Fox, FOX_FOOD, FOX_TAMING_FOOD } from '../entities/Fox';
 import { SnowPal } from '../entities/SnowPal';
 import { Sledge, SLEDGE_WIDTH, SLEDGE_HEIGHT } from '../entities/Sledge';
+import { Minecart } from '../entities/Minecart';
 import { UNNAMEABLE, NAME_TAG_MAX } from '../entities/Mob';
 import { NAMES } from '../world/names';
 import type { DyeColor } from '../world/dyes';
@@ -1251,6 +1252,7 @@ export class Game implements EntityHost, PrecipSource {
     if (this.riding) {
       this.riding.control.forward = inGame ? move.forward : 0;
       this.riding.control.turn = inGame ? move.strafe : 0;
+      if (this.riding instanceof Minecart) this.riding.riderYaw = p.yaw;
     } else {
       const wasInWater = p.inWater;
       if (p.inWater && !p.flying && this.sleepTicks === 0) this.pushByCurrent();
@@ -2086,6 +2088,10 @@ export class Game implements EntityHost, PrecipSource {
     const slot = this.inventory.selected;
     const id = this.inventory.selectedStack?.id ?? null;
     const who = m.nameTag ?? `Your ${m.spec.name}`;
+    if (id === 'party_bag' && (m instanceof Villager || m instanceof Fox || m instanceof Hound)) {
+      if (!dry) this.giveBag(m, slot);
+      return true;
+    }
     if (id === 'name_tag') {
       if (!dry) {
         if (UNNAMEABLE.has(m.mobType)) pushChat(m.mobType === 'villager' ? 'Villagers have names already.' : `The ${m.spec.name} can't be given a name.`);
@@ -2343,6 +2349,13 @@ export class Game implements EntityHost, PrecipSource {
       if (t && pressed && held.id === 'coal' && t.block === B.SNOW && this.buildSnowPal(t.x, t.y, t.z, slotIndex)) { this.hand.swing(); return; }
       if (t && pressed && (held.id === 'torch' || held.id === 'lava_bucket') && this.tryLightGate(t, slotIndex)) { this.hand.swing(); return; }
       if (t && pressed && held.id === 'star_lens' && this.tryLightStargate(t, slotIndex)) { this.hand.swing(); return; }
+      // 2.4: Party Poppers and Party Bags
+      if (held.id === 'party_popper' && pressed && slotIndex !== OFFHAND) { this.popParty(slotIndex); this.hand.swing(); return; }
+      if (held.id === 'party_bag' && pressed && slotIndex !== OFFHAND) {
+        if (p.sneaking) this.tipOutBag(slotIndex); else this.openBag(slotIndex);
+        this.hand.swing();
+        return;
+      }
       if (def.kind === 'bucket' && pressed) {
         const pour = held.id === 'water_bucket' ? B.WATER : held.id === 'lava_bucket' ? B.LAVA : null;
         if (this.useBucket(slotIndex, pour)) { this.hand.swing(); return; }
@@ -2460,6 +2473,7 @@ export class Game implements EntityHost, PrecipSource {
     else if (kind === 'sign') this.useSign(x, y, z);
     else if (kind === 'pot') this.usePot(x, y, z);
     else if (kind === 'bell') this.villages.ring(x, y, z);
+    else if (kind === 'cake') this.eatCake(x, y, z);
     else if (kind === 'storm_bell') { if (this.star) this.star.ringBell(x, y, z); else pushChat('The Storm Bell is silent here.'); }
     else this.engine.openBlockScreen(x, y, z, kind);
   }
@@ -2694,7 +2708,8 @@ export class Game implements EntityHost, PrecipSource {
     if (!quiet) {
       this.sound('place:wood', b.x, b.y + 0.4, b.z, 0.5, 1.2);
       const touch = this.engine.input.touchMode;
-      if (b instanceof Sledge) pushChat(touch ? 'Push off with the joystick and steer left and right. Snowy hills are fastest! Tap Sneak to get off.' : 'Push off with W, steer with A and D, brake with S. Snowy hills are fastest! Press Shift to get off.');
+      if (b instanceof Minecart) pushChat(touch ? 'Push forward with the joystick; pull back to brake. Boost Rails make you fly! Tap Sneak to get out.' : 'W pushes, S brakes. Boost Rails make you fly and Station Rails stop you - press W to set off again. Shift gets you out.');
+      else if (b instanceof Sledge) pushChat(touch ? 'Push off with the joystick and steer left and right. Snowy hills are fastest! Tap Sneak to get off.' : 'Push off with W, steer with A and D, brake with S. Snowy hills are fastest! Press Shift to get off.');
       else pushChat(touch ? 'Row with the joystick. Tap Sneak to climb out.' : 'Row with W and S, steer with A and D. Press Shift to climb out.');
     }
   }
@@ -2733,7 +2748,11 @@ export class Game implements EntityHost, PrecipSource {
     const ox = p.x, oz = p.z;
     p.ride(b.x, b.y + b.seat, b.z);
     const d = Math.hypot(p.x - ox, p.z - oz);
-    if (b instanceof Sledge) {
+    if (b instanceof Minecart) {
+      if (d > 0.001) this.progress.add('cart', d * 100);
+      if (d > 0.01) this.progress.grant('cart');
+      if (d > 0.4 && b.onBoostRail) this.progress.grant('express');
+    } else if (b instanceof Sledge) {
       if (d > 0.001 && !b.afloat) this.progress.add('sledge', d * 100);
       if (d > 0.3 && b.onSnow) this.progress.grant('sledge');
     } else if (b.afloat && d > 0.001) {
@@ -2744,11 +2763,12 @@ export class Game implements EntityHost, PrecipSource {
 
   private hitBoat(b: Boat): void {
     const p = this.player;
-    this.sound('hit:wood', b.x, b.y + 0.3, b.z, 0.6, 1);
+    const iron = b instanceof Minecart;
+    this.sound(iron ? 'hit:stone' : 'hit:wood', b.x, b.y + 0.3, b.z, 0.6, iron ? 1.3 : 1);
     if (!b.hit(p.creative)) return;
     b.removed = true;
-    this.sound('break:wood', b.x, b.y + 0.3, b.z, 0.8, 1);
-    this.particles.blockBreak(b.x - 0.5, b.y, b.z - 0.5, this.models.particleColors(B.PLANKS), this.brightnessAt(b.x, b.y + 0.6, b.z), 16);
+    this.sound(iron ? 'break:stone' : 'break:wood', b.x, b.y + 0.3, b.z, 0.8, iron ? 1.3 : 1);
+    this.particles.blockBreak(b.x - 0.5, b.y, b.z - 0.5, this.models.particleColors(iron ? B.IRON_ORE : B.PLANKS), this.brightnessAt(b.x, b.y + 0.6, b.z), 16);
     if (!p.creative) this.entities.spawnItem(makeStack(b.itemId), b.x, b.y + 0.4, b.z);
   }
 
@@ -2759,6 +2779,7 @@ export class Game implements EntityHost, PrecipSource {
     const [dx, dy, dz] = this.lookDir();
     const hit = raycast(this.world, ex, ey, ez, dx, dy, dz, this.reach(), true);
     if (!hit) return false;
+    if (this.inventory.get(slot)?.id === 'minecart') return this.placeCart(slot, hit);
     const sledge = this.inventory.get(slot)?.id === 'sledge';
     const W = sledge ? SLEDGE_WIDTH : BOAT_WIDTH, H = sledge ? SLEDGE_HEIGHT : BOAT_HEIGHT;
     let y: number;
@@ -2782,6 +2803,147 @@ export class Game implements EntityHost, PrecipSource {
     this.sound('place:wood', at[0], y + 0.3, at[1], 0.8, 1);
     if (!p.creative) this.consume(slot);
     return true;
+  }
+
+
+  // ======================================================================= tracks and carts (2.4)
+  /** Puts a Minecart on the rail the player is pointing at. */
+  private placeCart(slot: number, hit: RayHit): boolean {
+    const p = this.player;
+    if (!B.IS_RAIL[hit.block]) { pushChat('A Minecart goes on a rail.'); return false; }
+    for (const o of this.entities.boats()) if (o instanceof Minecart && Math.abs(o.x - (hit.x + 0.5)) < 0.8 && Math.abs(o.z - (hit.z + 0.5)) < 0.8 && Math.abs(o.y - hit.y) < 1.5) return false;
+    const cart = new Minecart();
+    cart.setPos(hit.x + 0.5, hit.y + 0.2, hit.z + 0.5);
+    if (!cart.placeOn(this.world, hit.x, hit.y, hit.z, p.yaw)) return false;
+    cart.setPos(cart.x, cart.y, cart.z);
+    this.entities.add(cart);
+    this.sound('place:stone', cart.x, cart.y, cart.z, 0.8, 1.2);
+    if (!p.creative) this.consume(slot);
+    return true;
+  }
+
+  // ======================================================================= parties (2.4)
+  /** Confetti and a cheer at a spot. */
+  private confetti(x: number, y: number, z: number, n = 36): void {
+    this.effect('confetti', x, y, z, n);
+    this.sound('confetti', x, y, z, 0.8, 0.95 + Math.random() * 0.1);
+  }
+
+  /** A Party Popper: a bang, a burst of confetti, and nearby villagers cheer. */
+  popParty(slot: number): void {
+    const p = this.player;
+    const [ex, ey, ez] = this.eye();
+    const [dx, dy, dz] = this.lookDir();
+    const x = ex + dx * 1.3, y = ey + dy * 1.3 - 0.1, z = ez + dz * 1.3;
+    this.confetti(x, y, z, 44);
+    this.sound('party_horn', x, y, z, 0.5, 1);
+    this.progress.grant('party');
+    if (!p.creative) this.consume(slot);
+    let cheered = 0;
+    for (const m of this.entities.mobsNear(p.x, p.y, p.z, 9)) {
+      if (!(m instanceof Villager) || cheered >= 4) continue;
+      this.effect('heart', m.x, m.y + m.height + 0.2, m.z, 2);
+      if (cheered === 0) this.sound(m.isChild ? 'villager_yes' : 'villager_yes', m.x, m.y + m.height * 0.8, m.z, 0.5, m.isChild ? 1.5 : 1.2);
+      cheered++;
+    }
+    this.useDelay = 6;
+  }
+
+  /** Right-click with a Party Bag: opens it to fill (or empty). */
+  openBag(slot: number): void {
+    const st = this.inventory.get(slot);
+    if (!st || st.id !== 'party_bag') return;
+    const bag = st.bag ?? (st.bag = []);
+    while (bag.length < BAG_SLOTS) bag.push(null);
+    const h = this.makeHandler();
+    h.noBags = true;
+    const c = new Container(BAG_SLOTS);
+    c.slots = bag;
+    h.addGroup('chest', c, 0, BAG_SLOTS);
+    this.addPlayerSlots(h);
+    this.screen = h;
+    this.openPos = null;
+    this.openKind = 'bag';
+    this.sound('bag_open', this.player.x, this.player.eyeY, this.player.z, 0.6, 1);
+    ui.set({ overlay: 'bag' });
+  }
+
+  /** Sneak + right-click: tip the bag out in front of you with a pop of confetti. */
+  tipOutBag(slot: number): void {
+    const st = this.inventory.get(slot);
+    if (!st || st.id !== 'party_bag') return;
+    const [ex, ey, ez] = this.eye();
+    const [dx, , dz] = this.lookDir();
+    let n = 0;
+    for (const s of st.bag ?? []) {
+      if (!s) continue;
+      this.entities.spawnItem(cloneStack(s)!, ex + dx * 0.7, ey - 0.3, ez + dz * 0.7, [dx * 0.12 + (Math.random() - 0.5) * 0.12, 0.1 + Math.random() * 0.08, dz * 0.12 + (Math.random() - 0.5) * 0.12]);
+      n++;
+    }
+    st.bag = new Array(BAG_SLOTS).fill(null);
+    this.inventory.changed();
+    this.confetti(ex + dx * 0.9, ey - 0.2, ez + dz * 0.9, n > 0 ? 30 : 12);
+    if (n === 0) pushChat('The Party Bag is empty. Right-click it to fill it.');
+  }
+
+  /**
+   * Gives the Party Bag in hand to a villager (who keeps it - the village store gets
+   * the food, and standing goes up) or to a pet (who eats what it likes; the bag is kept).
+   */
+  private giveBag(m: Mob, slot: number): void {
+    const p = this.player;
+    const st = this.inventory.get(slot);
+    if (!st || st.id !== 'party_bag') return;
+    const bag = st.bag ?? [];
+    const who = m.nameTag ?? (m instanceof Villager ? m.name : `Your ${m.spec.name}`);
+    if (m instanceof Villager) {
+      if (m.villageId) this.villages.bagGift(m, bag);
+      if (!p.creative) this.consume(slot);
+      this.progress.add('bags_given');
+      this.effect('heart', m.x, m.y + m.height + 0.3, m.z, 5);
+      this.sound('villager_yes', m.x, m.y + m.height * 0.82, m.z, 0.7, m.isChild ? 1.5 : 1.15);
+      pushChat(`${who} loves the Party Bag! Thank you!`);
+    } else {
+      // a pet or a wild fox cub: feed it whatever in the bag it likes, one at a time, until it is full
+      let ate = 0;
+      for (let i = 0; i < bag.length; i++) {
+        const it = bag[i];
+        if (!it) continue;
+        for (let k = 0; k < it.count; k++) {
+          const r = m instanceof Fox ? (FOX_FOOD[it.id] !== undefined ? m.feed(this, it.id) : 'no') : (m as Hound).feed(this, it.id);
+          if (r === 'tamed' || r === 'healed' || r === 'failed') {
+            ate++;
+            it.count--;
+            if (it.count <= 0) { bag[i] = null; break; }
+            if (r === 'tamed') break;
+          } else break;
+        }
+      }
+      this.inventory.changed();
+      this.progress.add('bags_given');
+      this.effect('heart', m.x, m.y + m.height + 0.2, m.z, 4);
+      pushChat(ate > 0 ? `${who} tucks into the treats from the Party Bag!` : `${who} sniffs the Party Bag. (Put in things it likes to eat.)`);
+    }
+    this.confetti(m.x, m.y + m.height + 0.3, m.z, 26);
+    this.progress.grant('gift');
+    this.useDelay = 8;
+  }
+
+  /** Right-click on Party Cake: a slice (it fills you up by two), until it is gone. */
+  private eatCake(x: number, y: number, z: number): void {
+    const p = this.player;
+    const stage = B.CAKE.indexOf(this.world.getBlock(x, y, z));
+    if (stage < 0) return;
+    if (p.food >= 20 && !p.creative) { pushChat("You're too full for cake right now."); return; }
+    p.food = Math.min(20, p.food + 2);
+    p.saturation = Math.min(p.food, p.saturation + 1.2);
+    if (stage + 1 >= B.CAKE_SLICES) this.world.setBlock(x, y, z, B.AIR, 'player');
+    else this.world.setBlock(x, y, z, B.CAKE[stage + 1], 'player');
+    this.sound('eat', x + 0.5, y + 0.4, z + 0.5, 0.7, 0.9);
+    this.effect('confetti', x + 0.5, y + 0.7, z + 0.5, 6);
+    this.progress.add('cake_eaten');
+    this.progress.grant('cake');
+    this.progress.grant('eat');
   }
 
   // ======================================================================= fishing
