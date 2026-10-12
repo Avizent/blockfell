@@ -2,7 +2,7 @@ import { Store } from '../core/store';
 import type { CloudUi } from '../systems/CloudSync';
 
 export type Screen = 'title' | 'worlds' | 'create' | 'edit' | 'loading' | 'game' | 'quit' | 'options' | 'import' | 'cloud';
-export type Overlay = null | 'pause' | 'inventory' | 'crafting' | 'furnace' | 'chest' | 'creative' | 'death' | 'options' | 'advancements' | 'stats' | 'sleep' | 'runes' | 'trade' | 'sign' | 'map' | 'theend' | 'nametag';
+export type Overlay = null | 'pause' | 'inventory' | 'crafting' | 'furnace' | 'chest' | 'creative' | 'death' | 'options' | 'advancements' | 'stats' | 'sleep' | 'runes' | 'trade' | 'sign' | 'map' | 'theend' | 'nametag' | 'bag';
 
 /** 1.8: the card shown when looking at a villager (or a Sentinel). */
 export interface VillagerCard {

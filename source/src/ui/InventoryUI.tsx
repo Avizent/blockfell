@@ -178,6 +178,11 @@ function tooltipLines(s: Slot, def: ItemDef): ReactNode {
   if (def.tool) extra.push(`${def.attack} attack damage`);
   if (def.armor) extra.push(`+${def.armor.points} armour`);
   if (s.color !== undefined) extra.push(dyedLabel(s.color));
+  if (s.id === 'party_bag') {
+    const n = (s.bag ?? []).filter((x) => x).length;
+    extra.push(n === 0 ? 'Empty - right-click to fill it' : `Holds ${n} ${n === 1 ? 'kind of thing' : 'kinds of things'}`);
+    extra.push('Sneak + right-click to tip it out');
+  }
   if (def.durability) extra.push(`Durability: ${def.durability - (s.damage ?? 0)} / ${def.durability}`);
   if (def.fuel) extra.push('Furnace fuel');
   const runes = s.ench ? Object.entries(s.ench) as [RuneId, number][] : [];
@@ -344,6 +349,23 @@ export function ChestScreen() {
         {c.h.group('chest').map((r, i) => <SlotBox key={r.id} r={r} x={7 + (i % 9) * 18} y={17 + Math.floor(i / 9) * 18} />)}
         <div className="label" style={{ position: 'absolute', left: '8rem', top: '72rem' }}>Inventory</div>
         <PlayerSlots c={c} y={83} />
+      </Panel>
+      <CursorAndTooltip c={c} />
+    </Ctx.Provider>
+  );
+}
+
+/** 2.4: a Party Bag's nine slots, with the player's inventory under them. */
+export function BagScreen() {
+  const [c] = useController();
+  if (!c) return null;
+  return (
+    <Ctx.Provider value={c}>
+      <Panel w={176} h={134} c={c}>
+        <div className="label" style={{ position: 'absolute', left: '8rem', top: '5rem' }}>Party Bag</div>
+        {c.h.group('chest').map((r, i) => <SlotBox key={r.id} r={r} x={7 + (i % 9) * 18} y={17 + Math.floor(i / 9) * 18} />)}
+        <div className="label" style={{ position: 'absolute', left: '8rem', top: '40rem' }}>Inventory</div>
+        <PlayerSlots c={c} y={51} />
       </Panel>
       <CursorAndTooltip c={c} />
     </Ctx.Provider>
