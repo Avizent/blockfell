@@ -7,7 +7,7 @@ import * as B from './world/BlockRegistry';
 import { meshChunk } from './meshing/ChunkMesher';
 import { chunkKeyNum } from './world/constants';
 import * as THREE from 'three';
-import { recipes } from './crafting/recipes';
+import { recipes, specialCraft } from './crafting/recipes';
 import { ITEMS, getItem } from './inventory/ItemRegistry';
 import { MOTIFS } from './render/paintingArt';
 
@@ -151,6 +151,8 @@ export function exposeTestApi(): void {
       const r = recipes.match(grid.map((id) => (id ? { id, count: 1 } : null)), width);
       return r ? { ...r.result } : null;
     },
+    /** 2.1/2.4: the result of a dyeing/washing grid (leather armour, Party Bags and Hats), or null. */
+    specialCraft(grid: ({ id: string; count: number } | null)[]) { const r = specialCraft(grid as never); return r ? { ...r } : null; },
     /** Fishing: a line's catch (r in 0..1 picks from the loot table), and hurrying the next bite. */
     rollCatch(r?: number) { return rollCatch(r); },
     hurryBite() { const b = engine.game?.bobber; if (b) { b.wait = 1; } return !!b; },
