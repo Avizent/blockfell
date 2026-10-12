@@ -17,6 +17,7 @@ import { Fox } from './Fox';
 import { SnowPal } from './SnowPal';
 import { Snowball } from './Snowball';
 import { Sledge } from './Sledge';
+import { Minecart } from './Minecart';
 import { cleanStack } from '../inventory/Inventory';
 import { Boat } from './Boat';
 import { Bobber } from './Fishing';
@@ -490,6 +491,11 @@ export class EntityManager implements EntityQueries {
         this.add(st);
       } else if (d.t === 'boat') {
         this.spawnBoat(d.x as number, d.y as number, d.z as number, (d.yaw as number) ?? 0);
+      } else if (d.t === 'minecart') {
+        const mc = new Minecart();
+        mc.setPos(d.x as number, d.y as number, d.z as number);
+        mc.yaw = mc.prevYaw = (d.yaw as number) ?? 0;
+        this.add(mc);
       } else if (d.t === 'sledge') {
         this.spawnSledge(d.x as number, d.y as number, d.z as number, (d.yaw as number) ?? 0);
       } else if (d.t === 'item' && d.stack) {

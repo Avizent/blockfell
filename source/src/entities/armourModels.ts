@@ -13,7 +13,9 @@ import type { Slot } from '../inventory/ItemStack';
 /** The colour plain (undyed) leather is tinted with. */
 export const LEATHER_TINT = 0xa66a3e;
 
-type Mat = 'leather' | 'iron' | 'wings';
+type Mat = 'leather' | 'iron' | 'wings' | 'party';
+/** The colour a Party Hat is tinted with when it hasn't been dyed. */
+export const PARTY_TINT = 0xa862e8;
 /** One box of a piece: which humanoid part it sits on, its box, and how much bigger than the part it is drawn. */
 interface Shell { on: string; def: PartDef; grow: number }
 
@@ -34,8 +36,27 @@ function wingShells(): Shell[] {
   return [wing('a_wingL', 0.5), wing('a_wingR', -10.5)];
 }
 
+/** 2.4: a Party Hat - a stepped cone of three bands on the head, with a golden pompom. */
+function partyShells(): Shell[] {
+  const tier = (name: string, size: [number, number, number], from: [number, number, number], stripe: boolean): Shell => ({
+    on: 'head', grow: 1,
+    def: { name, size, pivot: [0, 0, 0], from, base: HIDE.base, noise: 0.04,
+      paint: (p) => {
+        p.clear('bottom');
+        if (stripe) for (const f of SIDES) p.px(f, 0, 1, HIDE.deep, f === 'front' || f === 'back' ? size[0] : size[2], 1);
+      } },
+  });
+  return [
+    tier('a_hat1', [6, 3, 6], [-3, 8, -3], true),
+    tier('a_hat2', [4, 3, 4], [-2, 11, -2], false),
+    tier('a_hat3', [2, 3, 2], [-1, 14, -1], false),
+    { on: 'head', grow: 1, def: { name: 'a_pom', size: [2, 2, 2], pivot: [0, 0, 0], from: [-1, 17, -1], base: '#ffffff', noise: 0.03, paint: () => { /* plain */ } } },
+  ];
+}
+
 function shells(mat: Mat, slot: number): Shell[] {
   if (mat === 'wings') return wingShells();
+  if (mat === 'party') return partyShells();
   const c = mat === 'iron' ? IRON : HIDE;
   const iron = mat === 'iron';
   const box = (name: string, on: string, size: [number, number, number], from: [number, number, number], grow: number, paint: (p: FacePainter) => void): Shell =>
@@ -139,6 +160,7 @@ function pieceModel(mat: Mat, slot: number): { model: BuiltModel; on: Map<string
 /** Which armour material an item is made of (null: not armour this can show). */
 function materialOf(id: string): Mat | null {
   if (id === 'star_wings') return 'wings';
+  if (id === 'party_hat') return 'party';
   if (id.startsWith('leather_')) return 'leather';
   if (id.startsWith('iron_')) return 'iron';
   return null;
@@ -171,7 +193,7 @@ export class ArmourDresser {
         target.add(pivot);
         objs.push(pivot);
       }
-      const tint = new THREE.Color(mat === 'leather' ? (s.color ?? LEATHER_TINT) : 0xffffff);
+      const tint = new THREE.Color(mat === 'leather' ? (s.color ?? LEATHER_TINT) : mat === 'party' ? (s.color ?? PARTY_TINT) : 0xffffff);
       this.worn[i] = { key, objs, material: inst.material, tint };
     }
     this.light(this.level);
