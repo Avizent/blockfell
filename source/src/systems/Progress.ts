@@ -68,6 +68,12 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   { id: 'nametag', title: "What's Your Name?", description: 'Give a creature a name with a Name Tag', icon: 'name_tag' },
   { id: 'farm_baby', title: 'Little Ones', description: 'Feed two farm animals so they have a baby', icon: 'wheat', parent: 'harvest' },
   { id: 'dye_sheep', title: 'Woolly Rainbow', description: 'Dye a sheep', icon: 'pink_dye', parent: 'dye' },
+  // 2.4: tracks, carts and parties
+  { id: 'cart', title: 'All Aboard', description: 'Ride a Minecart along a rail', icon: 'minecart', parent: 'iron' },
+  { id: 'express', title: 'Express Service', description: 'Whizz along on a Boost Rail in a Minecart', icon: 'boost_rail', parent: 'cart' },
+  { id: 'party', title: 'Party Time!', description: 'Pop a Party Popper', icon: 'party_popper' },
+  { id: 'gift', title: 'A Thoughtful Gift', description: 'Give a Party Bag to a villager or a pet', icon: 'party_bag', parent: 'party' },
+  { id: 'cake', title: 'Let Them Eat Cake', description: 'Eat a slice of Party Cake', icon: 'cake', parent: 'party' },
 ];
 
 export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = [
@@ -107,6 +113,9 @@ export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = 
   ['foxes_tamed', `${NAMES.fox}s Tamed`, 'count'],
   ['sheep_sheared', 'Sheep Sheared', 'count'],
   ['names_given', 'Creatures Named', 'count'],
+  ['cart', 'Distance by Minecart', 'cm'],
+  ['bags_given', 'Party Bags Given', 'count'],
+  ['cake_eaten', 'Slices of Cake Eaten', 'count'],
 ];
 
 export function formatStat(v: number, kind: 'count' | 'cm' | 'ticks' | 'hp'): string {

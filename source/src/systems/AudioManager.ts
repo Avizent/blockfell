@@ -262,6 +262,14 @@ export class AudioManager {
       case 'snow_hit': this.noiseBurst(dest, t, 0.14, 2600 * pitch, 0.7, 'lowpass', 0.55); this.noiseBurst(dest, t + 0.02, 0.1, 900 * pitch, 1.2, 'bandpass', 0.3); break;
       case 'shear': for (let i = 0; i < 2; i++) { this.noiseBurst(dest, t + i * 0.12, 0.06, 4200 * pitch, 2, 'bandpass', 0.45); this.tone(dest, t + i * 0.12, 0.05, 2600 * pitch, 1900 * pitch, 'square', 0.04); } break;
       case 'sledge': this.noiseBurst(dest, t, 0.42, 2000 * pitch, 0.5, 'bandpass', 0.3, 0.12); break;
+      // 2.4: tracks, carts and parties
+      case 'rail': this.noiseBurst(dest, t, 0.03, 3400 * pitch, 3, 'bandpass', 0.3); this.noiseBurst(dest, t + 0.05, 0.03, 2800 * pitch, 3, 'bandpass', 0.22); this.tone(dest, t, 0.05, 150 * pitch, 110 * pitch, 'square', 0.04); break;
+      case 'thud': this.noiseBurst(dest, t, 0.14, 260, 1, 'lowpass', 0.9); this.tone(dest, t, 0.12, 110, 60, 'square', 0.18); break;
+      case 'confetti': this.noiseBurst(dest, t, 0.09, 1800 * pitch, 0.7, 'highpass', 0.6); this.tone(dest, t, 0.08, 900 * pitch, 200 * pitch, 'square', 0.14);
+        [1568, 1976, 2349, 2637].forEach((f, i) => this.tone(dest, t + 0.06 + i * 0.045, 0.25, f * pitch, f * pitch * 1.01, 'sine', 0.06)); break;
+      case 'party_horn': this.tone(dest, t, 0.35, 410 * pitch, 520 * pitch, 'sawtooth', 0.14, 0.02); this.tone(dest, t, 0.35, 615 * pitch, 780 * pitch, 'square', 0.04, 0.02); break;
+      case 'bag_open': this.noiseBurst(dest, t, 0.22, 3000 * pitch, 0.6, 'highpass', 0.3); this.noiseBurst(dest, t + 0.07, 0.15, 2000 * pitch, 0.7, 'bandpass', 0.25); break;
+      case 'cheer': [523, 659, 784, 1046].forEach((f, i) => this.tone(dest, t + i * 0.07, 0.3, f * pitch, f * pitch * 1.05, 'triangle', 0.14)); break;
       default: this.creature(dest, t, name, pitch);
     }
   }
