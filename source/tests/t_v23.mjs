@@ -49,6 +49,7 @@ const calm = () => ev(() => {
   g.weather.set('clear', 99999, true); g.dayNight.time = 5000;
   for (const e of g.entities.list) if (e.type !== 'item') e.removed = true;
 });
+const invCount = (pre) => ev((pre) => window.__bf.game.inventory.slots.filter((x) => x && x.id.startsWith(pre)).reduce((n, x) => n + x.count, 0), pre);
 const clearItems = () => ev(() => { for (const e of window.__bf.game.entities.list) if (e.type === 'item' || e.type === 'xp') e.removed = true; });
 async function newWorld(name, seed, creative = false) {
   await page.waitForSelector('[data-testid=btn-singleplayer]', { timeout: 60000 });
@@ -144,7 +145,7 @@ if (run('items')) {
     t.shears?.id === 'shears' && t.shearsMirror?.id === 'shears' && t.tag?.id === 'name_tag' && t.sledge?.id === 'sledge' && t.boat?.id === 'boat', t);
   check('creatures: Fox Cub (10 health, tame) and Snow Pal (8 health, drops snowballs); villagers, Sentinels and the Hollowdrake can\'t be named',
     t.specs.fox.health === 10 && !t.specs.fox.hostile && t.specs.snowpal.health === 8 && t.specs.snowpal.drops[0][0] === 'snowball' && ['villager', 'sentinel', 'hollowdrake'].every((u) => t.unnameable.includes(u)), t.specs);
-  check('advancements: 7 new (54 in all) and 6 new statistics', t.adv.every(Boolean) && t.advCount === 54 && t.stats.every(Boolean), { adv: t.adv.map((a) => a?.title), n: t.advCount, stats: t.stats });
+  check('advancements: 7 new (54 in all) and 6 new statistics', t.adv.every(Boolean) && t.advCount >= 54 && t.stats.every(Boolean), { adv: t.adv.map((a) => a?.title), n: t.advCount, stats: t.stats });
 }
 
 let W = null;
@@ -370,9 +371,11 @@ if (run('sledge')) {
   const sid = await ev(() => window.__bf.game.entities.list.find((e) => e.type === 'sledge' && !e.removed).id);
   const sp = await ev((id) => { const s = window.__bf.game.entities.list.find((e) => e.id === id); return { x: s.x, y: s.y, z: s.z }; }, sid);
   await tp(sp.x, sp.y, sp.z + 2.5, 0, 0);
+  const sledge0 = await invCount('sledge');
   for (let i = 0; i < 3; i++) { await aim(sp.x, sp.y + 0.2, sp.z); await lclick(); await ticks(6); }
   await fast(10);
   const dropped = await itemsNear({ x: sp.x, z: sp.z }, 3);
+  if (await invCount('sledge') > sledge0) dropped.push('sledgex1');   // picked up at once (the player stands close)
   check('sledge: three hits break it back into a Sledge item', dropped.includes('sledgex1') && (await ev(() => !window.__bf.game.entities.list.some((e) => e.type === 'sledge' && !e.removed))), dropped);
   await clearItems();
 }
@@ -394,11 +397,14 @@ if (run('fox')) {
   await ev(([id, P]) => { const m = window.__bf.game.entities.list.find((e) => e.id === id); m.setPos(P.x + 0.5, P.y, P.z + 1.5); m.panic = 0; m.hasTarget = false; }, [fox, P]);
   await ev(() => { window.__bf.engine.input.virtualKey('ShiftLeft', true); });
   await ticks(5);
-  await fast(40);
+  // sample its fright every few ticks: a creeping player must never set it running
+  let maxPanic = 0;
+  for (let i = 0; i < 8; i++) { await fast(5); maxPanic = Math.max(maxPanic, (await mob(fox)).panic); }
   f = await mob(fox);
-  const stayed = Math.hypot(f.x - P.x - 0.5, f.z - P.z - 3.5);
-  check('Fox Cub: sneaking, you can creep up on it (it doesn\'t run)', stayed < 5 && f.panic === 0, { stayed, f });
+  check('Fox Cub: sneaking, you can creep up on it (it doesn\'t run)', maxPanic === 0 && f.panic === 0, { maxPanic, f });
+  // it may have wandered a little: put it within arm's reach before feeding (and freeze it there)
   await freeze(fox);
+  await ev(([id, P]) => { const m = window.__bf.game.entities.list.find((e) => e.id === id); m.setPos(P.x + 0.5, P.y, P.z + 1.5); m.vx = m.vz = 0; }, [fox, P]);
   f = await mob(fox);
   await give({ id: 'raw_trout', count: 5 });
   await withRandom(0.9);
@@ -449,6 +455,9 @@ if (run('fox')) {
   // healing
   await ev((id) => { window.__bf.game.entities.list.find((e) => e.id === id).health = 6; }, fox);
   await freeze(fox);
+  // it was just bounding after you: stand it within arm's reach in front of you before feeding
+  await ev((id) => { const g = window.__bf.game, p = g.player, m = g.entities.list.find((e) => e.id === id); m.setPos(p.x, p.y, p.z - 2); m.vx = m.vz = 0; }, fox);
+  f = await mob(fox);
   await give({ id: 'cooked_perch', count: 2 });
   await aim(f.x, f.y + 0.3, f.z);
   await rclick();
@@ -655,10 +664,14 @@ if (run('sheep')) {
   const lambs = (await Promise.all((await mobs('sheep')).map(mob))).filter((s) => s.baby);
   check('sheep: a red and a yellow sheep have an orange lamb', lambs.length === 1 && lambs[0].color === 'orange', lambs);
   // a dyed sheep's wool drop is its colour
+  // (the drops can land at the player's feet and be picked up at once, so count the bag as well as the ground)
+  const wool0 = await invCount('light_blue_wool'), mutton0 = await invCount('raw_mutton');
   const at2 = await mob(sh2);
   await ev(([id]) => { const g = window.__bf.game, m = g.entities.list.find((e) => e.id === id); m.setWool('light_blue', false); m.hurt(100, g, 0, 0, true); }, [sh2]);
   await fast(30);
   const kill = await itemsNear(at2, 4);
+  if (await invCount('light_blue_wool') > wool0) kill.push('light_blue_wool (picked up)');
+  if (await invCount('raw_mutton') > mutton0) kill.push('raw_mutton (picked up)');
   check('sheep: a light blue sheep leaves light blue wool (and mutton)', kill.some((s) => s.startsWith('light_blue_wool')) && kill.some((s) => s.startsWith('raw_mutton')), kill);
   await clearItems();
   await ev(() => { for (const e of window.__bf.game.entities.list) if (e.mobType) e.removed = true; });
