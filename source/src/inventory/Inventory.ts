@@ -1,5 +1,5 @@
 import type { MapTarget } from './ItemStack';
-import { ItemStack, Slot, cloneStack, makeStack, stacksMatch } from './ItemStack';
+import { BAG_SLOTS, ItemStack, Slot, cloneStack, makeStack, stacksMatch } from './ItemStack';
 import { wearChance } from './Enchantments';
 import { getItem, maxStackOf } from './ItemRegistry';
 
@@ -85,7 +85,18 @@ export function cleanStack(s: unknown): Slot {
   const o = s as ItemStack;
   if (typeof o.id !== 'string' || !o.id || typeof o.count !== 'number' || !(o.count > 0)) return null;
   const color = typeof o.color === 'number' && Number.isInteger(o.color) && o.color >= 0 && o.color <= 0xffffff ? { color: o.color } : {};
-  return { id: o.id, count: Math.floor(o.count), ...(o.damage ? { damage: o.damage } : {}), ...(cleanRunes(o.ench) ?? {}), ...(cleanMap(o.map) ?? {}), ...color };
+  return { id: o.id, count: Math.floor(o.count), ...(o.damage ? { damage: o.damage } : {}), ...(cleanRunes(o.ench) ?? {}), ...(cleanMap(o.map) ?? {}), ...color, ...(o.id === 'party_bag' ? cleanBag(o.bag) : {}) };
+}
+
+/** Validated contents of a saved Party Bag (2.4): nine slots, no bags inside bags. */
+function cleanBag(b: unknown): { bag: Slot[] } | undefined {
+  if (!Array.isArray(b)) return undefined;
+  const bag: Slot[] = [];
+  for (let i = 0; i < BAG_SLOTS; i++) {
+    const c = cleanStack(b[i]);
+    bag.push(c && c.id !== 'party_bag' ? c : null);
+  }
+  return { bag };
 }
 
 /** Validated copy of saved runes ({ ench } or undefined when there are none). */
@@ -128,7 +139,7 @@ export class PlayerInventory extends Container {
 
   /** Adds an item picked up from the world. Returns the number that did not fit. */
   add(stack: ItemStack): number {
-    return this.insert({ ...stack }, PICKUP_ORDER);
+    return this.insert(cloneStack(stack)!, PICKUP_ORDER);
   }
 
   canFit(stack: ItemStack): number {

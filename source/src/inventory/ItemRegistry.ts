@@ -47,7 +47,7 @@ function add(d: Partial<ItemDef> & { id: string; name: string; category: Categor
 
 function blockItem(key: string, category: Category, extra: Partial<ItemDef> = {}): ItemDef {
   const block = B.blockByKey(key) ?? B.blockByKey(key + ':s')!;
-  const flat = block.render === B.RENDER_CROSS || block.render === B.RENDER_TORCH;
+  const flat = block.render === B.RENDER_CROSS || block.render === B.RENDER_TORCH || block.render === B.RENDER_RAIL;
   return add({
     id: key, name: block.name, kind: 'block', category, block: block.id,
     icon: flat ? { kind: 'flat', texture: key === 'torch' ? 'torch' : key } : { kind: 'iso', block: block.id },
@@ -275,6 +275,22 @@ add({ id: 'shears', name: 'Shears', category: 'tools', maxStack: 1, durability: 
 add({ id: 'name_tag', name: 'Name Tag', category: 'tools' });
 /** Sledge: put it down on snow and ride it downhill. */
 add({ id: 'sledge', name: NAMES.sledge, kind: 'boat', maxStack: 1, category: 'tools', fuel: 300 });
+
+// ---- 2.4 tracks, carts and parties
+blockItem('rail', 'tools');
+blockItem('boost_rail', 'tools');
+blockItem('station_rail', 'tools');
+/** Minecart: put it on a rail and ride. */
+add({ id: 'minecart', name: 'Minecart', kind: 'boat', maxStack: 1, category: 'tools' });
+/** Party Bag: carries up to nine things; can be dyed, handed to someone, or tipped out. Its contents ride in the stack (`bag`). */
+add({ id: 'party_bag', name: 'Party Bag', maxStack: 1, category: 'tools' });
+/** Party Hat: worn on the head. Can be dyed. */
+add({ id: 'party_hat', name: 'Party Hat', kind: 'armor', maxStack: 1, category: 'decoration', armor: { slot: 0, points: 0 }, durability: 500 });
+/** Party Popper: right-click for a bang and a burst of confetti. */
+add({ id: 'party_popper', name: 'Party Popper', category: 'tools', maxStack: 16 });
+familyItem('bunting', B.BUNTING.ew, 'decoration', true);
+blockItem('balloons', 'decoration');
+familyItem('cake', B.CAKE[0], 'food', true, { maxStack: 1 });
 
 // ---- spawn items
 const MOBS: [string, string][] = [

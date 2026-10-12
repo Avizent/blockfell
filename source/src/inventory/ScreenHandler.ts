@@ -33,6 +33,8 @@ export class ScreenHandler {
   craftGrid: Container | null = null;
   craftOutput: Container | null = null;
   furnaceXp?: () => number;
+  /** 2.4: inside a Party Bag's screen - no bags in the bag. */
+  noBags = false;
 
   constructor(public cursor: { stack: Slot }, private hooks: HandlerHooks = {}) {}
 
@@ -93,6 +95,8 @@ export class ScreenHandler {
         return canInscribe({ ...stack, count: 1 }) ? 1 : 0;
       case 'rune_shards':
         return stack.id === 'rune_shard' ? def.maxStack : 0;
+      case 'chest':
+        return this.noBags && stack.id === 'party_bag' ? 0 : def.maxStack;
       default:
         return def.maxStack;
     }
