@@ -51,7 +51,7 @@ function kindOf(id: number): FluidKind | null {
 
 function washable(id: number): boolean {
   const r = B.RENDER[id];
-  return r === B.RENDER_CROSS || r === B.RENDER_TORCH || r === B.RENDER_WALL_TORCH;
+  return r === B.RENDER_CROSS || r === B.RENDER_TORCH || r === B.RENDER_WALL_TORCH || r === B.RENDER_RAIL;
 }
 
 /** Strength used for spreading: sources and falling fluid feed at full strength. */

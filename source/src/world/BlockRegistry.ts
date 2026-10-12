@@ -15,13 +15,14 @@ export const RENDER_TORCH = 3;
 export const RENDER_LIQUID = 4;
 export const RENDER_MODEL = 5;      // one or more boxes (slabs, stairs, doors, beds, cactus...)
 export const RENDER_WALL_TORCH = 6; // torch leaning out of a wall
+export const RENDER_RAIL = 7;       // 2.4: flat track whose shape comes from the rails next to it
 
 export type ToolType = 'pickaxe' | 'axe' | 'shovel' | 'sword' | null;
 export type SoundType = 'stone' | 'wood' | 'grass' | 'gravel' | 'sand' | 'glass' | 'wool' | 'snow';
 export type Facing = 'n' | 'e' | 's' | 'w';
-export type Interaction = 'crafting' | 'furnace' | 'chest' | 'runes' | 'door' | 'bed' | 'gate' | 'trapdoor' | 'sign' | 'pot' | 'bell' | 'storm_bell' | null;
+export type Interaction = 'crafting' | 'furnace' | 'chest' | 'runes' | 'door' | 'bed' | 'gate' | 'trapdoor' | 'sign' | 'pot' | 'bell' | 'storm_bell' | 'cake' | null;
 export type Shape = 'slab' | 'stairs' | 'door' | 'bed' | 'wall_torch'
-  | 'fence' | 'pane' | 'gate' | 'ladder' | 'trapdoor' | 'sign' | 'wall_sign' | 'lantern' | 'pot' | null;
+  | 'fence' | 'pane' | 'gate' | 'ladder' | 'trapdoor' | 'sign' | 'wall_sign' | 'lantern' | 'pot' | 'rail' | 'bunting' | 'cake' | null;
 
 /** Face index (E, W, U, D, S, N) that points in a facing direction. */
 export const FACE_OF: Record<Facing, number> = { e: 0, w: 1, s: 4, n: 5 };
@@ -805,6 +806,60 @@ export const STORM_BELL_RUNG = reg('storm_bell_rung', 'Silent Storm Bell', { ...
 /** The Roost Stone: the middle of the Hollowdrake's ring of Glimmerstone. */
 export const ROOST = reg('roost', 'Roost Stone', { tex: 'roost', hardness: -1, drops: [], item: null, lightEmission: 4 }).id;
 
+
+// ---- 2.4 tracks, carts and parties
+/**
+ * Rails. One block id per kind: a rail's shape (straight, curve or slope) is worked out
+ * from the rails round it (`world/rails.ts`), so nothing extra is saved with the world.
+ */
+const RAIL_BASE: Opts = {
+  render: RENDER_RAIL, opaque: false, solid: false, cutout: true, lightOpacity: 0, hardness: 0.7, tool: 'pickaxe',
+  sound: 'stone', shape: 'rail', selection: [0, 0, 0, 1, 0.125, 1],
+};
+/** Rail: carts roll along it. Lay it in a line, round a corner, or up and down a slope. */
+export const RAIL = reg('rail', 'Rail', { ...RAIL_BASE, tex: 'rail' }).id;
+/** Boost Rail: a cart rolling over it speeds up, and a rider's push on it is stronger. Straight only. */
+export const BOOST_RAIL = reg('boost_rail', 'Boost Rail', { ...RAIL_BASE, tex: 'boost_rail' }).id;
+/** Station Rail: a cart rolling onto it stops. Push forward (W) to roll off again. Straight only. */
+export const STATION_RAIL = reg('station_rail', 'Station Rail', { ...RAIL_BASE, tex: 'station_rail' }).id;
+
+/** Bunting: a string of little flags that hangs under a solid block, one way or the other. */
+const same = (tex: string): string[] => Array(6).fill(tex);
+const BUNTING_BOXES = [0, 14, 8, 16, 15, 9, 1, 10, 8, 4, 14, 9, 5, 10, 8, 8, 14, 9, 9, 10, 8, 12, 14, 9, 13, 10, 8, 15, 14, 9];
+const BUNTING_FACES = [same('wool_light_gray'), same('wool_red'), same('wool_yellow'), same('wool_blue'), same('wool_lime')];
+export const BUNTING: Record<'ns' | 'ew', number> = { ns: 0, ew: 0 };
+for (const o of ['ew', 'ns'] as const) {
+  BUNTING[o] = reg(`bunting:${o}`, 'Bunting', {
+    tex: 'wool', render: RENDER_MODEL, opaque: false, solid: false, lightOpacity: 0, hardness: 0.1, sound: 'wool',
+    shape: 'bunting', variantOf: 'bunting', item: 'bunting', drops: [{ item: 'bunting', min: 1, max: 1 }],
+    model: o === 'ew' ? BUNTING_BOXES : rotateBoxes(BUNTING_BOXES, 'e'), collision: null, modelFaces: BUNTING_FACES,
+  }).id;
+}
+
+/** Balloons: a bunch of party balloons tied to the ground. */
+export const BALLOONS = reg('balloons', 'Balloons', {
+  render: RENDER_CROSS, tex: 'balloons', opaque: false, solid: false, cutout: true, lightOpacity: 0,
+  hardness: 0, sound: 'wool', selection: [0.15, 0, 0.15, 0.85, 1, 0.85],
+}).id;
+
+/** Party Cake: six slices (the block's stage is how many have been eaten). Right-click to eat a slice. */
+export const CAKE_SLICES = 6;
+export const CAKE: number[] = [];
+for (let eaten = 0; eaten < CAKE_SLICES; eaten++) {
+  const x0 = 1 + eaten * 2;
+  const body = [x0, 0, 1, 15, 8, 15];
+  const candle = [7, 8, 7, 9, 12, 9];
+  const lit = eaten < 3;
+  CAKE.push(reg(`cake:${eaten}`, 'Party Cake', {
+    tex: 'cake_side', top: 'cake_top', side: 'cake_side', bottom: 'cake_side',
+    render: RENDER_MODEL, opaque: false, lightOpacity: 0, lightEmission: lit ? 6 : 0, hardness: 0.5, sound: 'wool',
+    shape: 'cake', variantOf: 'cake', item: 'cake', drops: [], interact: 'cake',
+    model: lit ? [...body, ...candle] : body, collision: body,
+    modelFaces: [eaten === 0 ? null : ['cake_side', 'cake_inner', 'cake_top', 'cake_side', 'cake_side', 'cake_side'], ...(lit ? [same('wool_red')] : [])],
+    selection: [x0 / 16, 0, 1 / 16, 15 / 16, 0.5, 15 / 16],
+  }).id);
+}
+
 /** Blocks a Deepgate's ring may be made of. */
 export const GATE_RING = [CINDERSTONE, CINDERSTONE_BRICKS];
 /** 2.2: a Stargate's ring is eight Glimmerstone. */
@@ -902,6 +957,9 @@ export const MODEL_FACES: (Int16Array | null)[] = new Array(BLOCK_LIMIT).fill(nu
 export const MODEL_CROSS: (Int16Array | null)[] = new Array(BLOCK_LIMIT).fill(null);
 /** Ladders. */
 export const CLIMBABLE = new Uint8Array(BLOCK_LIMIT);
+/** 2.4: rails - 1 = Rail, 2 = Boost Rail, 3 = Station Rail (straight only: 2 and 3). */
+export const IS_RAIL = new Uint8Array(BLOCK_LIMIT);
+IS_RAIL[RAIL] = 1; IS_RAIL[BOOST_RAIL] = 2; IS_RAIL[STATION_RAIL] = 3;
 /** 1 = fence, 2 = glass pane: shapes that reach out to their neighbours. */
 export const CONNECT = new Uint8Array(BLOCK_LIMIT);
 export const CONNECT_FENCE = 1;
