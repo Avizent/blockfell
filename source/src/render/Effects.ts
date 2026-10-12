@@ -90,7 +90,7 @@ interface Particle {
  * with ONE InstancedMesh (single draw call). Capacity is fixed; the oldest
  * particles are recycled.
  */
-export type EffectKind = 'poof' | 'smoke' | 'flame' | 'crit' | 'splash' | 'happy' | 'angry' | 'drip' | 'heart' | 'ash' | 'star' | 'snow';
+export type EffectKind = 'poof' | 'smoke' | 'flame' | 'crit' | 'splash' | 'happy' | 'angry' | 'drip' | 'heart' | 'ash' | 'star' | 'snow' | 'confetti';
 
 export class Particles {
   private mesh: THREE.InstancedMesh;
@@ -173,6 +173,11 @@ export class Particles {
         const g = (0.88 + Math.random() * 0.12) * Math.max(0.45, k);
         this.spawn({ x: x + j() * 0.5, y: y + j() * 0.4, z: z + j() * 0.5, vx: j() * 0.14, vy: 0.04 + Math.random() * 0.08, vz: j() * 0.14,
           max: 10 + Math.random() * 8, size: 0.06 + Math.random() * 0.05, r: g, g, b: Math.min(1, g * 1.04), gravity: 0.025, glow: false });
+      } else if (kind === 'confetti') {
+        // 2.4: a burst of party confetti in bright colours
+        const c = [[1, 0.2, 0.25], [1, 0.82, 0.15], [0.25, 0.55, 1], [0.3, 0.9, 0.35], [1, 0.4, 0.8], [0.6, 0.35, 1]][Math.floor(Math.random() * 6)];
+        this.spawn({ x: x + j() * 0.3, y: y + j() * 0.3, z: z + j() * 0.3, vx: j() * 0.28, vy: 0.08 + Math.random() * 0.2, vz: j() * 0.28,
+          max: 34 + Math.random() * 26, size: 0.06 + Math.random() * 0.03, r: c[0], g: c[1], b: c[2], gravity: 0.012, glow: true });
       } else if (kind === 'crit') {
         this.spawn({ x, y, z, vx: j() * 0.3, vy: Math.random() * 0.2, vz: j() * 0.3,
           max: 10, size: 0.06, r: 0.9, g: 0.9, b: 0.95, gravity: 0.02, glow: true });

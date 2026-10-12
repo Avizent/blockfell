@@ -804,6 +804,136 @@ function rasterise(def: SpriteDef): Uint8ClampedArray {
   return out;
 }
 
+
+// ---- 2.4 tracks, carts and parties
+// (the Party Bag and Party Hat use only the dye letters o D M L, so they can be dyed like leather)
+SPRITES.minecart = {
+  map: [
+    '................',
+    '................',
+    '.oooooooooooooo.',
+    '.oLLLLLLLLLLLLo.',
+    '.oGGGGGGGGGGGGo.',
+    '..oGGGGGGGGGGo..',
+    '..oGMGGGGGGMGo..',
+    '..oGGGGGGGGGGo..',
+    '..oDDDDDDDDDDo..',
+    '...oooooooooo...',
+    '..oWWo....oWWo..',
+    '.oWKKWo..oWKKWo.',
+    '.oWKKWo..oWKKWo.',
+    '..oWWo....oWWo..',
+    '...oo......oo...',
+    '................',
+  ],
+  pal: { o: [40, 40, 48], L: [214, 216, 226], G: [160, 162, 174], M: [96, 98, 110], D: [112, 114, 126], W: [88, 88, 98], K: [196, 198, 208] },
+};
+SPRITES.party_bag = {
+  map: [
+    '................',
+    '....oo....oo....',
+    '...oLLo..oLLo...',
+    '....oLLooLLo....',
+    '.....oLLLLo.....',
+    '.....oDDDDo.....',
+    '....oMMMMMMo....',
+    '...oMMLLMMMMo...',
+    '...oMLLMMMMDo...',
+    '..oMMLMMMMMMDo..',
+    '..oMMMMMLMMMDo..',
+    '..oMMMMLLLMDDo..',
+    '..oMMMMMLMMDDo..',
+    '..oDMMMMMMDDDo..',
+    '...oDDDDDDDDo...',
+    '....oooooooo....',
+  ],
+  pal: { o: [86, 30, 60], D: [176, 48, 92], M: [226, 76, 120], L: [250, 168, 190] },
+};
+SPRITES.party_hat = {
+  map: [
+    '................',
+    '.......LL.......',
+    '......LLLL......',
+    '.......oo.......',
+    '......oMMo......',
+    '......oLMo......',
+    '.....oMMDMo.....',
+    '.....oLMMDo.....',
+    '....oMMLMMDo....',
+    '....oDDDDDDo....',
+    '...oMLMMMMDDo...',
+    '...oMMMDDMMMo...',
+    '..oMMLMMMMMDDo..',
+    '..oDDDDDDDDDDo..',
+    '..oooooooooooo..',
+    '................',
+  ],
+  pal: { o: [60, 32, 100], D: [120, 60, 190], M: [168, 98, 232], L: [250, 214, 80] },
+};
+SPRITES.party_popper = {
+  map: [
+    '.R..G.....B.....',
+    '...Y....P....R..',
+    '.B....Y....G....',
+    '....P.....Y.....',
+    '..G...ooo..B....',
+    '.....oRRRo..P...',
+    '....oRYRRDo.....',
+    '...oRRRBRDo.....',
+    '...oRYRRRDo.....',
+    '..oRRRRRDDo.....',
+    '..oRRBRRDo......',
+    '.oRRRRDDo.......',
+    '.oRRRDDo........',
+    '.oRDDDo.........',
+    '.oooooo.........',
+    '................',
+  ],
+  pal: { o: [60, 36, 36], R: [220, 60, 66], D: [160, 36, 46], Y: [250, 214, 70], B: [70, 130, 230], G: [100, 200, 100], P: [236, 120, 200] },
+};
+SPRITES.bunting = {
+  map: [
+    '................',
+    '................',
+    'SSSSSSSSSSSSSSSS',
+    '..SSSSSSSSSSSS..',
+    '.RRRR.YYYY.BBBB.',
+    '..RR...YY...BB..',
+    '................',
+    '.GGGG..RRRR.....',
+    '..GG....RR......',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+  ],
+  pal: { S: [222, 220, 210], R: [214, 54, 58], Y: [246, 206, 54], B: [58, 108, 218], G: [104, 190, 60] },
+};
+SPRITES.cake = {
+  map: [
+    '.......R........',
+    '.......Y........',
+    '.......c........',
+    '.......c........',
+    '...oooooooooo...',
+    '..oPPCPPCPPCPo..',
+    '..oCCCCCCCCCCo..',
+    '.oPCPPCPPCPPCPo.',
+    '.ooooooooooooo..',
+    '.oSSSSSSSSSSSo..',
+    '.oJJJJJJJJJJJo..',
+    '.oSSSSSSSSSSSo..',
+    '.oDDDDDDDDDDDo..',
+    '..ooooooooooo...',
+    '................',
+    '................',
+  ],
+  pal: { o: [110, 70, 50], P: [240, 142, 170], C: [252, 240, 220], S: [232, 184, 108], J: [196, 44, 66], D: [206, 150, 78], R: [255, 150, 40], Y: [255, 224, 90], c: [250, 244, 232] },
+};
+
 // ---- 2.3 snow day, pets and farm animals
 SPRITES.snowball = {
   map: [
