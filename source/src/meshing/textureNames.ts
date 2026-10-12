@@ -50,6 +50,8 @@ const base = [
   'glimmerstone',
   // 2.2: the Starhollow
   'starstone', 'starstone_bricks', 'starbloom', 'stargate', 'storm_bell', 'storm_bell_rung', 'storm_bell_mount', 'roost',
+  // 2.4: rails and parties
+  'rail', 'rail_curve', 'boost_rail', 'station_rail', 'cake_top', 'cake_side', 'cake_inner', 'balloons',
 ];
 
 export const TEXTURE_NAMES: string[] = [

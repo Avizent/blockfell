@@ -1360,6 +1360,113 @@ function destroyStages(): PixelTex[] {
   return out;
 }
 
+
+// ------------------------------------------------------------------ 2.4 textures (rails, party)
+const TIE: RGB = [122, 88, 50], TIE_D: RGB = [92, 64, 34];
+const STEEL: RGB = [176, 178, 188], STEEL_D: RGB = [118, 120, 132];
+
+/** Straight rail drawn running north-south (top to bottom). `rails` = colours of a rail's light and dark strip. */
+function railStraight(rng: () => number, kind: 'rail' | 'boost' | 'station'): PixelTex {
+  const t = clear(new PixelTex());
+  for (const y0 of [1, 5, 9, 13]) {
+    for (let x = 1; x <= 14; x++) {
+      t.set(x, y0, shade(TIE, 1 + (rng() - 0.5) * 0.12));
+      t.set(x, y0 + 1, shade(TIE_D, 1 + (rng() - 0.5) * 0.1));
+    }
+  }
+  const light = kind === 'boost' ? [238, 196, 70] as RGB : STEEL;
+  const dark = kind === 'boost' ? [186, 138, 36] as RGB : STEEL_D;
+  for (let y = 0; y < 16; y++) {
+    for (const x of [3, 11]) { t.set(x, y, shade(light, 1 + (rng() - 0.5) * 0.06)); t.set(x + 1, y, shade(dark, 1)); }
+  }
+  if (kind === 'boost') {
+    // two amber chevrons between the rails
+    const c: RGB = [236, 120, 40], cl: RGB = [255, 190, 90];
+    for (const y0 of [4, 10]) {
+      for (let i = 0; i < 3; i++) { t.set(7 - i, y0 + i, c); t.set(8 + i, y0 + i, c); t.set(7 - i, y0 + i - 1 < 0 ? 0 : y0 + i - 1, cl); t.set(8 + i, y0 + i - 1, cl); }
+    }
+  } else if (kind === 'station') {
+    // a red and white stop band across the track
+    for (let y = 6; y <= 9; y++) for (let x = 3; x <= 12; x++) {
+      t.set(x, y, ((x >> 1) + (y >> 1)) % 2 === 0 ? [206, 52, 46] : [244, 240, 232]);
+    }
+    for (let x = 3; x <= 12; x++) { t.set(x, 5, [90, 30, 26]); t.set(x, 10, [90, 30, 26]); }
+    for (const x of [3, 4, 11, 12]) for (let y = 5; y <= 10; y++) t.set(x, y, y % 2 ? STEEL : STEEL_D);
+  }
+  return t;
+}
+
+/** A curve joining the south and east edges (the corner is at the bottom right). */
+function railCurve(rng: () => number): PixelTex {
+  const t = clear(new PixelTex());
+  const cx = 16, cz = 16;
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const dx = cx - (x + 0.5), dz = cz - (y + 0.5);
+    const d = Math.hypot(dx, dz), a = Math.atan2(dz, dx);   // 0..pi/2 inside the tile
+    // ties: radial strips every ~22 degrees
+    for (const ta of [0.17, 0.57, 0.97, 1.37]) {
+      if (Math.abs(a - ta) * d < 1.05 && d > 2.2 && d < 13.8) t.set(x, y, shade(Math.abs(a - ta) * d < 0.5 ? TIE : TIE_D, 1 + (rng() - 0.5) * 0.1));
+    }
+  }
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const d = Math.hypot(cx - (x + 0.5), cz - (y + 0.5));
+    if (Math.abs(d - 4.2) < 0.95 || Math.abs(d - 11.8) < 0.95) t.set(x, y, shade(d < 8 ? STEEL_D : STEEL, 1 + (rng() - 0.5) * 0.06));
+  }
+  return t;
+}
+
+/** Party Cake: sponge, jam and frosting. `part`: top / side / the cut face. */
+function cakeTex(rng: () => number, part: 'top' | 'side' | 'inner'): PixelTex {
+  const t = new PixelTex();
+  const cream: RGB = [250, 238, 218], pink: RGB = [240, 142, 170], sponge: RGB = [232, 184, 108], spongeD: RGB = [206, 150, 78], jam: RGB = [196, 44, 66];
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    let c: RGB;
+    if (part === 'top') {
+      c = shade(cream, 1 + (rng() - 0.5) * 0.04);
+      const edge = Math.min(x, y, 15 - x, 15 - y);
+      if (edge <= 1) c = shade(pink, 1 + (rng() - 0.5) * 0.05);
+      if (edge === 2 && (x + y) % 2 === 0) c = shade(pink, 1.1);
+    } else if (y < 8) {
+      c = shade(cream, 1);           // unused upper half of the tile
+    } else if (y <= 9) {
+      c = shade(part === 'side' && ((x + (y === 9 ? 1 : 0)) % 4 < 3 || y === 8) ? cream : pink, 1);   // frosting with a scalloped edge
+    } else if (y <= 11) c = shade(sponge, 1 + (rng() - 0.5) * 0.08);
+    else if (y === 12) c = shade(jam, 1 + (rng() - 0.5) * 0.06);
+    else c = shade(y === 15 ? spongeD : sponge, 1 + (rng() - 0.5) * 0.08);
+    t.set(x, y, c);
+  }
+  if (part === 'top') for (const [x, y] of [[3, 4], [7, 10], [11, 5], [12, 11], [5, 12], [9, 3]]) t.set(x, y, [[86, 160, 232], [250, 214, 70], [120, 200, 90]][(x + y) % 3] as RGB);
+  return t;
+}
+
+/** A bunch of three party balloons on strings. */
+function balloons(rng: () => number): PixelTex {
+  const t = clear(new PixelTex());
+  const ball = (cx: number, cy: number, col: RGB) => {
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const dx = (x + 0.5 - cx) / 3.3, dy = (y + 0.5 - cy) / 3.9;
+      const d = dx * dx + dy * dy;
+      if (d <= 1) {
+        let c = shade(col, 0.82 + 0.3 * (1 - Math.hypot(dx + 0.35, dy + 0.4)));
+        if (d > 0.72) c = shade(col, 0.66);
+        t.set(x, y, c);
+      }
+    }
+    t.set(Math.round(cx - 1.4), Math.round(cy - 1.8), [255, 255, 255]);
+    t.set(Math.round(cx), Math.round(cy + 4), shade(col, 0.6));    // the knot
+  };
+  const string: RGB = [226, 224, 216];
+  const line = (x0: number, y0: number, x1: number, y1: number) => {
+    for (let i = 0; i <= 12; i++) t.set(Math.round(x0 + ((x1 - x0) * i) / 12), Math.round(y0 + ((y1 - y0) * i) / 12), string);
+  };
+  line(5, 9, 8, 15); line(11, 8, 8, 15); line(8, 11, 8, 15);
+  ball(4.8, 5.2, [220, 52, 60]);
+  ball(11.2, 4.2, [246, 204, 50]);
+  ball(8, 8.4, [60, 120, 226]);
+  void rng;
+  return t;
+}
+
 export function generateBlockTextures(): Map<string, PixelTex> {
   const m = new Map<string, PixelTex>();
   const R = (name: string) => mulberry32(seedOf(name));
@@ -1497,6 +1604,15 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   m.set('storm_bell_rung', stormBell(R('storm_bell_rung'), false));
   m.set('storm_bell_mount', stormBellMount(R('storm_bell_mount')));
   m.set('roost', roost(R('roost')));
+  // 2.4: rails and party things
+  m.set('rail', railStraight(R('rail'), 'rail'));
+  m.set('rail_curve', railCurve(R('rail_curve')));
+  m.set('boost_rail', railStraight(R('boost_rail'), 'boost'));
+  m.set('station_rail', railStraight(R('station_rail'), 'station'));
+  m.set('cake_top', cakeTex(R('cake_top'), 'top'));
+  m.set('cake_side', cakeTex(R('cake_side'), 'side'));
+  m.set('cake_inner', cakeTex(R('cake_inner'), 'inner'));
+  m.set('balloons', balloons(R('balloons')));
   m.set('spawner', spawnerCage(R('spawner')));
   m.set('bell', bellBronze(R('bell')));
   m.set('bell_mount', bellMount(R('bell_mount')));

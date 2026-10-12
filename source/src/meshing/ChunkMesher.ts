@@ -1,12 +1,13 @@
 import {
   AIR, BEDROCK, CULL_GROUP, CULL_SAME, FACE_LAYER, FLUID_LEVEL, IS_LAVA, IS_OPAQUE, IS_WATER, MODEL, NEIGHBOR_LIGHT, RENDER,
-  RENDER_CROSS, RENDER_CUBE, RENDER_LIQUID, RENDER_MODEL, RENDER_TORCH, RENDER_WALL_TORCH, TOP_ROT, getBlock,
+  RENDER_CROSS, RENDER_CUBE, RENDER_LIQUID, RENDER_MODEL, RENDER_RAIL, RENDER_TORCH, RENDER_WALL_TORCH, TOP_ROT, IS_RAIL, getBlock,
   CONNECT, CONNECT_MODEL, CONNECT_PANE, MODEL_CROSS, MODEL_FACES, PANE_EDGE_LAYER, connectMask,
 } from '../world/BlockRegistry';
 import { CHUNK_VOLUME, WORLD_HEIGHT } from '../world/constants';
 import { computeLight, PAD, PLANE, PVOL, PW, PY, pIndex } from './Lighting';
 import { MeshBuffers, MeshBuilder } from './MeshBuilder';
-import { LAVA_LAYER, WATER_LAYER } from './textureNames';
+import { LAVA_LAYER, WATER_LAYER, textureLayer } from './textureNames';
+import { railLook, railShape } from '../world/rails';
 
 /**
  * CHUNK MESHING
@@ -425,6 +426,7 @@ function emitSpecialModels(minY: number, maxY: number): number {
         const b = padded[pi];
         const r = RENDER[b];
         if (r === RENDER_MODEL) { n += emitModel(b, pi, x, y, z); continue; }
+        if (r === RENDER_RAIL) { n += emitRail(b, pi, x, y, z); continue; }
         if (r !== RENDER_CROSS && r !== RENDER_TORCH && r !== RENDER_WALL_TORCH) continue;
         const s4 = sky[pi] * 4, b4 = blk[pi] * 4;
         const layer = FACE_LAYER[b * 6];
@@ -455,6 +457,43 @@ function emitSpecialModels(minY: number, maxY: number): number {
     }
   }
   return n;
+}
+
+// ------------------------------------------------------------------ rails (2.4)
+const RAIL_CURVE_LAYER = textureLayer('rail_curve');
+/** Corner order of a rail quad (counter-clockwise from above): NW, SW, SE, NE. */
+const RAIL_CORNER = [[0, 0], [0, 16], [16, 16], [16, 0]];
+/**
+ * A rail: one flat quad just above the floor (tilted for a slope), with the
+ * straight or curved texture turned to match the shape worked out from its
+ * neighbours (read from the padded volume, so it is exact across chunk borders).
+ */
+function emitRail(b: number, pi: number, x: number, y: number, z: number): number {
+  const shape = railShape((dx, dy, dz) => padded[pi + dx + dz * PW + dy * PLANE], IS_RAIL[b]);
+  const look = railLook(shape);
+  const layer = look.curve ? RAIL_CURVE_LAYER : FACE_LAYER[b * 6];
+  const s4 = sky[pi] * 4, b4 = blk[pi] * 4;
+  const X = x * 16, Y = y * 16, Z = z * 16;
+  const base = opaqueB.vc;
+  for (const [cx, cz] of RAIL_CORNER) {
+    // height: 1/16 above the floor, a full block higher on the side a slope rises towards
+    let h = 1;
+    if (shape.rise === 0 && cz === 0) h = 17;
+    else if (shape.rise === 2 && cz === 16) h = 17;
+    else if (shape.rise === 1 && cx === 16) h = 17;
+    else if (shape.rise === 3 && cx === 0) h = 17;
+    // the texture is turned clockwise by `turns` quarter turns
+    let u = cx, v = cz;
+    switch (look.turns) {
+      case 1: u = cz; v = 16 - cx; break;
+      case 2: u = 16 - cx; v = 16 - cz; break;
+      case 3: u = 16 - cz; v = cx; break;
+      default: break;
+    }
+    opaqueB.vertex(X + cx, Y + h, Z + cz, u, v, layer, 2 | (3 << 3), s4, b4);
+  }
+  opaqueB.quad(base, false);
+  return 1;
 }
 
 const WALL_TURNS: Record<string, number> = { n: 0, e: 1, s: 2, w: 3 };
