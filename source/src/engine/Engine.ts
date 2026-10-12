@@ -487,7 +487,7 @@ export class Engine implements EngineServices {
   closeOverlay(): void {
     const s = ui.get();
     if (s.overlay === 'theend') { this.finishTheEnd(); return; }
-    if (this.game && (s.overlay === 'inventory' || s.overlay === 'creative' || s.overlay === 'crafting' || s.overlay === 'furnace' || s.overlay === 'chest' || s.overlay === 'runes' || s.overlay === 'trade')) {
+    if (this.game && (s.overlay === 'inventory' || s.overlay === 'creative' || s.overlay === 'crafting' || s.overlay === 'furnace' || s.overlay === 'chest' || s.overlay === 'bag' || s.overlay === 'runes' || s.overlay === 'trade')) {
       this.game.closeScreen();
     }
     if (this.game && s.overlay === 'sleep') { ui.set({ overlay: null }); this.game.wake(false); }
@@ -545,7 +545,7 @@ export class Engine implements EngineServices {
     if (s.screen !== 'game' || !this.game) return false;
     if (e.repeat && code !== 'F3') return false;
     const o = s.overlay;
-    const containerOpen = o === 'inventory' || o === 'creative' || o === 'crafting' || o === 'furnace' || o === 'chest' || o === 'runes' || o === 'trade' || o === 'map';
+    const containerOpen = o === 'inventory' || o === 'creative' || o === 'crafting' || o === 'furnace' || o === 'chest' || o === 'bag' || o === 'runes' || o === 'trade' || o === 'map';
     if (code === 'Escape') {
       if (o === 'death') return true;
       // the Esc press that released pointer lock already opened the pause menu
