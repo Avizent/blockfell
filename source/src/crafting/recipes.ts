@@ -122,10 +122,22 @@ shaped(['SSS', ' S ', 'SPS'], { S: 'stick', P: 'stone_slab' }, 'armour_stand');
 shaped([' R ', 'GOG', ' R '], { R: 'rune_shard', G: 'glimmer_dust', O: 'fire_opal' }, 'star_lens');
 shaped(['S S', 'SDS', 'S S'], { S: 'star_scale', D: 'drift_silk' }, 'star_wings');
 shaped(['SS', 'SS'], { S: 'starstone' }, 'starstone_bricks', 4);
+// 2.4: tracks, carts and parties
+shaped(['I I', 'ISI', 'I I'], { I: 'iron_ingot', S: 'stick' }, 'rail', 16);
+shaped(['I I', 'ISI', 'IAI'], { I: 'iron_ingot', S: 'stick', A: 'amber' }, 'boost_rail', 6);
+shaped(['I I', 'ISI', 'IRI'], { I: 'iron_ingot', S: 'stick', R: 'red_dye' }, 'station_rail', 6);
+shaped(['I I', 'III'], { I: 'iron_ingot' }, 'minecart');
+shaped([' S ', 'W W', 'WWW'], { S: 'string', W: 'wool' }, 'party_bag');
+shaped([' S ', ' W ', 'WWW'], { S: 'string', W: 'wool' }, 'party_hat');
+shapeless(['string', 'red_dye', 'yellow_dye', 'blue_dye'], 'party_popper', 3);
+shaped(['SSS', 'RYB'], { S: 'string', R: 'red_dye', Y: 'yellow_dye', B: 'blue_dye' }, 'bunting', 3);
+shaped(['RYB', ' S '], { S: 'string', R: 'red_dye', Y: 'yellow_dye', B: 'blue_dye' }, 'balloons', 2);
+shaped(['AAA', 'BTB', 'WWW'], { A: 'apple', B: 'bread', T: 'torch', W: 'wheat' }, 'cake');
 shapeless(['starbloom'], 'purple_dye', 2);
 
 /** The four leather armour pieces (2.1: they can be dyed). */
-export const LEATHER_PIECES = ['leather_helmet', 'leather_chestplate', 'leather_leggings', 'leather_boots'];
+/** Things that can be dyed in the crafting grid: leather armour (2.1), and (2.4) Party Bags and Party Hats. */
+export const LEATHER_PIECES = ['leather_helmet', 'leather_chestplate', 'leather_leggings', 'leather_boots', 'party_bag', 'party_hat'];
 
 /**
  * Crafting that isn't a fixed recipe (2.1): a leather armour piece and one to eight
