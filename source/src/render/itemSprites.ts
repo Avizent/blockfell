@@ -572,6 +572,53 @@ meat('cooked_rabbit', [178, 116, 64], [128, 78, 40], [220, 180, 120], true);
 meat('raw_ashboar', [168, 52, 50], [112, 34, 34], [150, 146, 140], true);
 meat('roast_ashboar', [132, 70, 36], [86, 40, 22], [236, 132, 52], true);
 
+/** 2.6: a 16x16 sprite grid drawn from cell lists (diagonal weapons), outlined automatically. */
+function diagGrid(cells: [number, number, string][]): string[] {
+  const g: string[][] = Array.from({ length: 16 }, () => Array(16).fill('.'));
+  for (const [x, y, c] of cells) if (x >= 0 && x < 16 && y >= 0 && y < 16) g[y][x] = c;
+  const out = g.map((r) => r.slice());
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    if (g[y][x] !== '.') continue;
+    let near = false;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const yy = y + dy, xx = x + dx; if (yy >= 0 && yy < 16 && xx >= 0 && xx < 16 && g[yy][xx] !== '.') near = true; }
+    if (near) out[y][x] = 'o';
+  }
+  return out.map((r) => r.join(''));
+}
+function spearCells(): [number, number, string][] {
+  const c: [number, number, string][] = [];
+  for (let i = 0; i <= 10; i++) c.push([1 + i, 14 - i, i % 2 ? 'h' : 'H']);   // the shaft
+  const widths = [1, 3, 3, 1, 1];
+  widths.forEach((w, a) => {
+    for (let b = -(w - 1) / 2; b <= (w - 1) / 2; b++) c.push([10 + a + b, 5 - a + b, b < 0 ? 'L' : b === 0 ? 'M' : 'D']);
+  });
+  return c;
+}
+for (const mat of ['wooden', 'stone', 'iron']) SPRITES[`${mat}_spear`] = { map: diagGrid(spearCells()), pal: toolPal(mat) };
+/** The crossbow: a stock running up and to the right, two curved arms across its front and a string; loaded, a bolt lies along it. */
+function crossbowCells(loaded: 0 | 1 | 2): [number, number, string][] {
+  const c: [number, number, string][] = [];
+  for (let i = 0; i <= 8; i++) c.push([1 + i, 14 - i, i < 4 ? 'H' : 'h']);              // the stock, up to the bow
+  for (let t = 0; t <= 8; t++) c.push([6 + t, 1 + t, 'S']);                             // the string, tip to tip
+  const arms: [number, number][] = [[9, 8], [10, 9], [12, 9], [14, 9], [7, 6], [6, 3], [6, 1]];
+  for (const [x, y] of arms) c.push([x, y, 'A']);
+  c.push([11, 9, 'A'], [13, 9, 'A'], [7, 5, 'A'], [6, 2, 'A'], [7, 4, 'A']);
+  if (loaded) { c.push([9, 6, 'R'], [10, 5, 'R'], [11, 4, loaded === 2 ? 'F' : 'T'], [12, 3, loaded === 2 ? 'F' : 'T']); }
+  return c;
+}
+const CB_PAL = { o: O, H: H2, h: H1, A: [150, 150, 158] as RGBA, S: [240, 240, 240] as RGBA, R: [196, 160, 110] as RGBA, T: [200, 200, 208] as RGBA, F: [255, 150, 40] as RGBA };
+SPRITES.crossbow = { map: diagGrid(crossbowCells(0)), pal: CB_PAL };
+SPRITES.crossbow_loaded = { map: diagGrid(crossbowCells(1)), pal: CB_PAL };
+SPRITES.crossbow_loaded_flame = { map: diagGrid(crossbowCells(2)), pal: CB_PAL };
+SPRITES.flame_arrow = {
+  map: [
+    '................', '...........ooo..', '..........oFFo..', '..........oFYo..', '.........ohoo...',
+    '........ohHo....', '.......ohHo.....', '......ohHo......', '.....ohHo.......', '....ohHo........',
+    '..ooohHo........', '.oFWoHo.........', '.oWFWo..........', '..oWFo..........', '..ooo...........', '................',
+  ],
+  pal: { o: O, F: [240, 120, 30], Y: [255, 214, 80], h: H1, H: H2, W: [240, 240, 240] },
+};
+
 for (const mat of ['wooden', 'stone', 'iron']) {
   SPRITES[`${mat}_pickaxe`] = { map: PICKAXE, pal: toolPal(mat) };
   SPRITES[`${mat}_axe`] = { map: AXE, pal: toolPal(mat) };
