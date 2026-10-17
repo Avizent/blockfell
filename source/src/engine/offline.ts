@@ -14,6 +14,8 @@ import { ui, pushToast } from '../ui/uiStore';
 
 declare const __BUILD_ID__: string;
 export const BUILD_ID: string = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev';
+/** The short part of the build id (after the version), shown beside the version so two devices can be compared. */
+export const BUILD_CODE: string = BUILD_ID.includes('-') ? BUILD_ID.slice(BUILD_ID.lastIndexOf('-') + 1) : BUILD_ID;
 const CACHE = 'blockfell-page-v1';   // same name as in public/sw.js
 const CHECK_EVERY = 30 * 60 * 1000;
 

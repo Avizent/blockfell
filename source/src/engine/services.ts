@@ -18,7 +18,7 @@ export interface EngineServices {
   icons: ItemIcons;
   models: ItemModels;
   saves: SaveManager;
-  openBlockScreen(x: number, y: number, z: number, kind: 'crafting' | 'furnace' | 'chest' | 'runes'): void;
+  openBlockScreen(x: number, y: number, z: number, kind: 'crafting' | 'furnace' | 'chest' | 'runes' | 'brewing'): void;
   openTrade(v: import('../entities/Villager').Villager): void;
   openSignEditor(x: number, y: number, z: number): void;
   closeOverlay(): void;

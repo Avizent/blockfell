@@ -475,10 +475,20 @@ export class Engine implements EngineServices {
     this.audio.play('drake_victory', undefined, undefined, undefined, 0.8);
   }
 
+  private endReplay = false;
+  /** 2.5: play the End story again from the pause menu (no trip home; back to the game afterwards). */
+  replayTheEnd(): void {
+    this.endReplay = true;
+    this.input.exitLock();
+    this.input.releaseAll();
+    ui.set({ overlay: 'theend', boss: null });
+  }
+
   /** The End screen is over (or skipped): home to the bed or spawn point. */
   finishTheEnd(): void {
     const g = this.game;
     if (!g || ui.get().overlay !== 'theend') return;
+    if (this.endReplay) { this.endReplay = false; ui.set({ overlay: null }); this.input.releaseAll(); this.input.requestLock(); this.updateFocus(); return; }
     if (g.record.star) g.record.star.seenEnd = true;
     ui.set({ overlay: null });
     void this.changeDimension(OVERWORLD, { kind: 'home', note: 'You are home again. The stars are shining a little brighter.' });
@@ -487,7 +497,7 @@ export class Engine implements EngineServices {
   closeOverlay(): void {
     const s = ui.get();
     if (s.overlay === 'theend') { this.finishTheEnd(); return; }
-    if (this.game && (s.overlay === 'inventory' || s.overlay === 'creative' || s.overlay === 'crafting' || s.overlay === 'furnace' || s.overlay === 'chest' || s.overlay === 'bag' || s.overlay === 'runes' || s.overlay === 'trade')) {
+    if (this.game && (s.overlay === 'inventory' || s.overlay === 'creative' || s.overlay === 'crafting' || s.overlay === 'furnace' || s.overlay === 'brewing' || s.overlay === 'chest' || s.overlay === 'bag' || s.overlay === 'runes' || s.overlay === 'trade')) {
       this.game.closeScreen();
     }
     if (this.game && s.overlay === 'sleep') { ui.set({ overlay: null }); this.game.wake(false); }
@@ -499,7 +509,7 @@ export class Engine implements EngineServices {
     this.updateFocus();
   }
 
-  openBlockScreen(x: number, y: number, z: number, kind: 'crafting' | 'furnace' | 'chest' | 'runes'): void {
+  openBlockScreen(x: number, y: number, z: number, kind: 'crafting' | 'furnace' | 'chest' | 'runes' | 'brewing'): void {
     if (!this.game) return;
     this.game.openBlockUI(x, y, z, kind);
     this.input.exitLock();
@@ -545,7 +555,7 @@ export class Engine implements EngineServices {
     if (s.screen !== 'game' || !this.game) return false;
     if (e.repeat && code !== 'F3') return false;
     const o = s.overlay;
-    const containerOpen = o === 'inventory' || o === 'creative' || o === 'crafting' || o === 'furnace' || o === 'chest' || o === 'bag' || o === 'runes' || o === 'trade' || o === 'map';
+    const containerOpen = o === 'inventory' || o === 'creative' || o === 'crafting' || o === 'furnace' || o === 'brewing' || o === 'chest' || o === 'bag' || o === 'runes' || o === 'trade' || o === 'map';
     if (code === 'Escape') {
       if (o === 'death') return true;
       // the Esc press that released pointer lock already opened the pause menu
