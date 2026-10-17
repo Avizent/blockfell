@@ -5,7 +5,7 @@ import { TitleScreen, WorldSelect, CreateWorld, EditWorld, LoadingScreen, QuitSc
 import { TheEnd } from './ui/TheEnd';
 import { OptionsScreen, PauseMenu, DeathScreen, AdvancementsScreen, StatsScreen, SleepScreen, SignEditor, MapScreen, NameTagScreen } from './ui/GameMenus';
 import { HUD, Toasts } from './ui/HUD';
-import { SurvivalInventory, CraftingTableScreen, ChestScreen, BagScreen, FurnaceScreen, CreativeScreen, RuneTableScreen, TradeScreen } from './ui/InventoryUI';
+import { SurvivalInventory, CraftingTableScreen, ChestScreen, BagScreen, FurnaceScreen, BrewingScreen, CreativeScreen, RuneTableScreen, TradeScreen } from './ui/InventoryUI';
 import { engine } from './engine/Engine';
 import { TouchControls, RotateHint } from './ui/TouchControls';
 
@@ -47,6 +47,7 @@ export function App() {
           {overlay === 'chest' && <ChestScreen />}
           {overlay === 'bag' && <BagScreen />}
           {overlay === 'furnace' && <FurnaceScreen />}
+          {overlay === 'brewing' && <BrewingScreen />}
           {overlay === 'creative' && <CreativeScreen />}
           {overlay === 'runes' && <RuneTableScreen />}
           {overlay === 'trade' && <TradeScreen />}
