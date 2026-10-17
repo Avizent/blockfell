@@ -70,6 +70,9 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   // 2.5: potions
   { id: 'brew_stand', title: 'Bubble, Bubble', description: 'Craft a Brewing Stand', icon: 'brewing_stand', parent: 'furnace' },
   { id: 'brew_drink', title: 'Down the Hatch', description: 'Drink a potion', icon: 'potion_swiftness', parent: 'brew_stand' },
+  { id: 'long_reach', title: 'Long Reach', description: 'Hit a creature with a spear from 4 blocks away', icon: 'iron_spear', parent: 'kill' },
+  { id: 'crossbow', title: 'Loaded', description: 'Fire a crossbow', icon: 'crossbow', parent: 'bow' },
+  { id: 'flame_hit', title: 'Fire Arrow', description: 'Set a creature alight with a Flame Arrow', icon: 'flame_arrow', parent: 'crossbow' },
   { id: 'brew_splash', title: 'Splash Zone', description: 'Throw a splash potion', icon: 'splash_mending', parent: 'brew_drink' },
   { id: 'dye_sheep', title: 'Woolly Rainbow', description: 'Dye a sheep', icon: 'pink_dye', parent: 'dye' },
   // 2.4: tracks, carts and parties
