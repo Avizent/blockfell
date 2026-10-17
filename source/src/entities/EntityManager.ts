@@ -16,6 +16,7 @@ import { FarmAnimal, Sheep, FARM_TYPES, FARM_GROW_TICKS, naturalWool } from './F
 import { Fox } from './Fox';
 import { SnowPal } from './SnowPal';
 import { Snowball } from './Snowball';
+import { SplashPotion } from './SplashPotion';
 import { Sledge } from './Sledge';
 import { Minecart } from './Minecart';
 import { cleanStack } from '../inventory/Inventory';
@@ -178,6 +179,15 @@ export class EntityManager implements EntityQueries {
   spawnSnowball(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob | null): Snowball {
     const s = new Snowball();
     s.shooter = shooter;
+    s.setPos(x, y, z);
+    s.vx = vx; s.vy = vy; s.vz = vz;
+    return this.add(s);
+  }
+
+  /** 2.5: a thrown splash potion. */
+  spawnSplash(x: number, y: number, z: number, vx: number, vy: number, vz: number, effectId: string): SplashPotion {
+    const s = new SplashPotion();
+    s.setEffect(effectId);
     s.setPos(x, y, z);
     s.vx = vx; s.vy = vy; s.vz = vz;
     return this.add(s);
