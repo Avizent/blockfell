@@ -70,6 +70,8 @@ export class Player {
   runeSeed = (Math.random() * 0x7fffffff) | 0;
   fallDistance = 0;
   invulnerable = 0;     // ticks of damage immunity
+  /** 2.5: walking speed multiplier (the Swiftness effect sets 1.3). */
+  speedMul = 1;
   hurtTime = 0;         // for the camera shake / red flash
   dead = false;
   regenTimer = 0;
@@ -318,7 +320,7 @@ export class Player {
           this.addExhaustion(0.2);
         } else this.addExhaustion(0.05);
       }
-      const speed = this.onGround ? (this.sprinting ? 0.13 : 0.1) : (this.sprinting ? 0.026 : 0.02);
+      const speed = (this.onGround ? (this.sprinting ? 0.13 : 0.1) : (this.sprinting ? 0.026 : 0.02)) * this.speedMul;
       const friction = this.onGround ? 0.546 : 0.91;
       this.moveRelative(fwd, str, speed);
       this.onLadder = CLIMBABLE[world.getBlock(Math.floor(this.x), Math.floor(this.y), Math.floor(this.z))] === 1;
