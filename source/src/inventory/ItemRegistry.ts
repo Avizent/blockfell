@@ -1,6 +1,7 @@
 import * as B from '../world/BlockRegistry';
 import { DYE_COLORS, DYE_NAMES, woolKey } from '../world/dyes';
 import { NAMES } from '../world/names';
+import { EFFECTS, potionItem, splashItem } from './potions';
 
 export type ItemKind = 'block' | 'item' | 'tool' | 'food' | 'armor' | 'spawn' | 'bow' | 'bucket' | 'boat' | 'rod';
 export type Category = 'building' | 'decoration' | 'natural' | 'functional' | 'tools' | 'combat' | 'food' | 'ingredients' | 'spawn';
@@ -133,6 +134,7 @@ blockItem('cinderstone_bricks', 'building');
 blockItem('spawner', 'functional', { maxStack: 16 });
 // ---- 1.8 village life
 blockItem('bell', 'functional');
+blockItem('drake_trophy', 'decoration');
 blockItem('map_table', 'functional', { fuel: 300 });
 add({ id: 'dungeon_map', name: 'Dungeon Map', maxStack: 1, category: 'tools' });
 add({ id: 'ruin_map', name: 'Ruin Map', maxStack: 1, category: 'tools' });
@@ -336,3 +338,14 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   ingredients: 'Ingredients',
   spawn: 'Spawn Items',
 };
+
+// ---- 2.5: potions and the Brewing Stand (appended last)
+blockItem('brewing_stand', 'functional');
+add({ id: 'glass_bottle', name: 'Glass Bottle', category: 'ingredients', maxStack: 16 });
+add({ id: 'water_bottle', name: 'Water Bottle', category: 'ingredients', maxStack: 16 });
+for (const e of EFFECTS) {
+  add({ id: potionItem(e.id), name: e.potion, category: 'combat', maxStack: 16 });
+}
+for (const e of EFFECTS) {
+  add({ id: splashItem(e.id), name: e.splash, category: 'combat', maxStack: 16 });
+}

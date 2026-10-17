@@ -1,10 +1,11 @@
+import { isBottle, isIngredient } from './potions';
 import { Container } from './Inventory';
 import { ItemStack, Slot, stacksMatch } from './ItemStack';
 import { getItem, maxStackOf } from './ItemRegistry';
 import { recipes, specialCraft } from '../crafting/recipes';
 import { canInscribe } from './Enchantments';
 
-export type SlotGroup = 'hotbar' | 'main' | 'armor' | 'offhand' | 'craft' | 'output' | 'chest' | 'furnace_in' | 'furnace_fuel' | 'furnace_out' | 'rune_item' | 'rune_shards';
+export type SlotGroup = 'hotbar' | 'main' | 'armor' | 'offhand' | 'craft' | 'output' | 'chest' | 'furnace_in' | 'furnace_fuel' | 'furnace_out' | 'brew_bottle' | 'brew_ingredient' | 'brew_fuel' | 'rune_item' | 'rune_shards';
 
 export interface SlotRef {
   id: string;               // unique within the screen (React key / hit testing)
@@ -91,6 +92,12 @@ export class ScreenHandler {
         return def.armor && def.armor.slot === ref.armorSlot ? 1 : 0;
       case 'furnace_fuel':
         return def.fuel ? def.maxStack : 0;
+      case 'brew_bottle':
+        return isBottle(stack.id) ? 1 : 0;
+      case 'brew_ingredient':
+        return isIngredient(stack.id) ? def.maxStack : 0;
+      case 'brew_fuel':
+        return stack.id === 'coal' ? def.maxStack : 0;
       case 'rune_item':
         return canInscribe({ ...stack, count: 1 }) ? 1 : 0;
       case 'rune_shards':
@@ -179,6 +186,12 @@ export class ScreenHandler {
         if (has('rune_item')) {
           if (s.id === 'rune_shard') return this.group('rune_shards');
           if (canInscribe({ ...s, count: 1 }) && !this.get(this.group('rune_item')[0])) return this.group('rune_item');
+          return other;
+        }
+        if (has('brew_bottle')) {
+          if (isBottle(s.id)) return this.group('brew_bottle');
+          if (isIngredient(s.id)) return this.group('brew_ingredient');
+          if (s.id === 'coal') return this.group('brew_fuel');
           return other;
         }
         if (has('furnace_in')) {
