@@ -3,9 +3,9 @@ import { DYE_COLORS, DYE_NAMES, woolKey } from '../world/dyes';
 import { NAMES } from '../world/names';
 import { EFFECTS, potionItem, splashItem } from './potions';
 
-export type ItemKind = 'block' | 'item' | 'tool' | 'food' | 'armor' | 'spawn' | 'bow' | 'bucket' | 'boat' | 'rod';
+export type ItemKind = 'block' | 'item' | 'tool' | 'food' | 'armor' | 'spawn' | 'bow' | 'crossbow' | 'bucket' | 'boat' | 'rod';
 export type Category = 'building' | 'decoration' | 'natural' | 'functional' | 'tools' | 'combat' | 'food' | 'ingredients' | 'spawn';
-export type ToolKind = 'pickaxe' | 'axe' | 'shovel' | 'sword' | 'hoe';
+export type ToolKind = 'pickaxe' | 'axe' | 'shovel' | 'sword' | 'hoe' | 'spear';
 
 export interface ToolInfo {
   type: ToolKind;
@@ -174,12 +174,12 @@ const MATS: [string, string, number, number, number][] = [
   ['stone', 'Stone', 1, 4, 131],
   ['iron', 'Iron', 2, 6, 250],
 ];
-const ATTACK: Record<ToolKind, number[]> = { sword: [4, 5, 6], axe: [3, 4, 5], pickaxe: [2, 3, 4], shovel: [1.5, 2.5, 3.5], hoe: [1, 1, 1] };
+const ATTACK: Record<ToolKind, number[]> = { sword: [4, 5, 6], axe: [3, 4, 5], pickaxe: [2, 3, 4], shovel: [1.5, 2.5, 3.5], hoe: [1, 1, 1], spear: [3.5, 4.5, 5.5] };
 for (const [p, disp, tier, speed, dur] of MATS) {
-  for (const t of ['pickaxe', 'axe', 'shovel', 'sword', 'hoe'] as ToolKind[]) {
+  for (const t of ['pickaxe', 'axe', 'shovel', 'sword', 'hoe', 'spear'] as ToolKind[]) {
     add({
       id: `${p}_${t}`, name: `${disp} ${t[0].toUpperCase()}${t.slice(1)}`, kind: 'tool', maxStack: 1,
-      category: t === 'sword' ? 'combat' : 'tools',
+      category: t === 'sword' || t === 'spear' ? 'combat' : 'tools',
       tool: { type: t, tier, speed, durability: dur }, durability: dur, attack: ATTACK[t][tier],
       fuel: p === 'wooden' ? 200 : undefined,
     });
@@ -187,6 +187,11 @@ for (const [p, disp, tier, speed, dur] of MATS) {
 }
 add({ id: 'bow', name: 'Bow', kind: 'bow', maxStack: 1, category: 'combat', durability: 384, fuel: 300 });
 add({ id: 'arrow', name: 'Arrow', category: 'combat' });
+// 2.6: Flame Arrows, and the Crossbow (three ids: the empty one, and loaded with an arrow or a flame arrow, which saves who is loaded)
+add({ id: 'flame_arrow', name: 'Flame Arrow', category: 'combat' });
+add({ id: 'crossbow', name: 'Crossbow', kind: 'crossbow', maxStack: 1, category: 'combat', durability: 465, fuel: 300 });
+add({ id: 'crossbow_loaded', name: 'Crossbow (loaded)', kind: 'crossbow', maxStack: 1, category: 'hidden' as unknown as Category, durability: 465, fuel: 300 });
+add({ id: 'crossbow_loaded_flame', name: 'Crossbow (loaded, flame)', kind: 'crossbow', maxStack: 1, category: 'hidden' as unknown as Category, durability: 465, fuel: 300 });
 
 // ---- armour
 const ARMOR: [string, string, number[], number[]][] = [

@@ -44,10 +44,10 @@ export function runesFor(itemId: string): RuneId[] {
       case 'axe': return ['swift', 'sturdy', 'keen'];
       case 'shovel': return ['swift', 'sturdy'];
       case 'hoe': return ['sturdy'];
-      case 'sword': return ['keen', 'sturdy', 'plunder'];
+      case 'sword': case 'spear': return ['keen', 'sturdy', 'plunder'];
     }
   }
-  if (d.kind === 'bow') return ['might', 'sturdy'];
+  if (d.kind === 'bow' || d.kind === 'crossbow') return ['might', 'sturdy'];
   if (d.kind === 'rod') return ['sturdy'];
   if (d.armor) return d.armor.slot === 3 ? ['warding', 'sturdy', 'soft_landing'] : ['warding', 'sturdy'];
   return [];
