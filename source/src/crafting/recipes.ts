@@ -128,6 +128,9 @@ shaped(['I I', 'ISI', 'IAI'], { I: 'iron_ingot', S: 'stick', A: 'amber' }, 'boos
 shaped(['I I', 'ISI', 'IRI'], { I: 'iron_ingot', S: 'stick', R: 'red_dye' }, 'station_rail', 6);
 shaped(['I I', 'III'], { I: 'iron_ingot' }, 'minecart');
 shaped([' S ', 'W W', 'WWW'], { S: 'string', W: 'wool' }, 'party_bag');
+// 2.5: bottles and the Brewing Stand
+shaped(['G G', ' G '], { G: 'glass' }, 'glass_bottle', 3);
+shaped([' I ', 'CCC'], { I: 'iron_ingot', C: 'cobblestone' }, 'brewing_stand');
 shaped([' S ', ' W ', 'WWW'], { S: 'string', W: 'wool' }, 'party_hat');
 shapeless(['string', 'red_dye', 'yellow_dye', 'blue_dye'], 'party_popper', 3);
 shaped(['SSS', 'RYB'], { S: 'string', R: 'red_dye', Y: 'yellow_dye', B: 'blue_dye' }, 'bunting', 3);
