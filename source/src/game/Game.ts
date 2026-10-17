@@ -66,6 +66,8 @@ import { ROOST, ARRIVAL } from '../world/Starhollow';
 import type { Trade } from '../entities/Trades';
 import type { VillagePlan } from '../world/Villages';
 
+/** 2.6: ticks to wind a crossbow (a bow draws fully in 20). */
+const CROSSBOW_LOAD = 25;
 const ORES = new Set<number>([B.COAL_ORE, B.IRON_ORE, B.RUNE_ORE]);
 const HOTBAR_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9'];
 
@@ -121,6 +123,10 @@ export class Game implements EntityHost, PrecipSource {
   private useDelay = 0;
   private eatTicks = 0;
   private bowTicks = 0;
+  /** 2.6: ticks spent winding a crossbow; ticks until a spear can thrust again. */
+  private crossTicks = 0;
+  private spearCooldown = 0;
+  private lastCharge = '0';
   private jumpTap = 0;
   private forwardTap = 0;
   private stepDist = 0;
@@ -345,8 +351,8 @@ export class Game implements EntityHost, PrecipSource {
   spawnXp(value: number, x: number, y: number, z: number): void {
     this.entities.spawnXp(value, x, y, z);
   }
-  spawnArrow(x: number, y: number, z: number, vx: number, vy: number, vz: number, fromPlayer: boolean, damage: number, shooter: Mob | null = null): void {
-    this.entities.spawnArrow(x, y, z, vx, vy, vz, fromPlayer, damage, shooter);
+  spawnArrow(x: number, y: number, z: number, vx: number, vy: number, vz: number, fromPlayer: boolean, damage: number, shooter: Mob | null = null, flame = false): void {
+    this.entities.spawnArrow(x, y, z, vx, vy, vz, fromPlayer, damage, shooter, flame);
   }
   spawnEmber(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob): void {
     this.entities.spawnEmber(x, y, z, vx, vy, vz, shooter);
@@ -972,7 +978,7 @@ export class Game implements EntityHost, PrecipSource {
     if (r.id === 'furnace') g('furnace');
     if (r.id === 'brewing_stand') g('brew_stand');
     if (r.id === 'cinder_charm') g('charm');
-    if (r.id.endsWith('_sword')) g('sword');
+    if (r.id.endsWith('_sword') || r.id.endsWith('_spear')) g('sword');
     if (r.id.endsWith('_wool') || r.id.endsWith('_dye')) g('dye');
     if (r.color !== undefined) g('dye_armour');
     this.sound('click', undefined, undefined, undefined, 0.3, 1.4);
@@ -1266,7 +1272,7 @@ export class Game implements EntityHost, PrecipSource {
       if (stick.sprint) move.sprint = true;
     }
     if (this.autopilot) Object.assign(move, this.autopilot);
-    if (this.eatTicks > 0 || this.bowTicks > 0) { move.forward *= 0.2; move.strafe *= 0.2; move.sprint = false; p.sprinting = false; }
+    if (this.eatTicks > 0 || this.bowTicks > 0 || this.crossTicks > 0) { move.forward *= 0.2; move.strafe *= 0.2; move.sprint = false; p.sprinting = false; }
     if (this.sleepTicks > 0) { move.forward = 0; move.strafe = 0; move.jump = false; move.sneak = false; move.sprint = false; }
     // ---- in a boat: W/S row, A/D turn, Shift (the Sneak button) climbs out
     if (this.riding && (this.riding.removed || p.dead)) this.dismount();
@@ -1939,12 +1945,13 @@ export class Game implements EntityHost, PrecipSource {
     const input = this.engine.input;
     if (this.breakDelay > 0) this.breakDelay--;
     if (this.useDelay > 0) this.useDelay--;
+    if (this.spearCooldown > 0) this.spearCooldown--;
     if (p.dead) { this.target = null; this.targetMob = null; this.crack.hide(); return; }
 
     const [ex, ey, ez] = this.eye();
     const [dx, dy, dz] = this.lookDir();
     const hit = raycast(this.world, ex, ey, ez, dx, dy, dz, this.reach());
-    const mobHit = this.entities.rayHitMob(ex, ey, ez, dx, dy, dz, p.creative ? 5 : 3);
+    const mobHit = this.entities.rayHitMob(ex, ey, ez, dx, dy, dz, this.attackReach());
     this.targetMob = mobHit && (!hit || mobHit.t < hit.dist) ? mobHit.mob : null;
     this.target = this.targetMob ? null : hit;
     const paintHit = this.entities.rayHitPainting(ex, ey, ez, dx, dy, dz, this.reach());
@@ -2081,14 +2088,17 @@ export class Game implements EntityHost, PrecipSource {
     // ---- use / place
     const held = this.inventory.selectedStack;
     const heldDef = held ? getItem(held.id) : null;
+    if (heldDef?.kind === 'crossbow') this.tickCrossbow(held!, rmb, rmbPress);
+    else if (this.crossTicks) { this.crossTicks = 0; this.hand.drawing = 0; }
     if (heldDef?.kind === 'bow') {
-      if (rmb && (p.creative || this.inventory.countItem('arrow') > 0)) {
+      if (rmb && this.ammoKind()) {
         this.bowTicks++;
         this.hand.drawing = this.bowTicks;
       } else if (this.bowTicks > 0 && (rmbRelease || !rmb)) {
         this.releaseBow();
       }
     } else if (this.bowTicks) { this.bowTicks = 0; this.hand.drawing = 0; }
+    this.updateCharge(held);
 
     if (this.tickDrinking(held, rmb && !(this.target && B.getBlock(this.target.block).interact && !p.sneaking))) return;
 
@@ -2101,7 +2111,7 @@ export class Game implements EntityHost, PrecipSource {
       return;
     } else if (this.eatTicks) { this.eatTicks = 0; this.hand.eating = 0; }
 
-    if ((rmb || rmbPress) && (rmbPress || this.useDelay === 0) && heldDef?.kind !== 'bow') {
+    if ((rmb || rmbPress) && (rmbPress || this.useDelay === 0) && heldDef?.kind !== 'bow' && heldDef?.kind !== 'crossbow') {
       this.useDelay = 4;
       this.use(rmbPress);
     }
@@ -2217,6 +2227,8 @@ export class Game implements EntityHost, PrecipSource {
 
   private attack(mob: Mob): void {
     const p = this.player;
+    const spear = this.inventory.selectedStack && getItem(this.inventory.selectedStack.id).tool?.type === 'spear';
+    if (spear && this.spearCooldown > 0) return;
     if (mob.petOfPlayer && !(mob instanceof SnowPal && p.sneaking)) {   // your own companion shrugs off a stray swipe (sneak and hit a Snow Pal to break it up)
       this.hand.swing();
       return;
@@ -2228,6 +2240,11 @@ export class Game implements EntityHost, PrecipSource {
     const keen = runeLevel(held, 'keen');
     if (keen) dmg += 0.5 * keen + 0.5;
     if (this.potions.has('might')) dmg += 3;
+    if (spear) {
+      this.spearCooldown = 12;
+      if (p.sprinting) dmg += 2;                                       // a running thrust
+      if (mob.distanceTo(p.x, p.y, p.z) >= 3.6) this.progress.grant('long_reach');
+    }
     const crit = !p.onGround && p.vy < 0 && !p.inWater && !p.flying;
     if (crit) { dmg *= 1.5; this.effect('crit', mob.x, mob.y + mob.height * 0.7, mob.z, 10); }
     const [dx, , dz] = this.lookDir();
@@ -2236,7 +2253,7 @@ export class Game implements EntityHost, PrecipSource {
     p.addExhaustion(0.1);
     this.sound('hit', mob.x, mob.y + 1, mob.z, 0.6, 1);
     if (held && def?.tool && !p.creative) {
-      if (this.inventory.damageItem(this.inventory.selected, def.tool.type === 'sword' ? 1 : 2)) this.sound('tool_break', p.x, p.eyeY, p.z);
+      if (this.inventory.damageItem(this.inventory.selected, def.tool.type === 'sword' || def.tool.type === 'spear' ? 1 : 2)) this.sound('tool_break', p.x, p.eyeY, p.z);
     }
     if (p.sprinting) p.sprinting = false;
     this.hand.swing();
@@ -2249,7 +2266,7 @@ export class Game implements EntityHost, PrecipSource {
     if (this.breakDelay > 0) return;
     if (p.creative) {
       if (!pressed && this.tickCount % 5 !== 0) return;
-      if (held && getItem(held.id).tool?.type === 'sword') return;
+      if (held && ['sword', 'spear'].includes(getItem(held.id).tool?.type ?? '')) return;
       this.hand.swing();
       this.breakBlockAt(t.x, t.y, t.z, false, true);
       this.breakDelay = 5;
@@ -2328,7 +2345,7 @@ export class Game implements EntityHost, PrecipSource {
       if (id === B.EMBER_ORE && harvest) this.progress.grant('ember');
       const tool = held ? getItem(held.id).tool : undefined;
       if (tool && !p.creative && def.hardness > 0) {
-        if (this.inventory.damageItem(this.inventory.selected, tool.type === 'sword' ? 2 : 1)) this.sound('tool_break', p.x, p.eyeY, p.z);
+        if (this.inventory.damageItem(this.inventory.selected, tool.type === 'sword' || tool.type === 'spear' ? 2 : 1)) this.sound('tool_break', p.x, p.eyeY, p.z);
       }
     }
   }
@@ -3139,20 +3156,106 @@ export class Game implements EntityHost, PrecipSource {
     this.bowTicks = 0;
     this.hand.drawing = 0;
     if (power < 0.1) return;
-    if (!p.creative && !this.inventory.consumeItem('arrow', 1)) return;
+    const ammo = this.takeAmmo();
+    if (!ammo) return;
     const [ex, ey, ez] = this.eye();
     const [dx, dy, dz] = this.lookDir();
     const v = power * 3;
     const might = runeLevel(this.inventory.selectedStack, 'might');
-    this.entities.spawnArrow(ex + dx * 0.5, ey - 0.1 + dy * 0.5, ez + dz * 0.5, dx * v, dy * v, dz * v, true, 2 * (power >= 1 ? 1.25 : 1) * (might ? 1 + 0.25 * (might + 1) : 1));
+    this.entities.spawnArrow(ex + dx * 0.5, ey - 0.1 + dy * 0.5, ez + dz * 0.5, dx * v, dy * v, dz * v, true, 2 * (power >= 1 ? 1.25 : 1) * (might ? 1 + 0.25 * (might + 1) : 1), null, ammo === 'flame_arrow');
     this.sound('bow', p.x, p.eyeY, p.z, 0.7, 1 / (0.9 + Math.random() * 0.3) + power * 0.5);
     if (!p.creative && this.inventory.damageItem(this.inventory.selected, 1)) this.sound('tool_break');
     this.progress.add('arrows_shot');
   }
 
+  // ======================================================================= 2.6: ammo, the crossbow, the spear
+  /** Which arrow the next shot uses: a Flame Arrow if one is on the hotbar, else a plain Arrow, else a Flame Arrow in the pack; null if none. */
+  ammoKind(): 'arrow' | 'flame_arrow' | null {
+    const inv = this.inventory;
+    if (inv.slots.slice(0, 9).some((s) => s?.id === 'flame_arrow')) return 'flame_arrow';
+    if (this.player.creative || inv.countItem('arrow') > 0) return 'arrow';
+    if (inv.countItem('flame_arrow') > 0) return 'flame_arrow';
+    return null;
+  }
+
+  /** Uses up one arrow of the kind ammoKind() names (nothing in creative mode). */
+  private takeAmmo(): 'arrow' | 'flame_arrow' | null {
+    const k = this.ammoKind();
+    if (!k) return null;
+    if (!this.player.creative && !this.inventory.consumeItem(k, 1)) return null;
+    return k;
+  }
+
+  /** How far a blow reaches: 3 blocks (5 in creative), 1.5 more with a spear in hand. */
+  attackReach(): number {
+    const held = this.inventory.selectedStack;
+    const spear = held && getItem(held.id).tool?.type === 'spear';
+    return (this.player.creative ? 5 : 3) + (spear ? 1.5 : 0);
+  }
+
+  private tickCrossbow(held: ItemStack, rmb: boolean, rmbPress: boolean): void {
+    const loaded = held.id !== 'crossbow';
+    if (loaded) {
+      this.crossTicks = 0; this.hand.drawing = 0;
+      if (rmbPress && this.useDelay === 0) this.fireCrossbow(held);
+      return;
+    }
+    if (rmb && this.ammoKind()) {
+      this.crossTicks++;
+      this.hand.drawing = Math.round(this.crossTicks * 20 / CROSSBOW_LOAD);
+      if (this.crossTicks === 1) this.sound('click', this.player.x, this.player.eyeY, this.player.z, 0.4, 0.8);
+      if (this.crossTicks >= CROSSBOW_LOAD) {
+        const k = this.takeAmmo();
+        this.crossTicks = 0; this.hand.drawing = 0;
+        if (k) {
+          this.inventory.slots[this.inventory.selected] = { ...held, id: k === 'flame_arrow' ? 'crossbow_loaded_flame' : 'crossbow_loaded' };
+          this.inventory.changed();
+          this.sound('click', this.player.x, this.player.eyeY, this.player.z, 0.6, 1.3);
+          this.useDelay = 6;
+        }
+      }
+    } else if (this.crossTicks > 0) { this.crossTicks = 0; this.hand.drawing = 0; }
+  }
+
+  private fireCrossbow(held: ItemStack): void {
+    const p = this.player;
+    const flame = held.id === 'crossbow_loaded_flame';
+    const [ex, ey, ez] = this.eye();
+    const [dx, dy, dz] = this.lookDir();
+    const v = 4.2;
+    const might = runeLevel(held, 'might');
+    this.entities.spawnArrow(ex + dx * 0.5, ey - 0.1 + dy * 0.5, ez + dz * 0.5, dx * v, dy * v, dz * v, true, 2.5 * (might ? 1 + 0.25 * (might + 1) : 1), null, flame);
+    this.sound('bow', p.x, p.eyeY, p.z, 0.9, 0.7);
+    this.inventory.slots[this.inventory.selected] = { ...held, id: 'crossbow' };
+    this.inventory.changed();
+    if (!p.creative && this.inventory.damageItem(this.inventory.selected, 1)) this.sound('tool_break');
+    this.useDelay = 8;
+    this.hand.swing();
+    this.progress.add('arrows_shot');
+    this.progress.grant('crossbow');
+  }
+
+  /** The charge bar under the crosshair: a bow being drawn, a crossbow being wound or loaded. */
+  private updateCharge(held: ItemStack | null | undefined): void {
+    let v = 0, loaded = false;
+    const k = held ? getItem(held.id).kind : '';
+    if (k === 'bow' && this.bowTicks > 0) v = Math.min(1, this.bowTicks / 20);
+    else if (k === 'crossbow') {
+      if (held!.id !== 'crossbow') { v = 1; loaded = true; } else if (this.crossTicks > 0) v = Math.min(1, this.crossTicks / CROSSBOW_LOAD);
+    }
+    const key = `${Math.round(v * 20)}${loaded ? 'L' : ''}`;
+    if (key === this.lastCharge) return;
+    this.lastCharge = key;
+    ui.set({ charge: v, chargeLoaded: loaded });
+  }
+
   /** Called when a player arrow hits a mob (for the advancement). */
-  onArrowHit(): void {
+  onArrowHit(flame = false, mob?: Mob): void {
     this.progress.grant('bow');
+    if (flame && mob && !mob.spec.fireproof && !mob.petOfPlayer) {
+      mob.fireTicks = Math.max(mob.fireTicks, 160);
+      this.progress.grant('flame_hit');
+    }
   }
 
   // ======================================================================= weather
