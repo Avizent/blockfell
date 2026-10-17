@@ -52,6 +52,10 @@ const base = [
   'starstone', 'starstone_bricks', 'starbloom', 'stargate', 'storm_bell', 'storm_bell_rung', 'storm_bell_mount', 'roost',
   // 2.4: rails and parties
   'rail', 'rail_curve', 'boost_rail', 'station_rail', 'cake_top', 'cake_side', 'cake_inner', 'balloons',
+  // 2.4.1: the Hollowdrake Trophy (added last so no texture layer moves)
+  'drake_trophy', 'drake_trophy_base',
+  // 2.5: the Brewing Stand (added last)
+  'brewing_stand', 'brewing_base',
 ];
 
 export const TEXTURE_NAMES: string[] = [

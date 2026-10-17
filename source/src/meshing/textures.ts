@@ -1,7 +1,8 @@
 import { mulberry32 } from '../core/rng';
 import { DESTROY_STAGES, LAVA_FRAMES, TEXTURE_NAMES, WATER_FRAMES } from './textureNames';
 import { DYE_COLORS, DYE_RGB } from '../world/dyes';
-import { starstone, starstoneBricks, starbloom, stargate, stormBell, stormBellMount, roost } from './starTextures';
+import { starstone, starstoneBricks, starbloom, stargate, stormBell, stormBellMount, roost, drakeTrophy, drakeTrophyBase } from './starTextures';
+import { brewingStand, brewingBase } from './potionTextures';
 
 /**
  * ORIGINAL procedural 16x16 pixel-art block textures.
@@ -1604,6 +1605,10 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   m.set('storm_bell_rung', stormBell(R('storm_bell_rung'), false));
   m.set('storm_bell_mount', stormBellMount(R('storm_bell_mount')));
   m.set('roost', roost(R('roost')));
+  m.set('drake_trophy', drakeTrophy(R('drake_trophy')));
+  m.set('drake_trophy_base', drakeTrophyBase(R('drake_trophy_base')));
+  m.set('brewing_stand', brewingStand(R('brewing_stand')));
+  m.set('brewing_base', brewingBase(R('brewing_base')));
   // 2.4: rails and party things
   m.set('rail', railStraight(R('rail'), 'rail'));
   m.set('rail_curve', railCurve(R('rail_curve')));

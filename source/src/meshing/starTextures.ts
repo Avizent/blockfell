@@ -127,3 +127,24 @@ export function roost(rng: () => number): PixelTex {
   for (let x = 0; x < TEX; x++) { t.set(x, 0, [104, 90, 140]); t.set(0, x, [104, 90, 140]); t.set(x, 15, [50, 42, 72]); t.set(15, x, [50, 42, 72]); }
   return t;
 }
+
+/** Hollowdrake Trophy (2.5): a golden star-crystal trophy, warm gold with a pale star at its heart. */
+export function drakeTrophy(rng: () => number): PixelTex {
+  const t = new PixelTex();
+  for (let y = 0; y < TEX; y++) for (let x = 0; x < TEX; x++) t.set(x, y, shade([222, 178, 78], 0.88 + rng() * 0.14));
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2, len = i % 2 === 0 ? 6 : 3.5;
+    for (let s = 0; s <= len; s += 0.5) t.set(Math.round(7.5 + Math.cos(a) * s), Math.round(7.5 + Math.sin(a) * s), [255, 244, 200]);
+  }
+  t.set(7, 7, [255, 255, 255]); t.set(8, 8, [255, 255, 255]);
+  for (let x = 0; x < TEX; x++) { t.set(x, 0, [250, 214, 120]); t.set(x, 15, [150, 108, 40]); }
+  return t;
+}
+
+/** The Trophy's plinth: dark violet stone with a gold rim. */
+export function drakeTrophyBase(rng: () => number): PixelTex {
+  const t = new PixelTex();
+  for (let y = 0; y < TEX; y++) for (let x = 0; x < TEX; x++) t.set(x, y, shade([84, 70, 120], 0.9 + rng() * 0.16));
+  for (let x = 0; x < TEX; x++) { t.set(x, 0, [222, 178, 78]); t.set(x, 15, [60, 50, 88]); }
+  return t;
+}
