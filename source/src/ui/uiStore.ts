@@ -84,6 +84,9 @@ export interface UIState {
   /** 2.5: the open Brewing Stand (progress 0..1, fuel left 0..1) and the player's potion effects. */
   brew: { progress: number; fuel: number };
   effects: { id: string; name: string; seconds: number; rgb: [number, number, number] }[];
+  /** 2.6: the draw/wind bar under the crosshair (0 hides it) and whether a crossbow is loaded. */
+  charge: number;
+  chargeLoaded: boolean;
   /** Night raid bar (null when no raid). */
   raid: { label: string; progress: number } | null;
   /** 2.2: the Hollowdrake's health bar (null when it isn't about). */
@@ -130,6 +133,8 @@ export const ui = new Store<UIState>({
   furnace: { burn: 0, cook: 0 },
   brew: { progress: 0, fuel: 0 },
   effects: [],
+  charge: 0,
+  chargeLoaded: false,
   raid: null,
   boss: null,
   touch: false,

@@ -556,3 +556,8 @@ html.touch .map-compass { left: calc(62px + env(safe-area-inset-left)); top: cal
 .effect-time.low { color: #ff9a8a; }
 
 .pause-version { margin-top: 0.8rem; text-align: center; font-size: 1.1rem; color: #bbb; text-shadow: 1px 1px 0 #222; }
+
+.charge-bar { position: absolute; left: 50%; top: calc(50% + 12rem); width: 40rem; height: 5rem; margin-left: -20rem; background: rgba(0,0,0,0.55); border: 1rem solid #1a1a1a; box-sizing: content-box; pointer-events: none; }
+.charge-bar .fill { height: 100%; background: #9fe3a0; }
+.charge-bar.full .fill { background: #ffd35a; }
+.charge-bar.loaded .fill { background: #ff8a1e; }

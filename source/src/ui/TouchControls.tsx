@@ -45,6 +45,7 @@ function holdButton(): number {
   if (!g || !held) return 0;
   const def = getItem(held.id);
   if (def.kind === 'bow') return 2;
+  if (def.kind === 'crossbow' && held.id === 'crossbow') return 2;
   if (def.kind === 'food' && !g.player.creative && g.player.food < 20) return 2;
   return 0;
 }
@@ -52,6 +53,7 @@ function holdButton(): number {
 function tapButton(): number {
   const g = engine.game;
   const m = g?.targetMob;
+  if (g && g.inventory.selectedStack && getItem(g.inventory.selectedStack.id).kind === 'crossbow' && g.inventory.selectedStack.id !== 'crossbow') return 2;   // a loaded crossbow fires
   // a tap on a creature is a hit - unless there's something to do with it: talk to a villager, call a
   // pet, feed an animal its food, dye or shear a sheep, give a name with a Name Tag...
   if (m && g) return g.mobUseWanted(m) ? 2 : 0;

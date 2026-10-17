@@ -220,6 +220,7 @@ export function HUD() {
       {!hide && (
         <>
           {overlay === null && <div className="crosshair" />}
+          {overlay === null && <ChargeBar />}
           <Hotbar />
           <Status />
           <HeldName />
@@ -238,6 +239,18 @@ export function HUD() {
           Click to play<br /><span className="gray">WASD move · Space jump · E inventory · Esc menu</span>
         </div>
       )}
+    </div>
+  );
+}
+
+/** 2.6: a thin bar under the crosshair while a bow is drawn or a crossbow wound; full and orange once a crossbow is loaded. */
+function ChargeBar() {
+  const charge = useStore(ui, (s) => s.charge);
+  const loaded = useStore(ui, (s) => s.chargeLoaded);
+  if (charge <= 0) return null;
+  return (
+    <div className={`charge-bar${loaded ? ' loaded' : ''}${charge >= 1 ? ' full' : ''}`} data-testid="charge-bar">
+      <div className="fill" style={{ width: `${Math.round(charge * 100)}%` }} />
     </div>
   );
 }
