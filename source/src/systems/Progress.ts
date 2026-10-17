@@ -67,6 +67,10 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   { id: 'fox', title: 'Best Friends', description: `Tame a ${NAMES.fox}`, icon: 'raw_trout' },
   { id: 'nametag', title: "What's Your Name?", description: 'Give a creature a name with a Name Tag', icon: 'name_tag' },
   { id: 'farm_baby', title: 'Little Ones', description: 'Feed two farm animals so they have a baby', icon: 'wheat', parent: 'harvest' },
+  // 2.5: potions
+  { id: 'brew_stand', title: 'Bubble, Bubble', description: 'Craft a Brewing Stand', icon: 'brewing_stand', parent: 'furnace' },
+  { id: 'brew_drink', title: 'Down the Hatch', description: 'Drink a potion', icon: 'potion_swiftness', parent: 'brew_stand' },
+  { id: 'brew_splash', title: 'Splash Zone', description: 'Throw a splash potion', icon: 'splash_mending', parent: 'brew_drink' },
   { id: 'dye_sheep', title: 'Woolly Rainbow', description: 'Dye a sheep', icon: 'pink_dye', parent: 'dye' },
   // 2.4: tracks, carts and parties
   { id: 'cart', title: 'All Aboard', description: 'Ride a Minecart along a rail', icon: 'minecart', parent: 'iron' },
@@ -108,6 +112,8 @@ export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = 
   ['drakes_beaten', 'Hollowdrakes Defeated', 'count'],
   ['glide', 'Distance Glided', 'cm'],
   ['snowballs_thrown', 'Snowballs Thrown', 'count'],
+  ['potions_drunk', 'Potions Drunk', 'count'],
+  ['potions_thrown', 'Splash Potions Thrown', 'count'],
   ['snowpals_built', `${NAMES.snowpal}s Built`, 'count'],
   ['sledge', `Distance by ${NAMES.sledge}`, 'cm'],
   ['foxes_tamed', `${NAMES.fox}s Tamed`, 'count'],

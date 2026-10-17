@@ -29,6 +29,8 @@ export interface PlayerSave {
   inventory: Slot[]; selected: number;
   /** Sitting in a boat when saved (1.6): climbs back in on load. */
   riding?: boolean;
+  /** 2.5: potion effects still running (ticks left per effect). */
+  effects?: Record<string, number>;
   /** The dimension the player is in (1.10; missing = overworld). Spawn and bed are always in the overworld. */
   dim?: DimId;
 }
