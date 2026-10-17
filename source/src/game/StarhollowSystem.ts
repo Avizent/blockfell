@@ -148,6 +148,7 @@ export class StarhollowSystem {
     ui.set({ boss: null });
     const top = ROOST.y + 1;
     for (let i = 0; i < 8; i++) g.entities.spawnItem(makeStack('star_scale'), ROOST.x + 0.5 + (Math.random() - 0.5) * 3, top + 0.5, ROOST.z + 0.5 + (Math.random() - 0.5) * 3);
+    g.entities.spawnItem(makeStack('drake_trophy'), ROOST.x + 0.5, top + 0.8, ROOST.z + 0.5);
     g.spawnXp(250, ROOST.x + 0.5, top + 0.5, ROOST.z + 0.5);
     g.world.setBlock(ROOST.x, ROOST.y, ROOST.z, B.STARGATE, 'system');
     g.effect('star', ROOST.x + 0.5, top, ROOST.z + 0.5, 40);
@@ -155,7 +156,7 @@ export class StarhollowSystem {
     g.progress.grant('hollowdrake');
     g.progress.add('drakes_beaten');
     pushChat('The Hollowdrake fades into starlight, and the stars shine brighter.');
-    pushChat('Star Scales lie on the Roost, and a Stargate there leads home.');
+    pushChat('Star Scales and a Hollowdrake Trophy lie on the Roost, and a Stargate there leads home.');
   }
 
   /** A Star Lens used on the Roost's gate after a victory calls the Hollowdrake back (the bells ring again). */

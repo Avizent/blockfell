@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { World, BlockEntity, ChestEntity, FurnaceEntity, SignEntity, posKey, UNLOADED } from '../world/World';
+import { World, BlockEntity, ChestEntity, FurnaceEntity, BrewEntity, SignEntity, posKey, UNLOADED } from '../world/World';
 import { ChunkManager } from '../world/ChunkManager';
 import * as B from '../world/BlockRegistry';
 import { SEA_LEVEL, TICKS_PER_SECOND, WORLD_HEIGHT, chunkKey, GAME_VERSION, SAVE_FORMAT, localIndex } from '../world/constants';
@@ -17,6 +17,8 @@ import { Mob, MOB_SPECS } from '../entities/Mob';
 import type { MobType } from '../entities/mobModels';
 import { DayNightSystem } from '../systems/DayNightSystem';
 import { Progress } from '../systems/Progress';
+import { PotionEffects } from '../systems/PotionEffects';
+import { EFFECT_BY_ID, effectOfItem, brewResult, BREW_FUEL_CHARGES, BREW_TICKS, SPLASH_RADIUS } from '../inventory/potions';
 import type { WorldRecord, WorldExtra, GameRules } from '../systems/SaveManager';
 import { DEFAULT_RULES } from '../systems/SaveManager';
 import { type DimId, type Arrival, OVERWORLD } from '../world/dims';
@@ -124,6 +126,10 @@ export class Game implements EntityHost, PrecipSource {
   private stepDist = 0;
   private scheduled = new Map<string, number>();
   private furnaces = new Set<string>();
+  /** 2.5: brewing stands with something to do. */
+  private stands = new Set<string>();
+  /** 2.5: the player's potion effects. */
+  readonly potions = new PotionEffects();
   readonly fluids: FluidSystem;
   readonly villages: VillageManager;
   readonly weather = new WeatherSystem();
@@ -210,6 +216,7 @@ export class Game implements EntityHost, PrecipSource {
       for (const [k, v] of extra.blockEntities) {
         this.world.blockEntities.set(k, v);
         if (v.type === 'furnace') this.furnaces.add(k);
+        if (v.type === 'brewing') this.stands.add(k);
       }
     }
     this.chunks = new ChunkManager(this.world, engine.pool, r.materials, engine.options.renderDistance);
@@ -259,6 +266,7 @@ export class Game implements EntityHost, PrecipSource {
       p.flying = s.flying && s.gameMode === 'creative';
       p.gameMode = s.gameMode;
       p.dead = s.dead;
+      this.potions.load(s.effects);
       p.spawnX = s.spawn.x; p.spawnY = s.spawn.y; p.spawnZ = s.spawn.z;
       p.bed = s.bed ?? null;
       this.inventory.load(s.inventory);
@@ -418,6 +426,7 @@ export class Game implements EntityHost, PrecipSource {
     const p = this.player;
     if (source.mob && !p.creative && !p.dead) this.lastHurtBy = { mob: source.mob, tick: this.tickCount };
     if (p.creative || p.dead || p.invulnerable > 0 || amount <= 0) return;
+    if ((source.kind === 'lava' || source.kind === 'burn' || source.kind === 'ember') && this.potions.has('emberward')) return;
     let dmg = amount;
     if (source.kind !== 'fall' && source.kind !== 'drown' && source.kind !== 'starve' && source.kind !== 'burn') {
       const armor = this.inventory.armorPoints();
@@ -566,6 +575,7 @@ export class Game implements EntityHost, PrecipSource {
         bed: p.bed,
         inventory: invCopy.toJSON(), selected: this.inventory.selected,
         riding: !!this.riding,
+        effects: this.potions.save(),
         dim: this.leaving ?? this.dim,
       },
       format: SAVE_FORMAT,
@@ -671,7 +681,7 @@ export class Game implements EntityHost, PrecipSource {
     ui.set({ overlay: this.openKind });
   }
 
-  openBlockUI(x: number, y: number, z: number, kind: 'crafting' | 'furnace' | 'chest' | 'runes'): void {
+  openBlockUI(x: number, y: number, z: number, kind: 'crafting' | 'furnace' | 'chest' | 'runes' | 'brewing'): void {
     const h = this.makeHandler();
     const key = posKey(x, y, z);
     if (kind === 'runes') {
@@ -693,6 +703,19 @@ export class Game implements EntityHost, PrecipSource {
       h.addGroup('chest', c, 0, 27);
       this.sound('chest_open', x + 0.5, y + 0.5, z + 0.5, 0.6);
       this.progress.grant('chest');
+    } else if (kind === 'brewing') {
+      let be = this.world.blockEntities.get(key) as BrewEntity | undefined;
+      if (!be || be.type !== 'brewing') {
+        be = { type: 'brewing', items: [null, null, null, null, null], fuel: 0, brewTime: 0 };
+        this.world.blockEntities.set(key, be);
+      }
+      this.stands.add(key);
+      const c = new Container(5);
+      c.slots = be.items;
+      h.addGroup('brew_bottle', c, 0, 3);
+      h.addGroup('brew_ingredient', c, 3, 1);
+      h.addGroup('brew_fuel', c, 4, 1);
+      ui.set({ brew: { progress: be.brewTime / BREW_TICKS, fuel: be.fuel / BREW_FUEL_CHARGES } });
     } else {
       let be = this.world.blockEntities.get(key) as FurnaceEntity | undefined;
       if (!be || be.type !== 'furnace') {
@@ -947,6 +970,7 @@ export class Game implements EntityHost, PrecipSource {
     if (r.id === 'stone_pickaxe') g('stone_pick');
     if (r.id === 'iron_pickaxe') g('iron_pick');
     if (r.id === 'furnace') g('furnace');
+    if (r.id === 'brewing_stand') g('brew_stand');
     if (r.id === 'cinder_charm') g('charm');
     if (r.id.endsWith('_sword')) g('sword');
     if (r.id.endsWith('_wool') || r.id.endsWith('_dye')) g('dye');
@@ -1264,6 +1288,8 @@ export class Game implements EntityHost, PrecipSource {
 
     // ---- survival rules
     if (!p.dead) this.tickSurvival();
+    this.tickPotions();
+    this.tickStands();
     // ---- 2.2: the Starhollow's rules (the Hollowdrake, the Storm Bells, Drifters, the void)
     if (this.star && !p.dead) this.star.tick();
 
@@ -1433,7 +1459,7 @@ export class Game implements EntityHost, PrecipSource {
       }
     } else { p.regenTimer = 0; p.starveTimer = 0; }
     // air / drowning
-    if (p.eyeInWater) {
+    if (p.eyeInWater && !this.potions.has('deep_breath')) {
       p.air--;
       if (p.air <= -20) {
         p.air = 0;
@@ -1451,6 +1477,7 @@ export class Game implements EntityHost, PrecipSource {
   private tickFire(): void {
     const p = this.player;
     if (this.riding) return;
+    if (this.potions.has('emberward')) { p.fireTicks = 0; return; }
     if (p.touchingLava) {
       p.fireTicks = this.hasCharm() ? 100 : 300;
       if (this.tickCount % 10 === 0) this.damagePlayer(4, { x: p.x, y: p.y, z: p.z, kind: 'lava' });
@@ -1507,6 +1534,7 @@ export class Game implements EntityHost, PrecipSource {
     }
     p.dead = false;
     p.health = 20; p.food = 20; p.saturation = 5; p.exhaustion = 0; p.air = 300;
+    this.potions.clear();
     p.flying = false;
     p.invulnerable = 60;
     const bed = p.bed;
@@ -2062,6 +2090,8 @@ export class Game implements EntityHost, PrecipSource {
       }
     } else if (this.bowTicks) { this.bowTicks = 0; this.hand.drawing = 0; }
 
+    if (this.tickDrinking(held, rmb && !(this.target && B.getBlock(this.target.block).interact && !p.sneaking))) return;
+
     const planting = heldDef?.block !== undefined && !!this.target && this.target.face === 2 && B.IS_FARMLAND(this.target.block);
     if (heldDef?.kind === 'food' && rmb && p.food < 20 && !p.creative && !planting) {
       this.eatTicks++;
@@ -2197,6 +2227,7 @@ export class Game implements EntityHost, PrecipSource {
     let dmg = def ? def.attack : 1;
     const keen = runeLevel(held, 'keen');
     if (keen) dmg += 0.5 * keen + 0.5;
+    if (this.potions.has('might')) dmg += 3;
     const crit = !p.onGround && p.vy < 0 && !p.inWater && !p.flying;
     if (crit) { dmg *= 1.5; this.effect('crit', mob.x, mob.y + mob.height * 0.7, mob.z, 10); }
     const [dx, , dz] = this.lookDir();
@@ -2256,7 +2287,7 @@ export class Game implements EntityHost, PrecipSource {
     const light = this.brightnessAt(x, y + 1, z);
     // containers spill their contents
     const be = this.world.blockEntities.get(posKey(x, y, z));
-    if (be && (be.type === 'chest' || be.type === 'furnace')) {
+    if (be && (be.type === 'chest' || be.type === 'furnace' || be.type === 'brewing')) {
       if (be.type === 'chest' && (be as ChestEntity).loot) this.fillLoot(be as ChestEntity, x, y, z);
       for (const s of be.items) if (s) this.scatter(s, x + 0.5, y + 0.5, z + 0.5);
     }
@@ -2346,6 +2377,14 @@ export class Game implements EntityHost, PrecipSource {
       }
       // 2.3: throw a snowball (holding the button keeps throwing); Coal on two stacked Snow Blocks makes a Snow Pal
       if (held.id === 'snowball' && slotIndex !== OFFHAND) { this.throwSnowball(slotIndex); this.hand.swing(); return; }
+      if (held.id === 'glass_bottle' && pressed && slotIndex !== OFFHAND) {
+        if (this.fillBottle(slotIndex)) { this.hand.swing(); this.useDelay = 6; return; }
+        continue;
+      }
+      if (held.id.startsWith('splash_') && pressed && slotIndex !== OFFHAND) {
+        const info = effectOfItem(held.id);
+        if (info) { this.throwSplash(slotIndex, info.effect.id); this.hand.swing(); return; }
+      }
       if (t && pressed && held.id === 'coal' && t.block === B.SNOW && this.buildSnowPal(t.x, t.y, t.z, slotIndex)) { this.hand.swing(); return; }
       if (t && pressed && (held.id === 'torch' || held.id === 'lava_bucket') && this.tryLightGate(t, slotIndex)) { this.hand.swing(); return; }
       if (t && pressed && held.id === 'star_lens' && this.tryLightStargate(t, slotIndex)) { this.hand.swing(); return; }
@@ -3296,6 +3335,179 @@ export class Game implements EntityHost, PrecipSource {
     }
   }
 
+  // ======================================================================= potions (2.5)
+  private drinkTicks = 0;
+
+  /** Once a tick: effects count down, Mending heals, Swiftness speeds you up, and the effects list on screen is kept current. */
+  private tickPotions(): void {
+    const p = this.player, fx = this.potions;
+    p.speedMul = fx.has('swiftness') ? 1.3 : 1;
+    if (!p.dead && fx.has('mending') && this.tickCount % 40 === 0 && p.health < 20) p.health = Math.min(20, p.health + 1);
+    for (const id of fx.tick()) pushChat(`${EFFECT_BY_ID[id].name} has worn off.`);
+    if (this.tickCount % 10 === 0) {
+      const rows = fx.rows();
+      if (JSON.stringify(rows) !== JSON.stringify(ui.get().effects)) ui.set({ effects: rows });
+    }
+  }
+
+  /** Holding a drinkable potion (or water bottle) and the use button: drinks after 1.6 s. Returns true if it took the click. */
+  private tickDrinking(held: ItemStack | null, rmb: boolean): boolean {
+    const p = this.player;
+    const info = held ? effectOfItem(held.id) : null;
+    const drinkable = !!held && (held.id === 'water_bottle' || (!!info && !info.splash));
+    if (drinkable && rmb) {
+      this.drinkTicks++;
+      this.hand.eating = this.drinkTicks;
+      if (this.drinkTicks % 6 === 0) this.sound('splash', p.x, p.eyeY, p.z, 0.25, 1.3 + Math.random() * 0.3);
+      if (this.drinkTicks >= 32) this.finishDrinking();
+      return true;
+    }
+    if (this.drinkTicks) { this.drinkTicks = 0; this.hand.eating = 0; }
+    return false;
+  }
+
+  private finishDrinking(): void {
+    const p = this.player;
+    const s = this.inventory.selectedStack;
+    this.drinkTicks = 0;
+    this.hand.eating = 0;
+    if (!s) return;
+    const info = effectOfItem(s.id);
+    if (info && !info.splash) {
+      const e = info.effect;
+      this.potions.add(e.id, e.duration);
+      const secs = Math.round(this.potions.ticksLeft(e.id) / 20);
+      pushChat(`${e.name}: ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}. ${e.blurb}`);
+      this.progress.grant('brew_drink');
+      this.progress.add('potions_drunk');
+    } else if (s.id !== 'water_bottle') return;
+    this.sound('burp', p.x, p.eyeY, p.z, 0.3, 1.4);
+    if (!p.creative) this.swapForBottle(this.inventory.selected);
+  }
+
+  /** One item of the stack in `slot` is used up and an empty Glass Bottle comes back. */
+  private swapForBottle(slot: number): void {
+    const s = this.inventory.get(slot);
+    if (!s) return;
+    if (s.count <= 1) this.inventory.slots[slot] = makeStack('glass_bottle');
+    else {
+      s.count--;
+      const left = this.inventory.add(makeStack('glass_bottle'));
+      if (left > 0) this.dropStack(makeStack('glass_bottle'));
+    }
+    this.inventory.changed();
+  }
+
+  /** A Glass Bottle used on water fills up. Returns true if it did. */
+  private fillBottle(slot: number): boolean {
+    const p = this.player;
+    const [ex, ey, ez] = this.eye();
+    const [dx, dy, dz] = this.lookDir();
+    const hit = raycast(this.world, ex, ey, ez, dx, dy, dz, this.reach(), true);
+    if (!hit || !B.IS_FLUID[hit.block] || B.IS_LAVA[hit.block]) return false;
+    this.sound('bucket_fill', hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, 0.5, 1.4);
+    if (!p.creative) {
+      const s = this.inventory.get(slot)!;
+      if (s.count <= 1) this.inventory.slots[slot] = makeStack('water_bottle');
+      else {
+        s.count--;
+        const left = this.inventory.add(makeStack('water_bottle'));
+        if (left > 0) this.dropStack(makeStack('water_bottle'));
+      }
+      this.inventory.changed();
+    }
+    return true;
+  }
+
+  /** Throws a splash potion where the player is looking. */
+  private throwSplash(slot: number, effectId: string): void {
+    const p = this.player;
+    const [ex, ey, ez] = this.eye();
+    const [dx, dy, dz] = this.lookDir();
+    const speed = 1.1;
+    this.entities.spawnSplash(ex + dx * 0.4, ey - 0.1 + dy * 0.4, ez + dz * 0.4, dx * speed + p.vx, dy * speed + 0.1 + (p.onGround ? 0 : p.vy * 0.5), dz * speed + p.vz, effectId);
+    this.sound('throw', p.x, p.eyeY, p.z, 0.5, 0.8);
+    if (!p.creative) this.consume(slot);
+    this.progress.grant('brew_splash');
+    this.progress.add('potions_thrown');
+    this.useDelay = 8;
+  }
+
+  /**
+   * A splash potion shattered at (x, y, z) (EntityHost). Within SPLASH_RADIUS blocks the
+   * player gets the effect (full length in the middle, three quarters at the edge).
+   * Creatures: Mending heals them 3 hearts and Emberward puts out their fire; the other
+   * effects only work on the player.
+   */
+  shatterPotion(x: number, y: number, z: number, effectId: string): void {
+    const e = EFFECT_BY_ID[effectId];
+    if (!e) return;
+    this.sound('splash', x, y, z, 0.7, 1.2);
+    this.effect('star', x, y, z, 24);
+    const p = this.player;
+    const d = Math.hypot(p.x - x, p.y + 0.9 - y, p.z - z);
+    if (d < SPLASH_RADIUS && !p.dead) {
+      this.potions.add(e.id, e.duration * (1 - 0.25 * (d / SPLASH_RADIUS)));
+      pushChat(`${e.name}! ${e.blurb}`);
+    }
+    for (const m of this.entities.list) {
+      if (!(m instanceof Mob) || m.removed) continue;
+      if (Math.hypot(m.x - x, m.y + m.height / 2 - y, m.z - z) >= SPLASH_RADIUS) continue;
+      if (e.id === 'mending') m.health = Math.min(m.spec.health, m.health + 6);
+      else if (e.id === 'emberward') m.fireTicks = 0;
+    }
+  }
+
+  // ======================================================================= brewing stands (2.5)
+  private tickStands(): void {
+    for (const key of this.stands) {
+      const be = this.world.blockEntities.get(key) as BrewEntity | undefined;
+      if (!be || be.type !== 'brewing') { this.stands.delete(key); continue; }
+      const [x, y, z] = key.split(',').map(Number);
+      const block = this.world.getBlock(x, y, z);
+      if (block === UNLOADED) continue;
+      if (B.getBlock(block).interact !== 'brewing') { this.stands.delete(key); continue; }
+      const open = !!this.openPos && posKey(this.openPos.x, this.openPos.y, this.openPos.z) === key;
+      const ing = be.items[3], coal = be.items[4];
+      const works = !!ing && [0, 1, 2].some((i) => be.items[i] && brewResult(be.items[i]!.id, ing.id));
+      const power = be.fuel > 0 || (!!coal && coal.id === 'coal');
+      let changed = false;
+      if (!works || !power) {
+        if (be.brewTime) be.brewTime = 0;
+      } else if (be.brewTime === 0) {
+        if (be.fuel <= 0 && coal) {
+          coal.count--;
+          if (coal.count <= 0) be.items[4] = null;
+          be.fuel = BREW_FUEL_CHARGES;
+          changed = true;
+        }
+        be.fuel--;
+        be.brewTime = 1;
+        this.sound('fizz', x + 0.5, y + 0.5, z + 0.5, 0.3, 1.5);
+      } else {
+        be.brewTime++;
+        if (this.tickCount % 10 === 0) this.effect('smoke', x + 0.5, y + 0.9, z + 0.5, 1);
+        if (be.brewTime >= BREW_TICKS) {
+          be.brewTime = 0;
+          for (let i = 0; i < 3; i++) {
+            const b = be.items[i];
+            const r = b ? brewResult(b.id, ing!.id) : null;
+            if (r) be.items[i] = makeStack(r);
+          }
+          ing!.count--;
+          if (ing!.count <= 0) be.items[3] = null;
+          this.sound('splash', x + 0.5, y + 0.6, z + 0.5, 0.6, 0.8);
+          this.effect('star', x + 0.5, y + 1, z + 0.5, 12);
+          changed = true;
+        }
+      }
+      if (open) {
+        if (changed) ui.set({ invVersion: ui.get().invVersion + 1 });
+        ui.set({ brew: { progress: be.brewTime / BREW_TICKS, fuel: Math.max(0, be.fuel) / BREW_FUEL_CHARGES } });
+      }
+    }
+  }
+
   // ======================================================================= furnaces
   private tickFurnaces(): void {
     for (const key of this.furnaces) {
@@ -3422,6 +3634,7 @@ export class Game implements EntityHost, PrecipSource {
     if (deep) u.uAmbientTint.value.setRGB(1, 0.8, 0.7); else u.uAmbientTint.value.setRGB(1, 1, 1);
     const starry = this.dim === 'starhollow';
     if (starry) { u.uAmbient.value = STAR_AMBIENT * (0.85 + 0.3 * opts.brightness); u.uAmbientTint.value.setRGB(0.82, 0.82, 1); }
+    if (this.potions.has('night_eyes')) u.uAmbient.value = Math.max(u.uAmbient.value, 0.5);
     if (deep) { u.uDaylight.value = 0; u.uSunStrength.value = 0; }
     r.sky.group.visible = !deep;
     if (p.eyeInLava) {
