@@ -22,6 +22,12 @@ export interface FurnaceEntity {
   cookTime: number;         // progress ticks for current item
   xp: number;               // stored experience from smelting
 }
+export interface BrewEntity {
+  type: 'brewing';
+  items: Slot[];            // [bottle, bottle, bottle, ingredient, fuel]
+  fuel: number;             // brews left from the coal already used
+  brewTime: number;         // ticks into the current brew (0 = idle)
+}
 export interface SignEntity {
   type: 'sign';
   lines: string[];          // four lines of text
@@ -33,7 +39,7 @@ export interface SpawnerEntity {
   mob: string;              // the creature this Monster Cage makes
   delay: number;            // ticks until its next attempt
 }
-export type BlockEntity = ChestEntity | FurnaceEntity | SignEntity | SpawnerEntity;
+export type BlockEntity = ChestEntity | FurnaceEntity | BrewEntity | SignEntity | SpawnerEntity;
 
 export interface WorldEvents extends Record<string, unknown> {
   blockChanged: { x: number; y: number; z: number; old: number; id: number; cause: string };

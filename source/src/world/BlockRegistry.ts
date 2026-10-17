@@ -20,7 +20,7 @@ export const RENDER_RAIL = 7;       // 2.4: flat track whose shape comes from th
 export type ToolType = 'pickaxe' | 'axe' | 'shovel' | 'sword' | null;
 export type SoundType = 'stone' | 'wood' | 'grass' | 'gravel' | 'sand' | 'glass' | 'wool' | 'snow';
 export type Facing = 'n' | 'e' | 's' | 'w';
-export type Interaction = 'crafting' | 'furnace' | 'chest' | 'runes' | 'door' | 'bed' | 'gate' | 'trapdoor' | 'sign' | 'pot' | 'bell' | 'storm_bell' | 'cake' | null;
+export type Interaction = 'crafting' | 'furnace' | 'chest' | 'runes' | 'door' | 'bed' | 'gate' | 'trapdoor' | 'sign' | 'pot' | 'bell' | 'storm_bell' | 'cake' | 'brewing' | null;
 export type Shape = 'slab' | 'stairs' | 'door' | 'bed' | 'wall_torch'
   | 'fence' | 'pane' | 'gate' | 'ladder' | 'trapdoor' | 'sign' | 'wall_sign' | 'lantern' | 'pot' | 'rail' | 'bunting' | 'cake' | null;
 
@@ -860,6 +860,23 @@ for (let eaten = 0; eaten < CAKE_SLICES; eaten++) {
   }).id);
 }
 
+/** Hollowdrake Trophy (2.5): registered LAST so no saved block id ever moves; one for every victory over the Hollowdrake; a golden star on a plinth to place and keep. */
+const TROPHY_BASE = Array(6).fill('drake_trophy_base');
+export const DRAKE_TROPHY = reg('drake_trophy', 'Hollowdrake Trophy', {
+  tex: 'drake_trophy', render: RENDER_MODEL, opaque: false, lightOpacity: 0, lightEmission: 8, hardness: 1.5, tool: 'pickaxe', sound: 'stone',
+  drops: [{ item: 'drake_trophy', min: 1, max: 1 }],
+  model: [2, 0, 2, 14, 2, 14, 4, 2, 4, 12, 4, 12, 7, 4, 7, 9, 8, 9, 3, 8, 7, 13, 12, 9, 7, 8, 3, 9, 12, 13],
+  modelFaces: [TROPHY_BASE, TROPHY_BASE, null, null, null],
+  collision: [2, 0, 2, 14, 12, 14],
+}).id;
+/** Brewing Stand (2.5): a stone base, a rod and arms for three bottles. Right-click to brew potions. Registered LAST so no saved block id moves. */
+export const BREWING_STAND = reg('brewing_stand', 'Brewing Stand', {
+  tex: 'brewing_stand', render: RENDER_MODEL, opaque: false, lightOpacity: 0, lightEmission: 3, hardness: 1, tool: 'pickaxe', sound: 'stone',
+  interact: 'brewing', drops: [{ item: 'brewing_stand', min: 1, max: 1 }],
+  model: [2, 0, 2, 14, 2, 14, 7, 2, 7, 9, 14, 9, 2, 9, 7, 7, 11, 9, 9, 9, 7, 14, 11, 9, 7, 9, 2, 9, 11, 7],
+  modelFaces: [Array(6).fill('brewing_base'), null, null, null, null],
+  collision: [1, 0, 1, 15, 14, 15],
+}).id;
 /** Blocks a Deepgate's ring may be made of. */
 export const GATE_RING = [CINDERSTONE, CINDERSTONE_BRICKS];
 /** 2.2: a Stargate's ring is eight Glimmerstone. */
