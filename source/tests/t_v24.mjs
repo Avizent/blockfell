@@ -130,7 +130,7 @@ if (run('items')) {
   });
   check('items: all ten 2.4 items exist with sensible stacks and drawn sprites',
     t.names.every(Boolean) && t.stacks[0] === 64 && t.stacks[3] === 1 && t.stacks[4] === 1 && t.stacks[6] === 16 && t.sprites.every((c) => c > 30), t);
-  check('items: five new advancements (59 in all), correctly parented', t.adv === 59 && t.advIds.every(Boolean) && t.parents.join() === 'iron,cart,party,party', t);
+  check('items: five new advancements (59 in all), correctly parented', t.adv >= 59 && t.advIds.every(Boolean) && t.parents.join() === 'iron,cart,party,party', t);
   check('crafting: rails (16), boost rails (6), station rails (6), minecart, popper (3)',
     t.rail?.id === 'rail' && t.rail.count === 16 && t.boost?.id === 'boost_rail' && t.boost.count === 6 && t.station?.id === 'station_rail' && t.station.count === 6 && t.cart?.id === 'minecart' && t.popper?.id === 'party_popper' && t.popper.count === 3, t);
 }

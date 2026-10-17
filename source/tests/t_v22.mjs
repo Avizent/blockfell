@@ -288,8 +288,14 @@ if (run('drake')) {
     await ev((bp) => { const g = window.__bf.game, p = g.player; p.flying = false; g.teleport(bp.x + 1.5, bp.y, bp.z + 0.5); }, bp);
     await settle();
     await give(null);
-    await aim(bp.x + 0.5, bp.y + 0.45, bp.z + 0.5);
-    await rclick();
+    // the Hollowdrake's bolts can knock the player off the aim at any moment: try each bell up to three times
+    const before = await ev(() => window.__bf.game.star.bellsLeft);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await ev((bp) => { const g = window.__bf.game; g.player.vx = g.player.vy = g.player.vz = 0; g.player.health = 20; g.player.invulnerable = 40; g.teleport(bp.x + 1.5, bp.y, bp.z + 0.5); }, bp);
+      await aim(bp.x + 0.5, bp.y + 0.45, bp.z + 0.5);
+      await rclick();
+      if ((await ev(() => window.__bf.game.star.bellsLeft)) < before) break;
+    }
     left.push(await ev(() => window.__bf.game.star.bellsLeft));
   }
   const after = await ev((bells) => ({ blocks: bells.map((b) => window.__bf.getBlock(b.x, b.y, b.z)), adv: window.__bf.game.progress.done.has('storm_bells'), msg: window.__bf.ui.get().chat.map((c) => c.text) }), bells);
@@ -346,10 +352,12 @@ if (run('drake')) {
     const dying = d.phase;
     for (let i = 0; i < 110; i++) g.tick();
     const scales = g.entities.list.filter((e) => e.type === 'item' && e.stack.id === 'star_scale' && Math.hypot(e.x - S.ROOST.x, e.z - S.ROOST.z) < 4).reduce((n, e) => n + e.stack.count, 0);
-    return { dying, gone: !g.entities.list.some((e) => e.mobType === 'hollowdrake' && !e.removed), scales, gate: window.__bf.getBlock(S.ROOST.x, S.ROOST.y, S.ROOST.z), state: g.record.star, adv: g.progress.done.has('hollowdrake'), xp: g.entities.list.filter((e) => e.type === 'xp').length, boss: window.__bf.ui.get().boss, msg: window.__bf.ui.get().chat.map((c) => c.text) };
+    const trophy = g.entities.list.filter((e) => e.type === 'item' && e.stack.id === 'drake_trophy' && Math.hypot(e.x - S.ROOST.x, e.z - S.ROOST.z) < 4).reduce((n, e) => n + e.stack.count, 0);
+    return { trophy, dying, gone: !g.entities.list.some((e) => e.mobType === 'hollowdrake' && !e.removed), scales, gate: window.__bf.getBlock(S.ROOST.x, S.ROOST.y, S.ROOST.z), state: g.record.star, adv: g.progress.done.has('hollowdrake'), xp: g.entities.list.filter((e) => e.type === 'xp').length, boss: window.__bf.ui.get().boss, msg: window.__bf.ui.get().chat.map((c) => c.text) };
   });
   check('victory: beaten, it rises and fades into starlight', v.dying === 'dying' && v.gone, v);
   check('victory: 8 Star Scales and a heap of experience on the Roost; the health bar goes', v.scales === 8 && v.xp > 3 && v.boss === null, v);
+  check('victory (2.5): one Hollowdrake Trophy lies on the Roost', v.trophy === 1, v.trophy);
   check('victory: a Stargate lights on the Roost, "Free the Stars", and the world remembers', v.gate === 'stargate' && v.adv && v.state.dragon === 'dead' && v.state.wins === 1 && v.msg.some((m) => /fades into starlight/.test(m)), v);
   await ev(async () => { const S = await import('/src/world/Starhollow.ts'); const g = window.__bf.game; g.teleport(S.ROOST.x + 3.5, S.ROOST.y + 1, S.ROOST.z + 0.5); });
   await settle();
@@ -388,6 +396,21 @@ if (run('end')) {
   const noEnd = await ev(() => !document.querySelector('[data-testid=the-end]'));
   await inGame();
   check('the End: it shows only once; after that the Roost\'s gate goes straight home', went2 && noEnd && (await dim()) === 'overworld', { went2, noEnd });
+  // 2.5: the Trophy is a placeable block; the pause menu can replay the credits
+  const tr = await ev(() => { const bf = window.__bf, g = bf.game, p = g.player; const x = Math.floor(p.x) + 2, y = Math.floor(p.y), z = Math.floor(p.z); bf.setBlock(x, y, z, 'drake_trophy'); return { k: bf.getBlock(x, y, z), item: !!window.__bf.game.inventory }; });
+  check('trophy (2.5): the Hollowdrake Trophy is a real block', tr.k === 'drake_trophy' || tr.k > 0, tr);
+  await ev(() => window.__bf.ui.set({ overlay: 'pause' }));
+  await wait(300);
+  const hasBtn = await ev(() => !!document.querySelector('[data-testid=btn-replay-end]'));
+  const pv = await ev(() => document.querySelector('[data-testid=pause-version]')?.textContent ?? '');
+  check('version (2.5.1): the pause menu shows version and build', /^Blockfell \d+\.\d+\.\d+ \(build \S+\)$/.test(pv), pv);
+  check('credits (2.5): the pause menu offers "Replay the Credits" once the End has been seen', hasBtn, hasBtn);
+  await ev(() => document.querySelector('[data-testid=btn-replay-end]').click());
+  const replayShown = await waitFor(() => ev(() => !!document.querySelector('[data-testid=the-end]')), 5000);
+  await ev(() => document.querySelector('[data-testid=btn-end-skip]').click());
+  await wait(600);
+  const after = await ev(() => ({ ov: window.__bf.ui.get().overlay, dim: window.__bf.game.dim, scr: window.__bf.state().screen }));
+  check('credits (2.5): the replay plays the story, and Skip returns to the game without travelling', replayShown && after.ov === null && after.dim === 'overworld' && after.scr === 'game', after);
   // calling it back
   await goStar();
   await settle();
