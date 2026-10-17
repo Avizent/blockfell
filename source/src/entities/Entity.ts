@@ -41,7 +41,7 @@ export interface EntityHost {
   addXp(n: number): void;
   sound(name: string, x: number, y: number, z: number, volume?: number, pitch?: number): void;
   effect(kind: EffectKind, x: number, y: number, z: number, count: number): void;
-  onArrowHit(): void;
+  onArrowHit(flame?: boolean, mob?: Mob): void;
   /** 2.5: a splash potion has shattered here (the effect id is one of the Brewing list). */
   shatterPotion(x: number, y: number, z: number, effectId: string): void;
   /** Plunder rune level of the player's held weapon (extra creature drops). */
@@ -49,7 +49,7 @@ export interface EntityHost {
   onMobKilled(type: string, byPlayer: boolean, mob?: Mob): void;
   spawnItem(stack: ItemStack, x: number, y: number, z: number, throwVel?: [number, number, number]): void;
   spawnXp(value: number, x: number, y: number, z: number): void;
-  spawnArrow(x: number, y: number, z: number, vx: number, vy: number, vz: number, fromPlayer: boolean, damage: number, shooter?: Mob | null): void;
+  spawnArrow(x: number, y: number, z: number, vx: number, vy: number, vz: number, fromPlayer: boolean, damage: number, shooter?: Mob | null, flame?: boolean): void;
   /** 2.0: a Smoulderer's thrown ember. */
   spawnEmber(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob): void;
   /** The player hit a creature (companions join in). */

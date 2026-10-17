@@ -178,6 +178,8 @@ export class Arrow extends Entity {
   /** The archer that loosed it (so companions know whom to go after). */
   shooter: import('./Mob').Mob | null = null;
   stuck = false;
+  /** 2.6: a Flame Arrow sets what it hits alight and burns out where it lands. */
+  flame = false;
   private stuckTime = 0;
 
   constructor(fromPlayer: boolean, damage: number) {
@@ -196,8 +198,17 @@ export class Arrow extends Entity {
     this.object.add(inner);
   }
 
+  /** Makes this a Flame Arrow: an ember-orange head. */
+  setFlame(): void {
+    this.flame = true;
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.14), new THREE.MeshBasicMaterial({ color: 0xff8a1e }));
+    tip.position.z = -0.32;
+    this.object.add(tip);
+  }
+
   tick(host: EntityHost): void {
     this.beginTick();
+    if (this.flame && !this.stuck && this.age % 2 === 0) host.effect('flame', this.x, this.y, this.z, 1);
     if (this.stuck) {
       this.stuckTime++;
       if (this.stuckTime > 1200) this.removed = true;
@@ -229,7 +240,7 @@ export class Arrow extends Entity {
     if (hitEnt && this.fromPlayer && this.age > 0 && !hitEnt.mob.petOfPlayer) {
       hitEnt.mob.hurt(Math.ceil(speed * this.damage), host, dx, dz, true);
       host.playerAttacked(hitEnt.mob);
-      host.onArrowHit();
+      host.onArrowHit(this.flame, hitEnt.mob);
       host.sound('hit', this.x, this.y, this.z, 0.5, 1.2);
       this.removed = true;
       return;
@@ -245,6 +256,7 @@ export class Arrow extends Entity {
     const [mx, my, mz] = moveBox(host.world, box, this.vx, this.vy, this.vz);
     this.x += mx; this.y += my; this.z += mz;
     if (mx !== this.vx || my !== this.vy || mz !== this.vz) {
+      if (this.flame) { host.effect('smoke', this.x, this.y, this.z, 4); host.sound('fizz', this.x, this.y, this.z, 0.3, 1.4); this.removed = true; return; }
       this.stuck = true;
       host.sound('arrow_hit', this.x, this.y, this.z, 0.4, 1);
       return;

@@ -115,8 +115,9 @@ export class EntityManager implements EntityQueries {
     }
   }
 
-  spawnArrow(x: number, y: number, z: number, vx: number, vy: number, vz: number, fromPlayer: boolean, damage: number, shooter: Mob | null = null): void {
+  spawnArrow(x: number, y: number, z: number, vx: number, vy: number, vz: number, fromPlayer: boolean, damage: number, shooter: Mob | null = null, flame = false): void {
     const a = new Arrow(fromPlayer, damage);
+    if (flame) a.setFlame();
     a.shooter = shooter;
     a.setPos(x, y, z);
     a.vx = vx; a.vy = vy; a.vz = vz;
