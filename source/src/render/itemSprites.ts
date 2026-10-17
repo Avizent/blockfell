@@ -4,6 +4,7 @@
  * one map and swap palettes.
  */
 import { DYE_COLORS, DYE_RGB } from '../world/dyes';
+import { EFFECTS, potionItem, splashItem } from '../inventory/potions';
 export type RGBA = [number, number, number, number?];
 export type Palette = Record<string, RGBA>;
 
@@ -779,6 +780,57 @@ fish('raw_trout', [92, 118, 96], [214, 150, 150], [236, 232, 220], [120, 140, 11
 fish('cooked_trout', [140, 96, 52], [196, 138, 82], [226, 196, 146], [120, 82, 44], null);
 fish('raw_perch', [120, 140, 60], [206, 196, 96], [236, 232, 200], [226, 120, 50], [70, 82, 40]);
 fish('cooked_perch', [138, 100, 50], [192, 150, 84], [228, 204, 150], [150, 92, 44], [110, 76, 40]);
+
+
+// ---- 2.5: bottles and potions (ORIGINAL; the liquid colour is each effect's own)
+const BOTTLE = [
+  '................',
+  '.....oooooo.....',
+  '.....occcco.....',
+  '.....occcco.....',
+  '......oggo......',
+  '......oggo......',
+  '.....oggggo.....',
+  '....oggLLggo....',
+  '...ogLLLLLLgo...',
+  '...ogLLLLLLgo...',
+  '...ogLLLLLLgo...',
+  '...ogLLLLLLgo...',
+  '....ogLLLLgo....',
+  '.....oggggo.....',
+  '......oooo......',
+  '................',
+];
+const SPLASH_BOTTLE = [
+  '................',
+  '..............s.',
+  '.....oooooo..s..',
+  '.....occcco.....',
+  '......oggo......',
+  '.....oggggo.....',
+  '....oggLLggo....',
+  '...ogLLLLLLgo...',
+  '..ogLLLLLLLLgo..',
+  '..ogLLLLLLLLgo..',
+  '..ogLLLLLLLLgo..',
+  '...ogLLLLLLgo...',
+  '....ogLLLLgo....',
+  '.....oggggo.....',
+  '......oooo......',
+  '................',
+];
+const GLASS: RGBA = [200, 224, 232, 160];
+function bottle(id: string, map: string[], liquid: RGBA | null): void {
+  const m = liquid ? map : map.map((r) => r.replace(/L/g, 'g'));
+  SPRITES[id] = { map: m, pal: { o: [40, 48, 56], g: GLASS, c: [150, 110, 70], s: [255, 255, 255], L: liquid ?? GLASS } };
+}
+bottle('glass_bottle', BOTTLE, null);
+bottle('water_bottle', BOTTLE, [70, 130, 230]);
+for (const e of EFFECTS) {
+  const lit: RGBA = [Math.min(255, e.rgb[0] + 30), Math.min(255, e.rgb[1] + 30), Math.min(255, e.rgb[2] + 30)];
+  bottle(potionItem(e.id), BOTTLE, lit);
+  bottle(splashItem(e.id), SPLASH_BOTTLE, lit);
+}
 
 /** Rasterises a sprite into RGBA pixels. */
 export function spritePixels(name: string): Uint8ClampedArray {
