@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { engine } from '../engine/Engine';
-import { restartForUpdate } from '../engine/offline';
+import { restartForUpdate, BUILD_CODE } from '../engine/offline';
+import { GAME_VERSION } from '../world/constants';
 import { useStore } from '../core/store';
 import { ui } from './uiStore';
 import { Button, ItemIcon, Slider, Title } from './widgets';
@@ -140,9 +141,11 @@ export function PauseMenu() {
           <Button size="half" onClick={() => ui.set({ overlay: 'options', optionsReturn: 'pause' })}>Options...</Button>
           <SoundButton />
         </div>
+        {engine.game?.record.star?.seenEnd && <Button size="wide" testId="btn-replay-end" onClick={() => engine.replayTheEnd()}>Replay the Credits</Button>}
         <div style={{ height: '8rem' }} />
         <Button size="wide" testId="btn-save-quit" onClick={() => void engine.saveAndQuit()}>Save and Quit to Title</Button>
         <PauseUpdate />
+        <div className="pause-version" data-testid="pause-version">Blockfell {GAME_VERSION} (build {BUILD_CODE})</div>
       </div>
     </div>
   );

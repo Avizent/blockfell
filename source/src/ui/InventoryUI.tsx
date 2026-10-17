@@ -372,6 +372,33 @@ export function BagScreen() {
   );
 }
 
+
+/** 2.5: the Brewing Stand: three bottles along the bottom, the ingredient on top, coal for fuel; bubbles and a bar show the brew. */
+export function BrewingScreen() {
+  const [c] = useController();
+  const b = useStore(ui, (s) => s.brew);
+  if (!c) return null;
+  return (
+    <Ctx.Provider value={c}>
+      <Panel w={176} h={166} c={c}>
+        <div className="label" style={{ position: 'absolute', left: 0, right: 0, top: '5rem', textAlign: 'center' }}>Brewing Stand</div>
+        {c.h.group('brew_ingredient').map((r) => <SlotBox key={r.id} r={r} x={79} y={17} ghost="feather" />)}
+        {c.h.group('brew_fuel').map((r) => <SlotBox key={r.id} r={r} x={17} y={17} ghost="coal" />)}
+        <div data-testid="brew-fuel" style={{ position: 'absolute', left: '17rem', top: '36rem', width: '18rem', height: '3rem', background: '#2a2236' }}>
+          <div style={{ width: `${Math.round(b.fuel * 100)}%`, height: '100%', background: '#e8a63c' }} />
+        </div>
+        <div data-testid="brew-progress" style={{ position: 'absolute', left: '60rem', top: '38rem', width: '56rem', height: '5rem', background: '#2a2236' }}>
+          <div style={{ width: `${Math.round(b.progress * 100)}%`, height: '100%', background: '#8fd6a8' }} />
+        </div>
+        {c.h.group('brew_bottle').map((r, i) => <SlotBox key={r.id} r={r} x={[56, 79, 102][i]} y={46} ghost="glass_bottle" />)}
+        <div className="label" style={{ position: 'absolute', left: '8rem', top: '72rem' }}>Inventory</div>
+        <PlayerSlots c={c} y={83} />
+      </Panel>
+      <CursorAndTooltip c={c} />
+    </Ctx.Provider>
+  );
+}
+
 export function FurnaceScreen() {
   const [c] = useController();
   const f = useStore(ui, (s) => s.furnace);

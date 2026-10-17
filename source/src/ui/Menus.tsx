@@ -8,7 +8,7 @@ import type { WorldRecord, GameRules, WorldArchive } from '../systems/SaveManage
 import { DEFAULT_RULES } from '../systems/SaveManager';
 import type { Difficulty, GameMode } from '../player/Player';
 import { GAME_VERSION } from '../world/constants';
-import { restartForUpdate, checkForUpdate } from '../engine/offline';
+import { restartForUpdate, checkForUpdate, BUILD_CODE } from '../engine/offline';
 import { CloudSync } from '../systems/CloudSync';
 import {
   backups, embedded, createBackup, downloadBlob, backupFileName, readBackup, importBackup, pickBackupFile,
@@ -55,7 +55,7 @@ export function TitleScreen() {
           <Button size="half" onClick={() => engine.quitGame()}>Quit Game</Button>
         </div>
       </div>
-      <div className="version shadow">Blockfell {GAME_VERSION}</div>
+      <div className="version shadow" data-testid="version-label">Blockfell {GAME_VERSION} (build {BUILD_CODE})</div>
       <div className="copyright shadow">Original assets. Not affiliated with Mojang.</div>
       <UpdateBanner />
     </div>

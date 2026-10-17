@@ -181,6 +181,24 @@ function BossBar() {
   );
 }
 
+/** 2.5: the potion effects now running, top right: a coloured swatch, the name and the time left. */
+function EffectsList() {
+  const fx = useStore(ui, (s) => s.effects);
+  if (!fx.length) return null;
+  const t = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+  return (
+    <div className="effects-list" data-testid="effects-list">
+      {fx.map((e) => (
+        <div key={e.id} className="effect-row" data-effect={e.id}>
+          <span className="effect-swatch" style={{ background: `rgb(${e.rgb.join(',')})` }} />
+          <span className="effect-name shadow">{e.name}</span>
+          <span className={e.seconds <= 10 ? 'effect-time shadow low' : 'effect-time shadow'}>{t(e.seconds)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function HUD() {
   const hide = useStore(ui, (s) => s.hideHud);
   const debug = useStore(ui, (s) => s.showDebug);
@@ -205,6 +223,7 @@ export function HUD() {
           <Hotbar />
           <Status />
           <HeldName />
+          <EffectsList />
           <Chat />
           <RaidBar />
           <BossBar />

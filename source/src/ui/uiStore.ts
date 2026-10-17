@@ -2,7 +2,7 @@ import { Store } from '../core/store';
 import type { CloudUi } from '../systems/CloudSync';
 
 export type Screen = 'title' | 'worlds' | 'create' | 'edit' | 'loading' | 'game' | 'quit' | 'options' | 'import' | 'cloud';
-export type Overlay = null | 'pause' | 'inventory' | 'crafting' | 'furnace' | 'chest' | 'creative' | 'death' | 'options' | 'advancements' | 'stats' | 'sleep' | 'runes' | 'trade' | 'sign' | 'map' | 'theend' | 'nametag' | 'bag';
+export type Overlay = null | 'pause' | 'inventory' | 'crafting' | 'furnace' | 'brewing' | 'chest' | 'creative' | 'death' | 'options' | 'advancements' | 'stats' | 'sleep' | 'runes' | 'trade' | 'sign' | 'map' | 'theend' | 'nametag' | 'bag';
 
 /** 1.8: the card shown when looking at a villager (or a Sentinel). */
 export interface VillagerCard {
@@ -81,6 +81,9 @@ export interface UIState {
   score: number;
   optionsVersion: number;
   furnace: { burn: number; cook: number };
+  /** 2.5: the open Brewing Stand (progress 0..1, fuel left 0..1) and the player's potion effects. */
+  brew: { progress: number; fuel: number };
+  effects: { id: string; name: string; seconds: number; rgb: [number, number, number] }[];
   /** Night raid bar (null when no raid). */
   raid: { label: string; progress: number } | null;
   /** 2.2: the Hollowdrake's health bar (null when it isn't about). */
@@ -125,6 +128,8 @@ export const ui = new Store<UIState>({
   score: 0,
   optionsVersion: 0,
   furnace: { burn: 0, cook: 0 },
+  brew: { progress: 0, fuel: 0 },
+  effects: [],
   raid: null,
   boss: null,
   touch: false,

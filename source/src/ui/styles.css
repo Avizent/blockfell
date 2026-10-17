@@ -548,3 +548,11 @@ html.touch .map-compass { left: calc(62px + env(safe-area-inset-left)); top: cal
 .the-end .end-skip { position: absolute; right: calc(6rem + env(safe-area-inset-right)); bottom: calc(6rem + env(safe-area-inset-bottom)); opacity: 0.8; }
 .the-end .end-title { font-size: 16rem; line-height: 20rem !important; min-height: 20rem !important; }
 .stargate-glow { background: radial-gradient(ellipse at center, rgba(170, 140, 255, 0.05) 20%, rgba(140, 110, 255, 0.5) 70%, rgba(30, 10, 80, 0.92) 100%); }
+
+/* 2.5: potion effects (top right) */
+.effects-list { position: absolute; top: 8rem; right: 8rem; display: flex; flex-direction: column; gap: 3rem; align-items: flex-end; pointer-events: none; }
+.effect-row { display: flex; align-items: center; gap: 4rem; background: rgba(10, 8, 20, 0.55); padding: 2rem 5rem 2rem 3rem; font-size: 8rem; color: #f4f0ff; }
+.effect-swatch { width: 9rem; height: 9rem; box-shadow: 0 0 0 1rem #0b0716; }
+.effect-time.low { color: #ff9a8a; }
+
+.pause-version { margin-top: 0.8rem; text-align: center; font-size: 1.1rem; color: #bbb; text-shadow: 1px 1px 0 #222; }
