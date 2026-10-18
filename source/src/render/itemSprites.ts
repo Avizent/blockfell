@@ -627,6 +627,31 @@ SPRITES.ember_lure = {
   ]),
   pal: { o: O, H: H2, h: H1, S: [240, 240, 240], F: [240, 110, 30], Y: [255, 224, 100] },
 };
+// 2.8: Sporecap, Spore Stew and the Trident
+SPRITES.sporecap = {
+  map: [
+    '................', '................', '................', '.....oooooo.....', '...ooCCCCCCoo...',
+    '..oCCWCCCCWCCo..', '.oCCCCCCCCCCCDo.', '.oCCWCCCCCWCCDo.', '.ooDDDDDDDDDDoo.', '....ooSSSSoo....',
+    '.....oSSSSo.....', '.....oSSSDo.....', '.....oSSSDo.....', '......oooo......', '................', '................',
+  ],
+  pal: { o: [44, 28, 52], C: [150, 96, 200], D: [104, 62, 150], W: [250, 240, 226], S: [226, 214, 190] },
+};
+SPRITES.spore_stew = {
+  map: [
+    '................', '................', '....G.G..G......', '...G.G..G.G.....', '..oooooooooooo..',
+    '.oBPYPPYPPYPBo..', '.oBPPPYPPPPPBo..', '..oBBBBBBBBBo...', '..oBBDDDDDDBBo..', '..oBDDDDDDDBo...',
+    '...oBDDDDDBo....', '....oBBBBBo.....', '.....oooooo.....', '................', '................', '................',
+  ],
+  pal: { o: [40, 26, 16], B: [150, 104, 62], D: [108, 70, 38], P: [170, 120, 220], Y: [130, 230, 220], G: [190, 240, 240] },
+};
+function tridentCells(): [number, number, string][] {
+  const c: [number, number, string][] = [];
+  for (let i = 0; i <= 10; i++) c.push([1 + i, 14 - i, i % 2 ? 'h' : 'H']);                  // the shaft
+  for (const [x, y] of [[9, 2], [10, 3], [11, 4], [12, 5], [13, 6]]) c.push([x, y, 'M']);   // the cross-piece
+  for (const [x, y] of [[12, 3], [13, 2], [14, 1], [15, 0], [10, 1], [11, 0], [14, 5], [15, 4]]) c.push([x, y, 'L']);   // the three prongs
+  return c;
+}
+SPRITES.trident = { map: diagGrid(tridentCells()), pal: { o: O, H: H2, h: H1, M: [130, 226, 220], L: [190, 248, 244], D: [70, 160, 170] } };
 SPRITES.flame_arrow = {
   map: [
     '................', '...........ooo..', '..........oFFo..', '..........oFYo..', '.........ohoo...',
@@ -769,6 +794,7 @@ export const EGG_COLORS: Record<string, [RGBA, RGBA]> = {
   snowpal: [[240, 244, 250], [200, 66, 58]],
   horse: [[140, 96, 60], [46, 32, 22]],
   lavastrider: [[96, 44, 44], [255, 138, 48]],
+  sporecap: [[150, 96, 200], [226, 214, 190]],
 };
 for (const [mob, [a, s]] of Object.entries(EGG_COLORS)) {
   const L: RGBA = [Math.min(255, a[0] + 30), Math.min(255, a[1] + 30), Math.min(255, a[2] + 30)];
