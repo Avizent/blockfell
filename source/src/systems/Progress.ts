@@ -77,6 +77,11 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   { id: 'saddle_up', title: 'Saddle Up', description: 'Saddle a creature and climb on', icon: 'saddle', parent: 'boat' },
   { id: 'lava_walker', title: 'Lava Walker', description: 'Ride a Lavastrider across lava with an Ember Lure', icon: 'ember_lure', parent: 'saddle_up' },
   { id: 'gallop', title: 'Gallop!', description: 'Ride a Horse 300 blocks', icon: 'saddle', parent: 'saddle_up' },
+  // 2.8: Spore Isle and the Trident
+  { id: 'spore_isle', title: 'Fungus Among Us', description: 'Set foot on Spore Isle', icon: 'spore_tuft', parent: 'boat' },
+  { id: 'spore_shear', title: 'Cap in Hand', description: 'Shear a Sporecap', icon: 'sporecap', parent: 'spore_isle' },
+  { id: 'spore_stew', title: 'Glow Soup', description: 'Eat Spore Stew', icon: 'spore_stew', parent: 'spore_shear' },
+  { id: 'trident_hit', title: 'Three Prongs', description: 'Hit a creature with a thrown Trident', icon: 'trident', parent: 'long_reach' },
   { id: 'brew_splash', title: 'Splash Zone', description: 'Throw a splash potion', icon: 'splash_mending', parent: 'brew_drink' },
   { id: 'dye_sheep', title: 'Woolly Rainbow', description: 'Dye a sheep', icon: 'pink_dye', parent: 'dye' },
   // 2.4: tracks, carts and parties

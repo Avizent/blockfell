@@ -285,6 +285,7 @@ export class AudioManager {
       case 'chicken': for (let i = 0; i < 3; i++) this.tone(dest, t + i * 0.09, 0.05, 1300 * p, 900 * p, 'square', 0.08); break;
       case 'shambler': this.tone(dest, t, 0.8, 95 * p, 70 * p, 'sawtooth', 0.16, 0.1); this.noiseBurst(dest, t, 0.6, 300, 1, 'lowpass', 0.2); break;
       case 'skeleton': for (let i = 0; i < 6; i++) this.noiseBurst(dest, t + i * 0.04, 0.03, 2500 * p, 3, 'bandpass', 0.4); break;
+      case 'sporecap': for (let i = 0; i < 3; i++) this.tone(dest, t + i * 0.06, 0.07, (520 + i * 90) * p, (600 + i * 60) * p, 'sine', 0.1); break;
       case 'goat': this.tone(dest, t, 0.35, 420 * p, 380 * p, 'sawtooth', 0.12, 0.12); break;
       case 'rabbit': this.tone(dest, t, 0.06, 1800 * p, 1500 * p, 'sine', 0.08); break;
       case 'crawler': for (let i = 0; i < 4; i++) this.noiseBurst(dest, t + i * 0.05, 0.05, 1200 * p, 2, 'bandpass', 0.35); this.tone(dest, t, 0.3, 90 * p, 70 * p, 'sawtooth', 0.08); break;
