@@ -302,13 +302,28 @@ familyItem('bunting', B.BUNTING.ew, 'decoration', true);
 blockItem('balloons', 'decoration');
 familyItem('cake', B.CAKE[0], 'food', true, { maxStack: 1 });
 
+// ---- 2.8: Spore Isle and the Trident (appended last)
+blockItem('sporeloam', 'natural');
+blockItem('spore_stem', 'natural');
+blockItem('cap_violet', 'natural');
+blockItem('cap_crimson', 'natural');
+blockItem('cap_gills', 'natural');
+blockItem('spore_tuft', 'natural');
+blockItem('spore_lamp', 'decoration');
+add({ id: 'sporecap', name: 'Sporecap', kind: 'food', category: 'food', food: { hunger: 2, saturation: 1.6 } });
+add({ id: 'spore_stew', name: 'Spore Stew', kind: 'food', category: 'food', food: { hunger: 8, saturation: 10 } });
+add({
+  id: 'trident', name: 'Trident', kind: 'tool', maxStack: 1, category: 'combat',
+  tool: { type: 'spear', tier: 2, speed: 6, durability: 300 }, durability: 300, attack: 6.5,
+});
+
 // ---- spawn items
 const MOBS: [string, string][] = [
   ['pig', 'Pig'], ['cow', 'Cow'], ['sheep', 'Sheep'], ['chicken', 'Chicken'], ['shambler', 'Shambler'], ['skeleton', 'Bone Archer'],
   ['goat', 'Goat'], ['rabbit', 'Rabbit'], ['crawler', 'Crawler'], ['dustwalker', 'Dustwalker'],
   ['villager', 'Villager'], ['sentinel', 'Sentinel'], ['hound', 'Fellhound'],
   ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'], ['ashboar', 'Ashboar'], ['drifter', 'Drifter'],
-  ['fox', NAMES.fox], ['snowpal', NAMES.snowpal], ['horse', 'Horse'], ['lavastrider', 'Lavastrider'],
+  ['fox', NAMES.fox], ['snowpal', NAMES.snowpal], ['horse', 'Horse'], ['lavastrider', 'Lavastrider'], ['sporecap', 'Sporecap'],
 ];
 for (const [mob, name] of MOBS) {
   add({ id: `spawn_${mob}`, name: `${name} Spawn Egg`, kind: 'spawn', category: 'spawn', spawn: mob });
