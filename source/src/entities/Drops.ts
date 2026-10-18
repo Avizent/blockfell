@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Entity, EntityHost } from './Entity';
 import type { ItemStack } from '../inventory/ItemStack';
 import { stacksMatch, visualKey } from '../inventory/ItemStack';
-import { maxStackOf } from '../inventory/ItemRegistry';
+import { maxStackOf, getItem } from '../inventory/ItemRegistry';
 import { AABB, moveBox } from '../player/PlayerPhysics';
 import { rayBox } from '../interaction/VoxelRaycaster';
 
@@ -178,6 +178,8 @@ export class Arrow extends Entity {
   /** The archer that loosed it (so companions know whom to go after). */
   shooter: import('./Mob').Mob | null = null;
   stuck = false;
+  /** 2.8: a thrown Trident (the very stack, wear and all, so it can be picked up again). */
+  trident: ItemStack | null = null;
   /** 2.6: a Flame Arrow sets what it hits alight and burns out where it lands. */
   flame = false;
   private stuckTime = 0;
@@ -206,15 +208,31 @@ export class Arrow extends Entity {
     this.object.add(tip);
   }
 
+  /** Makes this a thrown Trident: a long shaft and three teal prongs. */
+  setTrident(stack: ItemStack): void {
+    this.trident = { ...stack };
+    this.width = 0.2; this.height = 0.2;
+    for (const c of [...this.object.children]) { this.object.remove(c); c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.geometry.dispose(); (m.material as THREE.Material).dispose(); } }); }
+    const wood = new THREE.MeshLambertMaterial({ color: 0x8a6a42 }), teal = new THREE.MeshLambertMaterial({ color: 0x6fe0d6 });
+    const inner = new THREE.Group();
+    const box = (w: number, h: number, l: number, x: number, y: number, z: number, m: THREE.Material) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, l), m); b.position.set(x, y, z); inner.add(b); };
+    box(0.06, 0.06, 1.3, 0, 0, 0, wood);
+    box(0.36, 0.06, 0.06, 0, 0, -0.62, teal);
+    box(0.07, 0.07, 0.4, 0, 0, -0.84, teal);
+    box(0.06, 0.06, 0.26, 0.15, 0, -0.76, teal);
+    box(0.06, 0.06, 0.26, -0.15, 0, -0.76, teal);
+    this.object.add(inner);
+  }
+
   tick(host: EntityHost): void {
     this.beginTick();
     if (this.flame && !this.stuck && this.age % 2 === 0) host.effect('flame', this.x, this.y, this.z, 1);
     if (this.stuck) {
       this.stuckTime++;
-      if (this.stuckTime > 1200) this.removed = true;
+      if (this.stuckTime > (this.trident ? 6000 : 1200)) this.removed = true;
       // player can collect arrows they fired
       if (this.fromPlayer && this.stuckTime > 5 && !host.player.dead && host.player.box.intersects(new AABB(this.x - 0.6, this.y - 0.6, this.z - 0.6, this.x + 0.6, this.y + 0.6, this.z + 0.6))) {
-        if (host.player.creative || host.giveItem({ id: 'arrow', count: 1 }) === 0) {
+        if (host.player.creative || host.giveItem(this.trident ? { ...this.trident } : { id: 'arrow', count: 1 }) === 0) {
           host.sound('pop', this.x, this.y, this.z, 0.2, 1.6);
           this.removed = true;
         }
@@ -238,6 +256,20 @@ export class Arrow extends Entity {
     }
     // the player's arrows fly past their own companions
     if (hitEnt && this.fromPlayer && this.age > 0 && !hitEnt.mob.petOfPlayer) {
+      if (this.trident) {
+        const m = hitEnt.mob;
+        m.hurt(this.damage, host, dx, dz, true);
+        host.playerAttacked(m);
+        host.onTridentHit(m);
+        host.sound('hit', this.x, this.y, this.z, 0.6, 0.9);
+        // the Trident drops where it struck (a little worn), ready to be picked up
+        const dur = getItem(this.trident.id).durability ?? 0;
+        const wear = (this.trident.damage ?? 0) + 1;
+        if (!host.player.creative && dur > 0 && wear >= dur) host.sound('tool_break', this.x, this.y, this.z, 0.6, 1);
+        else host.spawnItem({ ...this.trident, damage: host.player.creative ? this.trident.damage : wear }, m.x, m.y + m.height * 0.6, m.z);
+        this.removed = true;
+        return;
+      }
       hitEnt.mob.hurt(Math.ceil(speed * this.damage), host, dx, dz, true);
       host.playerAttacked(hitEnt.mob);
       host.onArrowHit(this.flame, hitEnt.mob);
@@ -261,7 +293,7 @@ export class Arrow extends Entity {
       host.sound('arrow_hit', this.x, this.y, this.z, 0.4, 1);
       return;
     }
-    this.vx *= 0.99; this.vy = this.vy * 0.99 - 0.05; this.vz *= 0.99;
+    this.vx *= 0.99; this.vy = this.vy * 0.99 - (this.trident ? 0.04 : 0.05); this.vz *= 0.99;
     this.yaw = Math.atan2(this.vx, this.vz);
     if (this.age > 400) this.removed = true;
   }

@@ -12,7 +12,7 @@ import { Ashboar } from './Ashboar';
 import { Hollowdrake } from './Hollowdrake';
 import { Drifter } from './Drifter';
 import { StarBolt } from './StarBolt';
-import { FarmAnimal, Sheep, FARM_TYPES, FARM_GROW_TICKS, naturalWool } from './FarmAnimal';
+import { FarmAnimal, Sheep, Sporecap, FARM_TYPES, FARM_GROW_TICKS, naturalWool } from './FarmAnimal';
 import { Fox } from './Fox';
 import { SnowPal } from './SnowPal';
 import { Snowball } from './Snowball';
@@ -28,8 +28,8 @@ import type { Facing } from '../world/BlockRegistry';
 import type { MobType } from './mobModels';
 import type { ItemStack } from '../inventory/ItemStack';
 import { rayBox } from '../interaction/VoxelRaycaster';
-import { GRASS, IS_FLUID, IS_LAVA, IS_SOLID, AIR, SNOWY_GRASS, SAND, RED_SAND, STONE, SNOW, SPAWN_FLOOR, EMBER_LAMP } from '../world/BlockRegistry';
-import { BIOME_BADLANDS, BIOME_DESERT, BIOME_MOUNTAINS, BIOME_SNOWY, BIOME_TAIGA, BIOME_FOREST, BIOME_BIRCH } from '../world/BiomeSystem';
+import { GRASS, IS_FLUID, IS_LAVA, IS_SOLID, AIR, SNOWY_GRASS, SAND, RED_SAND, STONE, SNOW, SPAWN_FLOOR, EMBER_LAMP, SPORELOAM } from '../world/BlockRegistry';
+import { BIOME_BADLANDS, BIOME_DESERT, BIOME_MOUNTAINS, BIOME_SNOWY, BIOME_TAIGA, BIOME_FOREST, BIOME_BIRCH, BIOME_SPORE } from '../world/BiomeSystem';
 import { UNLOADED } from '../world/World';
 import { WORLD_HEIGHT } from '../world/constants';
 import { LAVA_SEA } from '../world/Cinderdeep';
@@ -44,6 +44,7 @@ function pick<T>(table: [T, number][]): T {
 
 /** Which animal a biome favours (desert rabbits, mountain goats...). */
 function passiveFor(biome: number, ground: number): MobType | null {
+  if (biome === BIOME_SPORE) return ground === SPORELOAM ? 'sporecap' : null;
   if (biome === BIOME_DESERT || biome === BIOME_BADLANDS) return ground === SAND || ground === RED_SAND ? 'rabbit' : null;
   if (biome === BIOME_SNOWY) return pick<MobType>([['goat', 42], ['rabbit', 14], ['sheep', 14], ['hound', 16], ['fox', 14]]);
   if (biome === BIOME_MOUNTAINS) return pick<MobType>([['goat', 65], ['rabbit', 15], ['sheep', 20]]);
@@ -86,7 +87,7 @@ export class EntityManager implements EntityQueries {
   spawnMob(type: MobType, x: number, y: number, z: number, host: EntityHost): Mob {
     const m = type === 'villager' ? new Villager(host) : type === 'sentinel' ? new Sentinel(host) : type === 'hound' ? new Hound(host)
       : type === 'ashboar' ? new Ashboar(host) : type === 'hollowdrake' ? new Hollowdrake(host) : type === 'drifter' ? new Drifter(host)
-      : type === 'sheep' ? new Sheep(host) : FARM_TYPES.includes(type) ? new FarmAnimal(type, host)
+      : type === 'sheep' ? new Sheep(host) : type === 'sporecap' ? new Sporecap(host) : FARM_TYPES.includes(type) ? new FarmAnimal(type, host)
       : type === 'horse' ? new Horse(host) : type === 'fox' ? new Fox(host) : type === 'snowpal' ? new SnowPal(host) : new Mob(type, host);
     m.setPos(x, y, z);
     // 2.3: snowy-white foxes in the snowy lands
@@ -121,6 +122,15 @@ export class EntityManager implements EntityQueries {
     const a = new Arrow(fromPlayer, damage);
     if (flame) a.setFlame();
     a.shooter = shooter;
+    a.setPos(x, y, z);
+    a.vx = vx; a.vy = vy; a.vz = vz;
+    this.add(a);
+  }
+
+  /** 2.8: a thrown Trident. */
+  spawnTrident(x: number, y: number, z: number, vx: number, vy: number, vz: number, stack: ItemStack, damage: number): void {
+    const a = new Arrow(true, damage);
+    a.setTrident(stack);
     a.setPos(x, y, z);
     a.vx = vx; a.vy = vy; a.vz = vz;
     this.add(a);
@@ -334,6 +344,7 @@ export class EntityManager implements EntityQueries {
         const spot = this.findSpawnSpot(host, 24, 44, true);
         if (!spot) continue;
         const biome = host.world.generator.column(Math.floor(spot.x), Math.floor(spot.z)).biome;
+        if (biome === BIOME_SPORE) continue;   // 2.8: Spore Isle is a peaceful place
         const dry = biome === BIOME_DESERT || biome === BIOME_BADLANDS;
         const r = Math.random();
         const type: MobType = r < 0.2 ? 'crawler' : r < 0.62 ? (dry && Math.random() < 0.8 ? 'dustwalker' : 'shambler') : 'skeleton';
@@ -469,7 +480,7 @@ export class EntityManager implements EntityQueries {
     const y = host.world.highestSolid(x, z);
     if (y < 0) return null;
     const ground = host.world.getBlock(x, y, z);
-    if (ground !== GRASS && ground !== SNOWY_GRASS && ground !== SAND && ground !== RED_SAND && ground !== STONE && ground !== SNOW) return null;
+    if (ground !== GRASS && ground !== SPORELOAM && ground !== SNOWY_GRASS && ground !== SAND && ground !== RED_SAND && ground !== STONE && ground !== SNOW) return null;
     if ((ground === SAND || ground === RED_SAND) && Math.random() < 0.5) return null;
     const light = host.world.getLight(x, y + 1, z);
     if ((light >> 4) < 9) return null;

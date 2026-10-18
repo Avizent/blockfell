@@ -11,8 +11,9 @@ export const FARM_FOOD: Partial<Record<MobType, string[]>> = {
   cow: ['wheat'],
   sheep: ['wheat'],
   chicken: ['wheat_seeds'],
+  sporecap: ['sporecap'],
 };
-export const FARM_TYPES: MobType[] = ['pig', 'cow', 'sheep', 'chicken'];
+export const FARM_TYPES: MobType[] = ['pig', 'cow', 'sheep', 'chicken', 'sporecap'];
 /** A young one grows up in 10 minutes (its food makes it quicker). */
 export const FARM_GROW_TICKS = 12000;
 const LOVE_TICKS = 600;
@@ -349,5 +350,44 @@ export class Sheep extends FarmAnimal {
     super.restore(d);
     if (typeof d.color === 'string' && (DYE_COLORS as readonly string[]).includes(d.color)) this.color = d.color as DyeColor;
     this.sheared = d.sheared === true;
+  }
+}
+
+/** 2.8: a Sporecap: shear its cap for Sporecaps; the cap grows back in a few minutes. */
+export class Sporecap extends FarmAnimal {
+  sheared = false;
+  private regrow = 0;
+
+  constructor(host?: EntityHost) {
+    super('sporecap', host);
+  }
+
+  shear(host: EntityHost): SheepUse {
+    if (!this.alive) return 'no';
+    if (this.isBaby) return 'young';
+    if (this.sheared) return 'bare';
+    this.sheared = true;
+    this.regrow = 3600;
+    host.spawnItem({ id: 'sporecap', count: 1 + Math.floor(Math.random() * 3) }, this.x, this.y + 0.8, this.z);
+    host.sound('shear', this.x, this.y + 0.7, this.z, 0.8, 1.1);
+    return 'sheared';
+  }
+
+  tick(host: EntityHost): void {
+    super.tick(host);
+    if (this.alive && this.sheared && --this.regrow <= 0) {
+      this.sheared = false;
+      host.effect('happy', this.x, this.y + 1, this.z, 5);
+    }
+  }
+
+  protected saveData(): Record<string, unknown> {
+    return { ...super.saveData(), sheared: this.sheared, regrow: this.regrow };
+  }
+
+  restore(d: Record<string, unknown>): void {
+    super.restore(d);
+    this.sheared = d.sheared === true;
+    this.regrow = typeof d.regrow === 'number' ? d.regrow : 0;
   }
 }

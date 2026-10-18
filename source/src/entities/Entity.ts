@@ -42,6 +42,8 @@ export interface EntityHost {
   sound(name: string, x: number, y: number, z: number, volume?: number, pitch?: number): void;
   effect(kind: EffectKind, x: number, y: number, z: number, count: number): void;
   onArrowHit(flame?: boolean, mob?: Mob): void;
+  /** 2.8: a thrown Trident struck a creature. */
+  onTridentHit(mob: Mob): void;
   /** 2.5: a splash potion has shattered here (the effect id is one of the Brewing list). */
   shatterPotion(x: number, y: number, z: number, effectId: string): void;
   /** Plunder rune level of the player's held weapon (extra creature drops). */

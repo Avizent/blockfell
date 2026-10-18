@@ -8,7 +8,7 @@ import { DYE_RGB, type DyeColor } from '../world/dyes';
  * feet centre is the origin and it faces +Z.
  */
 export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound'
-  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider';
+  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider' | 'sporecap';
 export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker';
 
 const quad = (name: string, x: number, z: number, h: number, w: number, base: string, paint?: PartDef['paint']): PartDef => ({
@@ -701,6 +701,26 @@ export function horseModel(coat: number): BuiltModel {
  * red-brown hide, glowing ember fins along its flanks, amber eyes and four long
  * thin legs that are never hurt by the heat.
  */
+/** 2.8: the Sporecap: a small round creature with a big spotted mushroom cap (hidden while it is sheared). */
+function sporecap(): PartDef[] {
+  const spots = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => {
+    p.px('top', 1, 1, '#f7efe4', 3, 3); p.px('top', 8, 3, '#f7efe4', 4, 4); p.px('top', 4, 9, '#f7efe4', 3, 3); p.px('left', 2, 0, '#f7efe4', 3, 1);
+    p.px('right', 8, 0, '#f7efe4', 2, 1); p.px('front', 3, 0, '#f7efe4', 4, 1);
+  };
+  return [
+    { name: 'body', size: [8, 6, 9], pivot: [0, 3, 0], from: [-4, 0, -4.5], base: '#e6d9bd',
+      paint: (p) => { p.px('left', 1, 4, '#d3c4a2', 4, 2); p.px('right', 2, 4, '#d3c4a2', 4, 2); } },
+    { name: 'head', size: [6, 6, 6], pivot: [0, 6, 4.5], from: [-3, -3, 0], base: '#efe3c8',
+      paint: (p) => { p.px('front', 1, 2, '#2a1c3a', 1, 2); p.px('front', 4, 2, '#2a1c3a', 1, 2); p.px('front', 2, 4, '#c98f8f', 2, 1); } },
+    { name: 'cap', size: [14, 3, 14], pivot: [0, 0, 0], from: [-7, 6, -7], base: '#8f55c4', parent: 'body', noise: 0.1, paint: spots },
+    { name: 'capTop', size: [8, 3, 8], pivot: [0, 0, 0], from: [-4, 9, -4], base: '#a468d8', parent: 'body', noise: 0.1, paint: spots },
+    quad('legFL', 2.6, 3, 3, 2.4, '#d3c4a2'),
+    quad('legFR', -2.6, 3, 3, 2.4, '#d3c4a2'),
+    quad('legBL', 2.6, -3, 3, 2.4, '#d3c4a2'),
+    quad('legBR', -2.6, -3, 3, 2.4, '#d3c4a2'),
+  ];
+}
+
 function lavastrider(): PartDef[] {
   const hide = '#5a2a2a', dark = '#341919', ember = '#ff8a30', hot = '#ffd27a';
   const foot = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => { for (const f of ['front', 'back', 'left', 'right'] as const) { p.px(f, 0, 12, ember, 3, 1); p.px(f, 0, 13, hot, 3, 1); } };
@@ -740,7 +760,7 @@ export function mobModel(type: MobType): BuiltModel {
   if (type === 'hollowdrake') return drakeModel();
   if (type === 'sheep') return sheepModel('white', false);
   if (type === 'fox') return foxModel('red', false);
-  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider }[type as Exclude<MobType, 'villager' | 'hound' | 'hollowdrake' | 'sheep' | 'fox'>]();
+  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider, sporecap }[type as Exclude<MobType, 'villager' | 'hound' | 'hollowdrake' | 'sheep' | 'fox'>]();
   m = buildModel(parts, 64, 64, type.length * 13);
   if (type === 'ashboar' || type === 'lavastrider') glowSeams(m);
   if (type === 'drifter') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.45; }

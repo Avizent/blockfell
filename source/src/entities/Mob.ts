@@ -74,6 +74,7 @@ export const MOB_SPECS: Record<MobType, MobSpec> = {
   fox: { name: NAMES.fox, hostile: false, health: 10, speed: 0.3, width: 0.5, height: 0.6, drops: [], xp: [1, 3], sound: 'fox' },
   // 2.7: steeds
   horse: { name: 'Horse', hostile: false, health: 24, speed: 0.25, width: 1.3, height: 1.65, drops: [['leather', 0, 2]], xp: [1, 3], sound: 'horse', rideable: true, seat: 1.15, rideMul: 4.2, jump: 0.52 },
+  sporecap: { name: 'Sporecap', hostile: false, health: 8, speed: 0.18, width: 0.8, height: 0.95, drops: [['sporecap', 0, 2]], xp: [1, 3], sound: 'sporecap' },
   lavastrider: { name: 'Lavastrider', hostile: false, health: 20, speed: 0.2, width: 0.9, height: 1.5, drops: [['ember', 0, 2], ['string', 0, 2]], xp: [1, 3], sound: 'lavastrider', fireproof: true, lavaWalker: true, needsLure: true, rideable: true, seat: 1.3, rideMul: 2.5, jump: 0.4 },
   snowpal: { name: NAMES.snowpal, hostile: false, health: 8, speed: 0.2, width: 0.7, height: 1.5, drops: [['snowball', 2, 6]], xp: [0, 0], sound: 'snowpal' },
 };
@@ -683,6 +684,13 @@ export class Mob extends Entity implements Hurtable {
     }
     const saddle = P.get('saddle');
     if (saddle) saddle.visible = this.saddled;
+    const capPart = P.get('cap');
+    if (capPart) {   // 2.8: a sheared Sporecap has lost its cap
+      const on = !(this as unknown as { sheared?: boolean }).sheared;
+      capPart.visible = on;
+      const top = P.get('capTop');
+      if (top) top.visible = on;
+    }
     const head = P.get('head');
     if (head) { head.rotation.y = this.headYaw; head.rotation.x = this.headPitch; }
     if (this.bow) this.bow.visible = true;
