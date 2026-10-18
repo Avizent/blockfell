@@ -835,6 +835,21 @@ export class Game implements EntityHost, PrecipSource {
         mh = { label, text, arrow, found: !!t.found };
       }
     }
+    // 2.8.1: a held Spore Compass points at the nearest Spore Isle
+    if (held && held.id === 'spore_compass') {
+      const label = 'Spore Compass';
+      if (this.dim !== OVERWORLD) mh = { label, text: 'The needle only works on the surface', arrow: null, found: false };
+      else {
+        const isle = (this.world.generator as unknown as { nearestIsle?: (x: number, z: number) => { x: number; z: number; r: number } | null }).nearestIsle?.(p.x, p.z) ?? null;
+        if (!isle) mh = { label, text: this.world.genVersion < 7 ? 'This world has no Spore Isles (only new worlds do)' : 'No Spore Isle within about 3,500 blocks', arrow: null, found: false };
+        else {
+          const dx = isle.x + 0.5 - p.x, dz = isle.z + 0.5 - p.z, dist = Math.hypot(dx, dz);
+          const text = dist < isle.r ? 'You are on a Spore Isle' : `${Math.round(Math.max(0, dist - isle.r))} blocks ${compassName(dx, dz)}`;
+          const arrow = dist < isle.r ? null : Math.round((((p.yaw - Math.atan2(-dx, -dz)) * 180) / Math.PI % 360 + 720) % 360);
+          mh = { label: 'Spore Isle', text, arrow, found: dist < isle.r };
+        }
+      }
+    }
     const curM = ui.get().mapHud;
     if (JSON.stringify(curM) !== JSON.stringify(mh)) ui.set({ mapHud: mh });
   }
