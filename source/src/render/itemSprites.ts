@@ -652,6 +652,15 @@ function tridentCells(): [number, number, string][] {
   return c;
 }
 SPRITES.trident = { map: diagGrid(tridentCells()), pal: { o: O, H: H2, h: H1, M: [130, 226, 220], L: [190, 248, 244], D: [70, 160, 170] } };
+// 2.8.1: the Spore Compass: an iron dial with a violet needle that points at the nearest Spore Isle
+SPRITES.spore_compass = {
+  map: [
+    '................', '.....oooooo.....', '...ooIIIIIIoo...', '..oIIwwwwwwIIo..', '.oIIwwwVwwwwIIo.',
+    '.oIwwwVVVwwwwIo.', '.oIwwwVVVVwwwIo.', '.oIwwwwVVVwwwIo.', '.oIwwwwwVVwwwIo.', '.oIwwwwwwEwwwIo.',
+    '.oIIwwwwwwwwIIo.', '..oIIwwwwwwIIo..', '...ooIIIIIIoo...', '.....oooooo.....', '................', '................',
+  ],
+  pal: { o: [40, 40, 48], I: [190, 192, 200], w: [236, 226, 206], V: [150, 90, 210], E: [90, 60, 130] },
+};
 SPRITES.flame_arrow = {
   map: [
     '................', '...........ooo..', '..........oFFo..', '..........oFYo..', '.........ohoo...',
