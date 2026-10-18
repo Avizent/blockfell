@@ -219,3 +219,5 @@ shapeless(['sporecap', 'sporecap', 'sporecap', 'carrot'], 'spore_stew');
 shaped([' S ', 'SGS', ' S '], { S: 'sporecap', G: 'glass' }, 'spore_lamp');
 shaped(['I I', 'III', ' S '], { I: 'iron_ingot', S: 'stick' }, 'trident');
 shaped(['SS', 'SS'], { S: 'spore_stem' }, 'planks', 4);
+// 2.8.1: the Spore Compass
+shaped([' I ', 'ISI', ' I '], { I: 'iron_ingot', S: 'sporecap' }, 'spore_compass');
