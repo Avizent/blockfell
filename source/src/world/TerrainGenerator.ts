@@ -7,12 +7,12 @@ import { placeDungeon, placeLavaLake } from './Dungeons';
 import type { DimensionGenerator } from './generators';
 import {
   BIOMES, BIOME_BADLANDS, BIOME_BEACH, BIOME_BIRCH, BIOME_DESERT, BIOME_FOREST, BIOME_MOUNTAINS, BIOME_OCEAN, BIOME_PLAINS,
-  BIOME_RIVER, BIOME_SNOWY, BIOME_TAIGA,
+  BIOME_RIVER, BIOME_SNOWY, BIOME_TAIGA, BIOME_SPORE,
 } from './BiomeSystem';
 
 /** Newest terrain version. Worlds remember theirs so saved landscapes never change. */
 /** (5 = 1.7 lava and dungeons; 6 = 1.8 a Village Bell on the well and a Mapmaker in new villages.) */
-export const GEN_VERSION = 6;
+export const GEN_VERSION = 7;
 
 export interface GenOptions {
   structures: boolean;
@@ -100,6 +100,41 @@ export class TerrainGenerator implements DimensionGenerator {
     this.surfaceNoise = new Noise(s ^ 0x2fedcba);
   }
 
+  // ------------------------------------------------------------------ Spore Isle (version 7+)
+  private isleCache = new Map<number, { x: number; z: number; r: number } | null>();
+  private static readonly ISLE_CELL = 448;
+
+  /** The Spore Isle (if any) whose cell holds this column: a centre far out in deep ocean, with open sea all round. */
+  private isleFor(wx: number, wz: number): { x: number; z: number; r: number } | null {
+    const S = TerrainGenerator.ISLE_CELL;
+    const gx = Math.floor(wx / S), gz = Math.floor(wz / S);
+    const key = gx * 73856093 ^ gz * 19349663;
+    const hit = this.isleCache.get(key);
+    if (hit !== undefined) return hit;
+    const h = hash4(this.seed, gx, gz, 0x5b0e);
+    let isle: { x: number; z: number; r: number } | null = null;
+    if ((h & 0xff) < 205) {
+      const r = 34 + ((h >>> 8) & 15);
+      const x = gx * S + 70 + ((h >>> 12) & 0x1ff) % (S - 140), z = gz * S + 70 + ((h >>> 21) & 0x7ff) % (S - 140);
+      const cont = (px: number, pz: number) => this.continent.fbm2(px / 720, pz / 720, 4);
+      let ok = cont(x, z) < -0.27;
+      for (let a = 0; ok && a < 8; a++) ok = cont(x + Math.cos(a * 0.785) * (r + 20), z + Math.sin(a * 0.785) * (r + 20)) < -0.15;
+      if (ok) isle = { x, z, r };
+    }
+    this.isleCache.set(key, isle);
+    return isle;
+  }
+
+  /** How far into a Spore Isle a column is (0 = outside, 1 = the very middle). */
+  private isleDepth(wx: number, wz: number): number {
+    const isle = this.isleFor(wx, wz);
+    if (!isle) return 0;
+    const dx = wx - isle.x, dz = wz - isle.z;
+    if (dx * dx + dz * dz > (isle.r * 1.35) * (isle.r * 1.35)) return 0;
+    const warp = 1 + 0.22 * this.detail.fbm2(wx / 40, wz / 40, 2);
+    return Math.max(0, 1 - Math.hypot(dx, dz) * warp / isle.r);
+  }
+
   // ------------------------------------------------------------------ heights
 
   column(wx: number, wz: number, out: ColumnInfo = { height: 0, biome: 0, mountain: 0, river: 0 }): ColumnInfo {
@@ -135,6 +170,18 @@ export class TerrainGenerator implements DimensionGenerator {
       h = h + (bed - h) * river;
     }
 
+    // Spore Isle: a ring of low hills round a lagoon, blended into the sea floor
+    let isleT = 0;
+    if (this.version >= 7) {
+      isleT = this.isleDepth(wx, wz);
+      if (isleT > 0) {
+        const r = smoothstep(0, 0.45, isleT);
+        let target = SEA_LEVEL - 3 + 9 * r + d * 2;
+        if (isleT > 0.7) target -= 8 * smoothstep(0.7, 0.9, isleT);
+        const w = smoothstep(0, 0.35, isleT);
+        h = h + (target - h) * w;
+      }
+    }
     let height = Math.max(4, Math.min(WORLD_HEIGHT - 6, Math.floor(h)));
 
     // biome
@@ -160,6 +207,7 @@ export class TerrainGenerator implements DimensionGenerator {
         height = Math.min(WORLD_HEIGHT - 6, height + Math.floor(extra / 5) * 5);
       }
     }
+    if (isleT > 0.12 && height >= SEA_LEVEL - 1) biome = BIOME_SPORE;
     out.height = height;
     out.biome = biome;
     out.mountain = mountain;
@@ -249,6 +297,7 @@ export class TerrainGenerator implements DimensionGenerator {
       case BIOME_BEACH:
       case BIOME_DESERT: return B.SAND;
       case BIOME_BADLANDS: return steep ? B.TERRACOTTA[1] : B.RED_SAND;
+      case BIOME_SPORE: return h <= SEA_LEVEL + 1 ? B.SAND : B.SPORELOAM;
       case BIOME_SNOWY: return steep ? B.STONE : B.SNOWY_GRASS;
       case BIOME_MOUNTAINS: return steep ? B.STONE : B.GRASS;
       default: return steep && h > 80 ? B.STONE : B.GRASS;
@@ -270,7 +319,7 @@ export class TerrainGenerator implements DimensionGenerator {
    * candidate; acceptance depends only on seed + position, so neighbouring
    * chunks agree about every tree even if they cannot see its trunk.
    */
-  private treeAt(cellX: number, cellZ: number, tmp: ColumnInfo): { x: number; z: number; y: number; h: number; kind: 'oak' | 'birch' | 'spruce' } | null {
+  private treeAt(cellX: number, cellZ: number, tmp: ColumnInfo): { x: number; z: number; y: number; h: number; kind: 'oak' | 'birch' | 'spruce' | 'mush' | 'giant'; hsh: number } | null {
     const hsh = hash4(this.seed, cellX, cellZ, 0x7ee);
     const x = cellX * 5 + (hsh & 3) + ((hsh >>> 2) & 1);
     const z = cellZ * 5 + ((hsh >>> 4) & 3) + ((hsh >>> 6) & 1);
@@ -284,27 +333,33 @@ export class TerrainGenerator implements DimensionGenerator {
     col.biome = biome; col.height = height;
     if (this.isCave(x, height, z)) return null;
     if (this.villages?.inVillage(x, z, 4)) return null;
-    let kind: 'oak' | 'birch' | 'spruce' = 'oak';
+    let kind: 'oak' | 'birch' | 'spruce' | 'mush' | 'giant' = 'oak';
+    if (biome === BIOME_SPORE) {
+      const giant = ((hsh >>> 20) % 6) === 0;
+      return { x, z, y: height + 1, h: giant ? 8 : 4 + ((hsh >>> 24) % 3), kind: giant ? 'giant' : 'mush', hsh };
+    }
     if (this.version >= 2) {
       if (biome === BIOME_TAIGA) kind = 'spruce';
       else if (biome === BIOME_BIRCH || (biome === BIOME_FOREST && ((hsh >>> 20) & 7) === 0)) kind = 'birch';
       else if (biome === BIOME_SNOWY || (biome === BIOME_MOUNTAINS && ((hsh >>> 20) & 3) === 0)) kind = 'spruce';
     }
     const th = kind === 'spruce' ? 6 + ((hsh >>> 24) % 4) : kind === 'birch' ? 5 + ((hsh >>> 24) % 3) : 4 + ((hsh >>> 24) % 3);
-    return { x, z, y: height + 1, h: th, kind };
+    return { x, z, y: height + 1, h: th, kind, hsh };
   }
 
   private placeTrees(cx: number, cz: number, blocks: Uint16Array): void {
     const x0 = cx * CHUNK_SIZE, z0 = cz * CHUNK_SIZE;
     const tmp: ColumnInfo = { height: 0, biome: 0, mountain: 0, river: 0 };
-    const cMinX = Math.floor((x0 - 3) / 5), cMaxX = Math.floor((x0 + 18) / 5);
-    const cMinZ = Math.floor((z0 - 3) / 5), cMaxZ = Math.floor((z0 + 18) / 5);
+    const wide = this.version >= 7 ? 5 : 0;   // giant mushroom caps reach 6 blocks out
+    const cMinX = Math.floor((x0 - 3 - wide) / 5), cMaxX = Math.floor((x0 + 18 + wide) / 5);
+    const cMinZ = Math.floor((z0 - 3 - wide) / 5), cMaxZ = Math.floor((z0 + 18 + wide) / 5);
     for (let gx = cMinX; gx <= cMaxX; gx++) {
       for (let gz = cMinZ; gz <= cMaxZ; gz++) {
         const t = this.treeAt(gx, gz, tmp);
         if (!t) continue;
-        if (t.x < x0 - 2 || t.x > x0 + 17 || t.z < z0 - 2 || t.z > z0 + 17) continue;
-        if (t.kind === 'spruce') this.stampSpruce(t.x - x0, t.y, t.z - z0, t.h, blocks);
+        if (t.x < x0 - 2 - wide || t.x > x0 + 17 + wide || t.z < z0 - 2 - wide || t.z > z0 + 17 + wide) continue;
+        if (t.kind === 'mush' || t.kind === 'giant') this.stampMushroom(t.x - x0, t.y, t.z - z0, t.h, t.hsh, blocks, t.kind === 'giant');
+        else if (t.kind === 'spruce') this.stampSpruce(t.x - x0, t.y, t.z - z0, t.h, blocks);
         else this.stampTree(t.x - x0, t.y, t.z - z0, t.h, hash4(this.seed, t.x, t.z, 0xbee), blocks, t.kind === 'birch');
       }
     }
@@ -341,6 +396,44 @@ export class TerrainGenerator implements DimensionGenerator {
       }
       const below = localIndex(lx, y - 1, lz);
       if (blocks[below] === B.GRASS || blocks[below] === B.SNOWY_GRASS) blocks[below] = B.DIRT;
+    }
+  }
+
+  /**
+   * A giant mushroom (Spore Isle): a pale stem under a wide, spotted cap whose underside glows.
+   * The rare giant ones have a hollow stem with a doorway on the south side, lit from above.
+   */
+  private stampMushroom(lx: number, y: number, lz: number, th: number, hsh: number, blocks: Uint16Array, giant: boolean): void {
+    const cap = (hsh >>> 3) & 1 ? B.CAP_VIOLET : B.CAP_CRIMSON;
+    const top = y + th - 1;
+    const put = (x: number, yy: number, z: number, id: number, force = false) => {
+      if (x < 0 || x > 15 || z < 0 || z > 15 || yy < 0 || yy >= WORLD_HEIGHT) return;
+      const i = localIndex(x, yy, z);
+      const b = blocks[i];
+      if (force || b === B.AIR || b === B.TALL_GRASS || b === B.SPORE_TUFT) blocks[i] = id;
+    };
+    const R = giant ? 6 : 3;
+    const d2 = (dx: number, dz: number) => dx * dx + dz * dz;
+    const rim = giant ? 38 : 10, gill = giant ? 30 : 8;
+    const tiers = giant ? [[1, 38], [2, 38], [3, 24], [4, 10], [5, 2]] : [[1, 10], [2, 10], [3, 5], [4, 1]];
+    for (let dx = -R; dx <= R; dx++) for (let dz = -R; dz <= R; dz++) {
+      const q = d2(dx, dz);
+      if (q <= gill && !(dx === 0 && dz === 0 && !giant)) put(lx + dx, top + 1, lz + dz, B.CAP_GILLS);
+      else if (q <= rim && q > gill) put(lx + dx, top + 1, lz + dz, cap);
+      for (const [k, lim] of tiers) if (k > 1 && q <= lim) put(lx + dx, top + k, lz + dz, cap);
+    }
+    if (giant) {
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+        for (let yy = y; yy <= top; yy++) {
+          const wall = !(dx === 0 && dz === 0);
+          const door = dx === 0 && dz === 1 && yy < y + 2;
+          put(lx + dx, yy, lz + dz, wall && !door ? B.SPORE_STEM : B.AIR, true);
+        }
+      }
+      put(lx, y - 1, lz, B.SPORELOAM, true);
+      put(lx, top + 1, lz, B.CAP_GILLS, true);
+    } else {
+      for (let yy = y; yy <= top; yy++) put(lx, yy, lz, B.SPORE_STEM, true);
     }
   }
 
@@ -432,7 +525,7 @@ export class TerrainGenerator implements DimensionGenerator {
           blocks[localIndex(lx, y, lz)] = b;
         }
         // grass/snow under water becomes dirt/sand
-        if (h < SEA_LEVEL && (top === B.GRASS || top === B.SNOWY_GRASS)) blocks[localIndex(lx, h, lz)] = B.DIRT;
+        if (h < SEA_LEVEL && (top === B.GRASS || top === B.SNOWY_GRASS || top === B.SPORELOAM)) blocks[localIndex(lx, h, lz)] = B.DIRT;
         // water
         for (let y = h + 1; y <= SEA_LEVEL; y++) blocks[localIndex(lx, y, lz)] = B.WATER;
       }
@@ -559,6 +652,11 @@ export class TerrainGenerator implements DimensionGenerator {
       const y = col.height + 1;
       if (y >= WORLD_HEIGHT || col.height <= SEA_LEVEL) continue;
       const below = blocks[localIndex(lx, col.height, lz)];
+      if (below === B.SPORELOAM && col.biome === BIOME_SPORE) {
+        const ti = localIndex(lx, y, lz);
+        if (blocks[ti] === B.AIR && hashFloat(this.seed, cx * 16 + lx, cz * 16 + lz, 0x5b1) < 0.07) blocks[ti] = B.SPORE_TUFT;
+        continue;
+      }
       if (below !== B.GRASS) continue;
       const i = localIndex(lx, y, lz);
       if (blocks[i] !== B.AIR) continue;
@@ -649,4 +747,4 @@ export class TerrainGenerator implements DimensionGenerator {
 export function biomeName(id: number): string {
   return BIOMES[id]?.name ?? 'Unknown';
 }
-export { BIOME_PLAINS, BIOME_FOREST, BIOME_BIRCH, BIOME_TAIGA, BIOME_BADLANDS };
+export { BIOME_PLAINS, BIOME_FOREST, BIOME_BIRCH, BIOME_TAIGA, BIOME_BADLANDS, BIOME_SPORE };

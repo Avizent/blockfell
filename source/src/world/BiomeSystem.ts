@@ -14,6 +14,8 @@ export const BIOME_BADLANDS = 10;
 export const BIOME_CINDERDEEP = 11;
 /** The Starhollow (2.2): a whole dimension of floating islands. */
 export const BIOME_STARHOLLOW = 12;
+/** Spore Isle (2.8): a rare island of giant mushrooms far out at sea. */
+export const BIOME_SPORE = 13;
 
 export interface BiomeInfo {
   name: string;
@@ -36,4 +38,5 @@ export const BIOMES: BiomeInfo[] = [
   { name: 'Badlands', treeChance: 0, grassChance: 0, flowerChance: 0 },
   { name: 'Cinderdeep', treeChance: 0, grassChance: 0, flowerChance: 0 },
   { name: 'Starhollow', treeChance: 0, grassChance: 0, flowerChance: 0 },
+  { name: 'Spore Isle', treeChance: 0.17, grassChance: 0, flowerChance: 0 },
 ];

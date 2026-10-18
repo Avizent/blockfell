@@ -877,6 +877,25 @@ export const BREWING_STAND = reg('brewing_stand', 'Brewing Stand', {
   modelFaces: [Array(6).fill('brewing_base'), null, null, null, null],
   collision: [1, 0, 1, 15, 14, 15],
 }).id;
+// ======================================================================
+// Version 2.8 blocks: Spore Isle. Appended only.
+// ======================================================================
+/** Sporeloam: the purple-grey soil of Spore Isle. */
+export const SPORELOAM = reg('sporeloam', 'Sporeloam', { top: 'sporeloam_top', side: 'sporeloam_side', bottom: 'dirt', hardness: 0.6, tool: 'shovel', sound: 'gravel', drops: [{ item: 'sporeloam', min: 1, max: 1 }] }).id;
+/** Spore Stem: the pale trunk of a giant mushroom. */
+export const SPORE_STEM = reg('spore_stem', 'Spore Stem', { top: 'spore_stem_top', side: 'spore_stem', bottom: 'spore_stem_top', hardness: 0.9, tool: 'axe', sound: 'wood' }).id;
+/** Violet and Crimson Caps: the roofs of giant mushrooms. */
+export const CAP_VIOLET = reg('cap_violet', 'Violet Cap', { tex: 'cap_violet', hardness: 0.5, tool: 'axe', sound: 'wood' }).id;
+export const CAP_CRIMSON = reg('cap_crimson', 'Crimson Cap', { tex: 'cap_crimson', hardness: 0.5, tool: 'axe', sound: 'wood' }).id;
+/** Glowgills: the softly lit underside of a giant mushroom's cap. */
+export const CAP_GILLS = reg('cap_gills', 'Glowgills', { tex: 'cap_gills', hardness: 0.4, tool: 'axe', sound: 'wood', lightEmission: 11 }).id;
+/** Spore Tuft: a small glowing mushroom that grows on Sporeloam. */
+export const SPORE_TUFT = reg('spore_tuft', 'Spore Tuft', {
+  render: RENDER_CROSS, tex: 'spore_tuft', opaque: false, solid: false, cutout: true, lightOpacity: 0, lightEmission: 7,
+  hardness: 0, sound: 'grass', selection: [0.25, 0, 0.25, 0.75, 0.55, 0.75], drops: [{ item: 'sporecap', min: 1, max: 1 }],
+}).id;
+/** Spore Lamp: sporecaps sealed in glass; as bright as a Lumen block. */
+export const SPORE_LAMP = reg('spore_lamp', 'Spore Lamp', { tex: 'spore_lamp', lightEmission: 15, hardness: 0.3, sound: 'glass' }).id;
 /** Blocks a Deepgate's ring may be made of. */
 export const GATE_RING = [CINDERSTONE, CINDERSTONE_BRICKS];
 /** 2.2: a Stargate's ring is eight Glimmerstone. */
