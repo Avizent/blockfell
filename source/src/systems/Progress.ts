@@ -73,6 +73,10 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   { id: 'long_reach', title: 'Long Reach', description: 'Hit a creature with a spear from 4 blocks away', icon: 'iron_spear', parent: 'kill' },
   { id: 'crossbow', title: 'Loaded', description: 'Fire a crossbow', icon: 'crossbow', parent: 'bow' },
   { id: 'flame_hit', title: 'Fire Arrow', description: 'Set a creature alight with a Flame Arrow', icon: 'flame_arrow', parent: 'crossbow' },
+  // 2.7: riding
+  { id: 'saddle_up', title: 'Saddle Up', description: 'Saddle a creature and climb on', icon: 'saddle', parent: 'boat' },
+  { id: 'lava_walker', title: 'Lava Walker', description: 'Ride a Lavastrider across lava with an Ember Lure', icon: 'ember_lure', parent: 'saddle_up' },
+  { id: 'gallop', title: 'Gallop!', description: 'Ride a Horse 300 blocks', icon: 'saddle', parent: 'saddle_up' },
   { id: 'brew_splash', title: 'Splash Zone', description: 'Throw a splash potion', icon: 'splash_mending', parent: 'brew_drink' },
   { id: 'dye_sheep', title: 'Woolly Rainbow', description: 'Dye a sheep', icon: 'pink_dye', parent: 'dye' },
   // 2.4: tracks, carts and parties
@@ -119,6 +123,8 @@ export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = 
   ['potions_thrown', 'Splash Potions Thrown', 'count'],
   ['snowpals_built', `${NAMES.snowpal}s Built`, 'count'],
   ['sledge', `Distance by ${NAMES.sledge}`, 'cm'],
+  ['ride', 'Distance Ridden', 'cm'],
+  ['horse', 'Distance by Horse', 'cm'],
   ['foxes_tamed', `${NAMES.fox}s Tamed`, 'count'],
   ['sheep_sheared', 'Sheep Sheared', 'count'],
   ['names_given', 'Creatures Named', 'count'],
