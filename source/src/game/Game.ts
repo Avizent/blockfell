@@ -23,7 +23,7 @@ import type { WorldRecord, WorldExtra, GameRules } from '../systems/SaveManager'
 import { DEFAULT_RULES } from '../systems/SaveManager';
 import { type DimId, type Arrival, OVERWORLD } from '../world/dims';
 import { LAVA_SEA } from '../world/Cinderdeep';
-import { BIOME_CINDERDEEP, BIOME_STARHOLLOW } from '../world/BiomeSystem';
+import { BIOME_CINDERDEEP, BIOME_STARHOLLOW, BIOME_SPORE } from '../world/BiomeSystem';
 import { newestGenVersion } from '../world/generators';
 import { WeatherSystem, WeatherKind } from '../systems/WeatherSystem';
 import { Precipitation, PrecipSource, PRECIP_NONE, PRECIP_RAIN, PRECIP_SNOW } from '../render/Precipitation';
@@ -53,7 +53,7 @@ import { compassName } from '../render/mapImage';
 import { Hound, HOUND_FOOD, HOUND_TAMING_FOOD } from '../entities/Hound';
 import { ArmourStand, STAND_HAND, STAND_HEIGHT, STAND_WIDTH } from '../entities/ArmourStand';
 import { Ashboar, ASHBOAR_FOOD } from '../entities/Ashboar';
-import { FarmAnimal, Sheep, FARM_FOOD, FARM_TYPES } from '../entities/FarmAnimal';
+import { FarmAnimal, Sheep, Sporecap, FARM_FOOD, FARM_TYPES } from '../entities/FarmAnimal';
 import { Fox, FOX_FOOD, FOX_TAMING_FOOD } from '../entities/Fox';
 import { SnowPal } from '../entities/SnowPal';
 import { Sledge, SLEDGE_WIDTH, SLEDGE_HEIGHT } from '../entities/Sledge';
@@ -125,6 +125,8 @@ export class Game implements EntityHost, PrecipSource {
   private bowTicks = 0;
   /** 2.6: ticks spent winding a crossbow; ticks until a spear can thrust again. */
   private crossTicks = 0;
+  /** 2.8: how long the Trident has been held back for a throw. */
+  private tridentTicks = 0;
   private spearCooldown = 0;
   private lastCharge = '0';
   private jumpTap = 0;
@@ -1319,6 +1321,7 @@ export class Game implements EntityHost, PrecipSource {
     this.tickFishing();
     this.villages.tick();
     if (this.tickCount % 4 === 0) this.updateVillageUi();
+    if (this.tickCount % 40 === 0) this.checkBiomeFeats();
     // the trade screen closes if the villager dies or you walk away
     const tw = this.tradeWith;
     if (tw && ui.get().overlay === 'trade' && (!tw.alive || tw.removed || tw.distanceTo(p.x, p.y, p.z) > 8)) this.engine.closeOverlay();
@@ -1384,7 +1387,7 @@ export class Game implements EntityHost, PrecipSource {
     this.inventory.selected = i;
     this.breaking = null;
     this.eatTicks = 0;
-    this.bowTicks = 0;
+    this.bowTicks = 0; this.tridentTicks = 0;
     this.inventory.changed();
   }
 
@@ -2105,6 +2108,11 @@ export class Game implements EntityHost, PrecipSource {
         this.releaseBow();
       }
     } else if (this.bowTicks) { this.bowTicks = 0; this.hand.drawing = 0; }
+    // 2.8: the Trident: hold right-click to draw it back, let go to throw
+    if (held?.id === 'trident') {
+      if (rmb) { this.tridentTicks++; this.hand.drawing = Math.min(20, this.tridentTicks); }
+      else if (this.tridentTicks > 0) this.releaseTrident(held);
+    } else if (this.tridentTicks) { this.tridentTicks = 0; this.hand.drawing = 0; }
     this.updateCharge(held);
 
     if (this.tickDrinking(held, rmb && !(this.target && B.getBlock(this.target.block).interact && !p.sneaking))) return;
@@ -2118,7 +2126,7 @@ export class Game implements EntityHost, PrecipSource {
       return;
     } else if (this.eatTicks) { this.eatTicks = 0; this.hand.eating = 0; }
 
-    if ((rmb || rmbPress) && (rmbPress || this.useDelay === 0) && heldDef?.kind !== 'bow' && heldDef?.kind !== 'crossbow') {
+    if ((rmb || rmbPress) && (rmbPress || this.useDelay === 0) && heldDef?.kind !== 'bow' && heldDef?.kind !== 'crossbow' && held?.id !== 'trident') {
       this.useDelay = 4;
       this.use(rmbPress);
     }
@@ -2171,6 +2179,16 @@ export class Game implements EntityHost, PrecipSource {
           return true;
         }
       }
+    }
+    if (m instanceof Sporecap && id === 'shears') {
+      if (dry) return true;
+      const r = m.shear(this);
+      if (r === 'sheared') {
+        this.progress.grant('spore_shear');
+        if (!p.creative && this.inventory.damageItem(slot, 1)) this.sound('tool_break', p.x, p.eyeY, p.z);
+      } else if (r === 'young') pushChat('This little Sporecap has no cap to shear yet.');
+      else if (r === 'bare') pushChat('This Sporecap has no cap right now. It grows back in a few minutes.');
+      return true;
     }
     if (m instanceof Sheep) {
       if (id === 'shears') {
@@ -2790,7 +2808,7 @@ export class Game implements EntityHost, PrecipSource {
     const p = this.player;
     this.riding = b;
     b.rider = true;
-    this.breaking = null; this.eatTicks = 0; this.bowTicks = 0;
+    this.breaking = null; this.eatTicks = 0; this.bowTicks = 0; this.tridentTicks = 0;
     this.hand.eating = 0; this.hand.drawing = 0;
     p.ride(b.x, b.y + b.seat, b.z);
     p.prevX = p.x; p.prevY = p.y; p.prevZ = p.z;
@@ -3191,6 +3209,7 @@ export class Game implements EntityHost, PrecipSource {
     p.food = Math.min(20, p.food + f.hunger);
     p.saturation = Math.min(p.food, p.saturation + f.saturation);
     this.sound('burp', p.x, p.eyeY, p.z, 0.4);
+    if (s.id === 'spore_stew') { this.potions.add('night_eyes', 1800); this.progress.grant('spore_stew'); pushChat('The stew makes the dark glow. Night Eyes for 90 seconds.'); }
     this.progress.add('food_eaten');
     this.progress.grant('eat');
     if (!p.creative) this.consume(this.inventory.selected);
@@ -3287,6 +3306,7 @@ export class Game implements EntityHost, PrecipSource {
     let v = 0, loaded = false;
     const k = held ? getItem(held.id).kind : '';
     if (k === 'bow' && this.bowTicks > 0) v = Math.min(1, this.bowTicks / 20);
+    else if (held?.id === 'trident' && this.tridentTicks > 0) v = Math.min(1, this.tridentTicks / 20);
     else if (k === 'crossbow') {
       if (held!.id !== 'crossbow') { v = 1; loaded = true; } else if (this.crossTicks > 0) v = Math.min(1, this.crossTicks / CROSSBOW_LOAD);
     }
@@ -3294,6 +3314,36 @@ export class Game implements EntityHost, PrecipSource {
     if (key === this.lastCharge) return;
     this.lastCharge = key;
     ui.set({ charge: v, chargeLoaded: loaded });
+  }
+
+  /** 2.8: lets go of a drawn Trident: a fast, heavy throw that drops where it lands. */
+  private releaseTrident(held: ItemStack): void {
+    const p = this.player;
+    const t = this.tridentTicks;
+    this.tridentTicks = 0;
+    this.hand.drawing = 0;
+    if (t < 8) return;
+    const f = Math.min(1, t / 20);
+    const [ex, ey, ez] = this.eye();
+    const [dx, dy, dz] = this.lookDir();
+    const v = 1.5 + f * 1.6;
+    this.entities.spawnTrident(ex + dx * 0.5, ey - 0.15 + dy * 0.5, ez + dz * 0.5, dx * v, dy * v, dz * v, held, 7 + (f >= 1 ? 1.5 : 0));
+    this.sound('bow', p.x, p.eyeY, p.z, 0.8, 0.55 + f * 0.2);
+    if (!p.creative) { this.inventory.slots[this.inventory.selected] = null; this.inventory.changed(); }
+    this.hand.swing();
+    this.useDelay = 6;
+  }
+
+  /** 2.8: a thrown Trident struck a creature. */
+  onTridentHit(_mob: Mob): void {
+    this.progress.grant('trident_hit');
+  }
+
+  /** Feats for being somewhere: the Spore Isle. */
+  private checkBiomeFeats(): void {
+    const p = this.player;
+    if (this.world.dim !== 'overworld' || p.dead) return;
+    if (this.world.generator.column(Math.floor(p.x), Math.floor(p.z)).biome === BIOME_SPORE && p.y > SEA_LEVEL - 3) this.progress.grant('spore_isle');
   }
 
   /** Called when a player arrow hits a mob (for the advancement). */
