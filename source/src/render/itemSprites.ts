@@ -610,6 +610,23 @@ const CB_PAL = { o: O, H: H2, h: H1, A: [150, 150, 158] as RGBA, S: [240, 240, 2
 SPRITES.crossbow = { map: diagGrid(crossbowCells(0)), pal: CB_PAL };
 SPRITES.crossbow_loaded = { map: diagGrid(crossbowCells(1)), pal: CB_PAL };
 SPRITES.crossbow_loaded_flame = { map: diagGrid(crossbowCells(2)), pal: CB_PAL };
+// 2.7: the Saddle and the Ember Lure
+SPRITES.saddle = {
+  map: [
+    '................', '................', '....oooooooo....', '...oLLLLLLLLo...', '..oLMMMMMMMMDo..',
+    '.oLMMMMMMMMMMDo.', '.oMMMMMMMMMMMDo.', '.ooDDDDDDDDDDoo.', '.oBo.oooooo.oBo.', '.oDo........oDo.',
+    '.oDo........oDo.', '.oGGo......oGGo.', '.oGoGo....oGoGo.', '..ooo......ooo..', '................', '................',
+  ],
+  pal: { o: [40, 24, 12], L: [178, 118, 68], M: [140, 86, 46], D: [100, 58, 28], B: [217, 180, 74], G: [170, 170, 178] },
+};
+SPRITES.ember_lure = {
+  map: diagGrid([
+    ...Array.from({ length: 9 }, (_, i): [number, number, string] => [1 + i, 14 - i, i % 2 ? 'h' : 'H']),
+    [10, 5, 'h'], [11, 5, 'S'], [11, 6, 'S'], [12, 7, 'S'], [12, 8, 'S'], [12, 9, 'S'],
+    [11, 10, 'F'], [12, 10, 'Y'], [13, 10, 'F'], [11, 11, 'F'], [12, 11, 'Y'], [13, 11, 'F'], [12, 12, 'F'],
+  ]),
+  pal: { o: O, H: H2, h: H1, S: [240, 240, 240], F: [240, 110, 30], Y: [255, 224, 100] },
+};
 SPRITES.flame_arrow = {
   map: [
     '................', '...........ooo..', '..........oFFo..', '..........oFYo..', '.........ohoo...',
@@ -750,6 +767,8 @@ export const EGG_COLORS: Record<string, [RGBA, RGBA]> = {
   drifter: [[184, 226, 255], [168, 152, 246]],
   fox: [[216, 116, 44], [246, 240, 230]],
   snowpal: [[240, 244, 250], [200, 66, 58]],
+  horse: [[140, 96, 60], [46, 32, 22]],
+  lavastrider: [[96, 44, 44], [255, 138, 48]],
 };
 for (const [mob, [a, s]] of Object.entries(EGG_COLORS)) {
   const L: RGBA = [Math.min(255, a[0] + 30), Math.min(255, a[1] + 30), Math.min(255, a[2] + 30)];
