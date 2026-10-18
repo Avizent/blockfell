@@ -125,6 +125,21 @@ export class TerrainGenerator implements DimensionGenerator {
     return isle;
   }
 
+  /** 2.8.1: the nearest Spore Isle to a point (searching about 3,500 blocks round), or null. Used by the Spore Compass. */
+  nearestIsle(wx: number, wz: number): { x: number; z: number; r: number } | null {
+    if (this.version < 7) return null;
+    const S = TerrainGenerator.ISLE_CELL;
+    const gx = Math.floor(wx / S), gz = Math.floor(wz / S);
+    let best: { x: number; z: number; r: number } | null = null, bd = Infinity;
+    for (let dz = -8; dz <= 8; dz++) for (let dx = -8; dx <= 8; dx++) {
+      const i = this.isleFor((gx + dx) * S + 1, (gz + dz) * S + 1);
+      if (!i) continue;
+      const d = Math.hypot(i.x - wx, i.z - wz);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+
   /** How far into a Spore Isle a column is (0 = outside, 1 = the very middle). */
   private isleDepth(wx: number, wz: number): number {
     const isle = this.isleFor(wx, wz);
