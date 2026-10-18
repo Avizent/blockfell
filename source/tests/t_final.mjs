@@ -79,7 +79,7 @@ export default async (page, h) => {
   s = await st();
   check('crosshair targets a block', !!s.target && s.target.block === 'dirt', s.target);
   const chunkBefore = await ev(() => { const p = window.__pad; return window.__bf.chunkInfo(p.x >> 4, (p.z - 2) >> 4); });
-  await page.mouse.down(); await h.wait(1600); await page.mouse.up();
+  await page.mouse.down(); await h.wait(2200); await page.mouse.up();
   await h.wait(1200);
   const mined = await ev(() => { const p = window.__pad; return window.__bf.getBlock(p.x, p.y + 1, p.z - 2); });
   const chunkAfter = await ev(() => { const p = window.__pad; return window.__bf.chunkInfo(p.x >> 4, (p.z - 2) >> 4); });

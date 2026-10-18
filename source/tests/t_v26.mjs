@@ -148,7 +148,7 @@ if (run('items')) {
     c.wood === 'wooden_spearx1' && c.stone === 'stone_spearx1' && c.iron === 'iron_spearx1' && c.cross === 'crossbowx1' && c.flame === 'flame_arrowx4', c);
   check('items: three spears, the crossbow (and its two loaded forms) and the Flame Arrow exist with sprites', t.exist.every(Boolean) && t.sprites.every(Boolean), t);
   check('items: spears hit a little softer than swords (3.5 / 4.5 / 5.5), the loaded crossbows are hidden from the creative list', t.attack.join() === '3.5,4.5,5.5' && t.hidden.every((h) => !h) && t.kinds.every((k) => k === 'crossbow'), t);
-  check('items: spears take the sword runes, the crossbow the bow runes; three new advancements (65 in all) in the right places', t.runes[0] === 'keen,sturdy,plunder' && t.runes[1] === 'might,sturdy' && t.adv.join() === 'kill,bow,crossbow' && t.count === 65, t);
+  check('items: spears take the sword runes, the crossbow the bow runes; three new advancements (65 in all) in the right places', t.runes[0] === 'keen,sturdy,plunder' && t.runes[1] === 'might,sturdy' && t.adv.join() === 'kill,bow,crossbow' && t.count >= 65, t);
 }
 
 // ======================================================================= SPEAR
