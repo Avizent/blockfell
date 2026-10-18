@@ -142,7 +142,7 @@ if (run('items')) {
   check('brewing table: each ingredient makes its potion, glimmer dust makes it splash; wrong pairs make nothing',
     t.brew.join() === 'potion_swiftness,potion_might,potion_mending,potion_night_eyes,potion_deep_breath,potion_emberward' &&
     t.splash.join() === 'splash_swiftness,splash_might,splash_mending,splash_night_eyes,splash_deep_breath,splash_emberward' && t.wrong.every((r) => r === null) && t.distinct === 6, t);
-  check('save safety: the Brewing Stand is the LAST block and the Trophy just before it (no saved block id moved)', t.last[0] === 'brewing_stand' && t.last[1] === 'drake_trophy' && t.last[2] > t.last[3] && t.last[3] > t.last[4], t.last);
+  check('save safety: the Brewing Stand (286) and Trophy (285) keep their ids (no saved block id moved; later releases only append)', t.last[2] === 286 && t.last[3] === 285, t.last);
   check('crafting: 3 glass make 3 Glass Bottles; iron + 3 cobblestone make a Brewing Stand', t.bottles?.id === 'glass_bottle' && t.bottles.count === 3 && t.stand?.id === 'brewing_stand', t);
 }
 
