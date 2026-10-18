@@ -154,7 +154,7 @@ export class Game implements EntityHost, PrecipSource {
   /** The painting under the crosshair (nearer than any block). */
   targetPainting: Painting | null = null;
   /** The boat the player is sitting in (1.6). */
-  riding: Boat | null = null;
+  riding: Boat | Mob | null = null;
   /** The boat under the crosshair. */
   targetBoat: Boat | null = null;
   /** 2.1: the armour stand under the crosshair, and how high up it the aim lands (blocks above its feet). */
@@ -486,8 +486,9 @@ export class Game implements EntityHost, PrecipSource {
     if (p.dead) ui.set({ overlay: 'death' });
     // back into the boat the player was sitting in
     if (this.rideOnLoad && !p.dead) {
-      let best: Boat | null = null, bd = 3;
+      let best: Boat | Mob | null = null, bd = 3;
       for (const b of this.entities.boats()) { const d = b.distanceTo(p.x, p.y - b.seat, p.z); if (d < bd) { bd = d; best = b; } }
+      for (const e of this.entities.list) if (e instanceof Mob && e.rideable) { const d = e.distanceTo(p.x, p.y - e.seat, p.z); if (d < bd) { bd = d; best = e; } }
       if (best) this.mount(best, true);
     }
     this.rideOnLoad = false;
@@ -1275,7 +1276,7 @@ export class Game implements EntityHost, PrecipSource {
     if (this.eatTicks > 0 || this.bowTicks > 0 || this.crossTicks > 0) { move.forward *= 0.2; move.strafe *= 0.2; move.sprint = false; p.sprinting = false; }
     if (this.sleepTicks > 0) { move.forward = 0; move.strafe = 0; move.jump = false; move.sneak = false; move.sprint = false; }
     // ---- in a boat: W/S row, A/D turn, Shift (the Sneak button) climbs out
-    if (this.riding && (this.riding.removed || p.dead)) this.dismount();
+    if (this.riding && (this.riding.removed || p.dead || (this.riding instanceof Mob && !this.riding.alive))) this.dismount();
     // (Shift presses are taken every tick, so one made before climbing in can't throw you straight out)
     const shiftPress = input.consumePresses('ShiftLeft') + input.consumePresses('ShiftRight') > 0;
     if (this.riding && inGame && shiftPress) this.dismount();
@@ -1283,6 +1284,12 @@ export class Game implements EntityHost, PrecipSource {
       this.riding.control.forward = inGame ? move.forward : 0;
       this.riding.control.turn = inGame ? move.strafe : 0;
       if (this.riding instanceof Minecart) this.riding.riderYaw = p.yaw;
+      else if (this.riding instanceof Mob) {
+        const m = this.riding;
+        m.riderYaw = p.yaw;
+        m.control.jump = inGame && move.jump;
+        m.control.lure = this.inventory.selectedStack?.id === 'ember_lure';
+      }
     } else {
       const wasInWater = p.inWater;
       if (p.inWater && !p.flying && this.sleepTicks === 0) this.pushByCurrent();
@@ -1951,13 +1958,13 @@ export class Game implements EntityHost, PrecipSource {
     const [ex, ey, ez] = this.eye();
     const [dx, dy, dz] = this.lookDir();
     const hit = raycast(this.world, ex, ey, ez, dx, dy, dz, this.reach());
-    const mobHit = this.entities.rayHitMob(ex, ey, ez, dx, dy, dz, this.attackReach());
+    const mobHit = this.entities.rayHitMob(ex, ey, ez, dx, dy, dz, this.attackReach(), this.riding instanceof Mob ? this.riding : null);
     this.targetMob = mobHit && (!hit || mobHit.t < hit.dist) ? mobHit.mob : null;
     this.target = this.targetMob ? null : hit;
     const paintHit = this.entities.rayHitPainting(ex, ey, ez, dx, dy, dz, this.reach());
     this.targetPainting = paintHit && (!hit || paintHit.t < hit.dist) && (!mobHit || !this.targetMob || paintHit.t < mobHit.t) ? paintHit.painting : null;
     if (this.targetPainting) { this.target = null; this.targetMob = null; }
-    const boatHit = this.entities.rayHitBoat(ex, ey, ez, dx, dy, dz, this.reach(), this.riding);
+    const boatHit = this.entities.rayHitBoat(ex, ey, ez, dx, dy, dz, this.reach(), this.riding instanceof Boat ? this.riding : null);
     this.targetBoat = boatHit && !this.targetPainting && (!hit || boatHit.t < hit.dist) && (!this.targetMob || !mobHit || boatHit.t < mobHit.t) ? boatHit.boat : null;
     if (this.targetBoat) { this.target = null; this.targetMob = null; }
     const standHit = this.entities.rayHitStand(ex, ey, ez, dx, dy, dz, this.reach());
@@ -2138,6 +2145,32 @@ export class Game implements EntityHost, PrecipSource {
         else { this.nameTagFor = m; this.engine.openOverlay('nametag'); }
       }
       return true;
+    }
+    // ---- 2.7: saddles and riding
+    if (m.spec.rideable && !(m as { isBaby?: boolean }).isBaby) {
+      if (id === 'saddle' && !m.saddled) {
+        if (dry) return true;
+        m.saddled = true; m.persistent = true;
+        if (!p.creative) this.consume(slot);
+        this.sound('place:wood', m.x, m.y + 0.8, m.z, 0.5, 1.3);
+        pushChat(`${m.spec.name} saddled! Right-click it again to climb on.`);
+        return true;
+      }
+      if (m.saddled && !m.rider && !this.riding && m.alive) {
+        const feeds = m instanceof FarmAnimal && !!id && (FARM_FOOD[m.mobType] ?? []).includes(id);
+        if (p.sneaking && !id) {
+          if (dry) return true;
+          m.saddled = false;
+          this.entities.spawnItem(makeStack('saddle'), m.x, m.y + 0.8, m.z);
+          pushChat(`The saddle comes off.`);
+          return true;
+        }
+        if (!feeds) {
+          if (dry) return true;
+          this.mount(m);
+          return true;
+        }
+      }
     }
     if (m instanceof Sheep) {
       if (id === 'shears') {
@@ -2752,7 +2785,7 @@ export class Game implements EntityHost, PrecipSource {
 
   // ======================================================================= boats
   /** Climbs into a boat. */
-  mount(b: Boat, quiet = false): void {
+  mount(b: Boat | Mob, quiet = false): void {
     if (this.riding || b.rider || b.removed) return;
     const p = this.player;
     this.riding = b;
@@ -2764,7 +2797,11 @@ export class Game implements EntityHost, PrecipSource {
     if (!quiet) {
       this.sound('place:wood', b.x, b.y + 0.4, b.z, 0.5, 1.2);
       const touch = this.engine.input.touchMode;
-      if (b instanceof Minecart) pushChat(touch ? 'Push forward with the joystick; pull back to brake. Boost Rails make you fly! Tap Sneak to get out.' : 'W pushes, S brakes. Boost Rails make you fly and Station Rails stop you - press W to set off again. Shift gets you out.');
+      if (b instanceof Mob) {
+        this.progress.grant('saddle_up');
+        if (b.spec.needsLure) pushChat(touch ? 'Hold an Ember Lure and push forward: it follows where you look. Tap Sneak to get off.' : 'Hold an Ember Lure (stick, string and an Ember) and press W: it follows where you look. It stands about without one. Shift gets you off.');
+        else pushChat(touch ? 'Push forward to go; it follows where you look. Tap Jump to hop. Tap Sneak to get off.' : 'W goes, S brakes, Space jumps; it follows where you look. Shift gets you off.');
+      } else if (b instanceof Minecart) pushChat(touch ? 'Push forward with the joystick; pull back to brake. Boost Rails make you fly! Tap Sneak to get out.' : 'W pushes, S brakes. Boost Rails make you fly and Station Rails stop you - press W to set off again. Shift gets you out.');
       else if (b instanceof Sledge) pushChat(touch ? 'Push off with the joystick and steer left and right. Snowy hills are fastest! Tap Sneak to get off.' : 'Push off with W, steer with A and D, brake with S. Snowy hills are fastest! Press Shift to get off.');
       else pushChat(touch ? 'Row with the joystick. Tap Sneak to climb out.' : 'Row with W and S, steer with A and D. Press Shift to climb out.');
     }
@@ -2777,12 +2814,13 @@ export class Game implements EntityHost, PrecipSource {
     this.riding = null;
     b.rider = false;
     b.control.forward = 0; b.control.turn = 0;
+    if (b instanceof Mob) { b.control.jump = false; b.control.lure = false; }
     this.engine.input.sneakLatch = false;
     const spot = this.landingSpot(b);
     this.player.setPosition(spot.x, spot.y, spot.z);
   }
 
-  private landingSpot(b: Boat): { x: number; y: number; z: number } {
+  private landingSpot(b: Boat | Mob): { x: number; y: number; z: number } {
     const w = this.world;
     const x = Math.floor(b.x), y = Math.floor(b.y + 0.5), z = Math.floor(b.z);
     const free = (ax: number, ay: number, az: number) => {
@@ -2795,7 +2833,7 @@ export class Game implements EntityHost, PrecipSource {
         for (const dy of [0, 1, -1]) if (free(x + dx, y + dy, z + dz)) return { x: x + dx + 0.5, y: y + dy, z: z + dz + 0.5 };
       }
     }
-    return { x: b.x, y: b.y + BOAT_HEIGHT, z: b.z };
+    return { x: b.x, y: b.y + (b instanceof Mob ? b.height : BOAT_HEIGHT), z: b.z };
   }
 
   /** Keeps the player in the seat after the boat has moved; counts the distance rowed (or sledged). */
@@ -2804,14 +2842,23 @@ export class Game implements EntityHost, PrecipSource {
     const ox = p.x, oz = p.z;
     p.ride(b.x, b.y + b.seat, b.z);
     const d = Math.hypot(p.x - ox, p.z - oz);
-    if (b instanceof Minecart) {
+    if (b instanceof Mob) {
+      if (d > 0.001) {
+        this.progress.add('ride', d * 100);
+        if (b.mobType === 'horse') {
+          this.progress.add('horse', d * 100);
+          if ((this.progress.stats.horse ?? 0) >= 30000) this.progress.grant('gallop');
+        }
+      }
+      if (b.spec.lavaWalker && b.onLava && d > 0.1) this.progress.grant('lava_walker');
+    } else if (b instanceof Minecart) {
       if (d > 0.001) this.progress.add('cart', d * 100);
       if (d > 0.01) this.progress.grant('cart');
       if (d > 0.4 && b.onBoostRail) this.progress.grant('express');
     } else if (b instanceof Sledge) {
       if (d > 0.001 && !b.afloat) this.progress.add('sledge', d * 100);
       if (d > 0.3 && b.onSnow) this.progress.grant('sledge');
-    } else if (b.afloat && d > 0.001) {
+    } else if (b instanceof Boat && b.afloat && d > 0.001) {
       this.progress.add('boat', d * 100);
       if (d > 0.05) this.progress.grant('boat');
     }
