@@ -4,6 +4,7 @@ import { MobType, mobModel } from './mobModels';
 import { instantiate, BuiltModel } from './BoxModel';
 import { IS_LAVA, IS_SOLID, IS_WATER } from '../world/BlockRegistry';
 import { UNLOADED } from '../world/World';
+import type { World } from '../world/World';
 import { NAMES } from '../world/names';
 
 interface MobSpec {
@@ -33,12 +34,24 @@ interface MobSpec {
   ignites?: number;
   /** 2.0: leaps at its prey from a few blocks away. */
   leaps?: boolean;
+  /** 2.7: can be saddled and ridden. */
+  rideable?: boolean;
+  /** 2.7: the rider's feet above the creature's feet. */
+  seat?: number;
+  /** 2.7: ridden speed as a multiple of the usual walking push. */
+  rideMul?: number;
+  /** 2.7: jump strength when ridden (vertical speed per tick). */
+  jump?: number;
+  /** 2.7: walks on lava (and is slowed off it). */
+  lavaWalker?: boolean;
+  /** 2.7: only follows the rider's steering while they hold an Ember Lure. */
+  needsLure?: boolean;
   /** 2.0: throws embers instead of shooting arrows (ranged). */
   embers?: boolean;
 }
 
 export const MOB_SPECS: Record<MobType, MobSpec> = {
-  pig: { name: 'Pig', hostile: false, health: 10, speed: 0.25, width: 0.9, height: 0.9, drops: [['raw_porkchop', 1, 3]], xp: [1, 3], sound: 'pig' },
+  pig: { name: 'Pig', hostile: false, health: 10, speed: 0.25, width: 0.9, height: 0.9, drops: [['raw_porkchop', 1, 3]], xp: [1, 3], sound: 'pig', rideable: true, seat: 0.8, rideMul: 1.6, jump: 0.42 },
   cow: { name: 'Cow', hostile: false, health: 10, speed: 0.2, width: 0.9, height: 1.4, drops: [['raw_beef', 1, 3], ['leather', 0, 2]], xp: [1, 3], sound: 'cow' },
   sheep: { name: 'Sheep', hostile: false, health: 8, speed: 0.23, width: 0.9, height: 1.3, drops: [['wool', 1, 1], ['raw_mutton', 1, 2]], xp: [1, 3], sound: 'sheep' },
   chicken: { name: 'Chicken', hostile: false, health: 4, speed: 0.25, width: 0.4, height: 0.7, drops: [['raw_chicken', 1, 1], ['feather', 0, 2]], xp: [1, 3], sound: 'chicken' },
@@ -59,6 +72,9 @@ export const MOB_SPECS: Record<MobType, MobSpec> = {
   drifter: { name: 'Drifter', hostile: false, health: 8, speed: 0.05, width: 0.9, height: 0.9, drops: [['drift_silk', 1, 2]], xp: [1, 3], sound: 'drifter', fireproof: true },
   // 2.3: a pet, and the snowman helper
   fox: { name: NAMES.fox, hostile: false, health: 10, speed: 0.3, width: 0.5, height: 0.6, drops: [], xp: [1, 3], sound: 'fox' },
+  // 2.7: steeds
+  horse: { name: 'Horse', hostile: false, health: 24, speed: 0.25, width: 1.3, height: 1.65, drops: [['leather', 0, 2]], xp: [1, 3], sound: 'horse', rideable: true, seat: 1.15, rideMul: 4.2, jump: 0.52 },
+  lavastrider: { name: 'Lavastrider', hostile: false, health: 20, speed: 0.2, width: 0.9, height: 1.5, drops: [['ember', 0, 2], ['string', 0, 2]], xp: [1, 3], sound: 'lavastrider', fireproof: true, lavaWalker: true, needsLure: true, rideable: true, seat: 1.3, rideMul: 2.5, jump: 0.4 },
   snowpal: { name: NAMES.snowpal, hostile: false, health: 8, speed: 0.2, width: 0.7, height: 1.5, drops: [['snowball', 2, 6]], xp: [0, 0], sound: 'snowpal' },
 };
 
@@ -159,6 +175,16 @@ export class Mob extends Entity implements Hurtable {
   /** 2.3: the name given with a Name Tag (shown above the creature; a named creature never wanders off for good). */
   nameTag: string | null = null;
   private plate: { name: string; sprite: THREE.Sprite } | null = null;
+  /** 2.7: wearing a Saddle. */
+  saddled = false;
+  /** 2.7: the player is riding it. */
+  rider = false;
+  /** 2.7: the rider's steering (forward -1..1, turn unused for mobs) and whether they hold an Ember Lure. */
+  readonly control = { forward: 0, turn: 0, jump: false, lure: false };
+  /** 2.7: the direction the rider is looking; the steed turns towards it. */
+  riderYaw = 0;
+  /** 2.7: standing on lava this tick (Lavastrider). */
+  onLava = false;
 
   constructor(type: MobType, host?: EntityHost, model?: BuiltModel) {
     super();
@@ -168,6 +194,7 @@ export class Mob extends Entity implements Hurtable {
     this.width = this.spec.width;
     this.height = this.spec.height;
     this.stepHeight = 0.6;
+    this.lavaWalker = !!this.spec.lavaWalker;
     const inst = instantiate(model ?? mobModel(type));
     this.object.add(inst.root);
     this.parts = inst.parts;
@@ -185,6 +212,16 @@ export class Mob extends Entity implements Hurtable {
 
   get alive(): boolean {
     return this.deathTime === 0;
+  }
+
+  /** 2.7: the rider's feet above this creature's feet (same meaning as a boat's seat). */
+  get seat(): number {
+    return this.spec.seat ?? this.height * 0.7;
+  }
+
+  /** 2.7: a saddled, grown creature that can be climbed on. */
+  get rideable(): boolean {
+    return !!this.spec.rideable && this.saddled && this.alive && !(this as unknown as { isBaby?: boolean }).isBaby;
   }
 
   /** Swaps the creature's model (villagers changing job). */
@@ -300,8 +337,8 @@ export class Mob extends Entity implements Hurtable {
     for (let d = 0; d <= 3; d++) {
       const b = host.world.getBlock(Math.floor(ax), Math.floor(this.y - 1 - d + 0.01), Math.floor(az));
       if (b === UNLOADED) return false;
-      if (IS_LAVA[b]) return false;
-      if (IS_WATER[b]) return this.spec.hostile;
+      if (IS_LAVA[b]) return !!this.spec.lavaWalker;
+      if (IS_WATER[b]) return this.spec.hostile && !this.spec.lavaWalker;
       if (IS_SOLID[b]) return true;
     }
     return false;
@@ -365,8 +402,62 @@ export class Mob extends Entity implements Hurtable {
     this.limbPhase += moved * 6;
   }
 
+  /**
+   * 2.7: one tick of being ridden. The creature turns towards where the rider
+   * looks; W goes (a Lavastrider needs an Ember Lure in hand), S brakes, Jump hops.
+   * Returns false when the steering does not apply (then the creature goes its own way).
+   */
+  protected tickRidden(host: EntityHost): boolean {
+    const c = this.control;
+    if (this.spec.needsLure && !c.lure) return false;
+    this.turnTowards(this.riderYaw, 0.2);
+    const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+    const mul = (this.spec.rideMul ?? 1.6) * (this.spec.lavaWalker && !this.onLava ? 0.55 : 1);
+    if (c.forward > 0) {
+      const accel = (this.onGround ? this.spec.speed * 0.22 : this.spec.speed * 0.05) * mul * c.forward;
+      this.vx += fx * accel;
+      this.vz += fz * accel;
+    } else if (c.forward < 0) {
+      this.vx *= 0.8; this.vz *= 0.8;
+    }
+    if (c.jump && this.onGround) {
+      this.vy = this.spec.jump ?? 0.42;
+      this.onGround = false;
+    } else if (this.onGround && c.forward > 0 && this.collidedH) {
+      const ax = this.x + fx * (this.width / 2 + 0.3), az = this.z + fz * (this.width / 2 + 0.3);
+      if (this.solidAt(host, ax, this.y + 0.5, az) && !this.solidAt(host, ax, this.y + 1.5, az)) this.vy = 0.42;   // hops a one-block step
+    }
+    if (this.inWater && IS_WATER[host.world.getBlock(Math.floor(this.x), Math.floor(this.y + this.height * 0.6), Math.floor(this.z))] === 1) this.vy += 0.045;
+    this.physics(host.world, 0.08, 0.98, 0.546);
+    this.headYaw = 0; this.headPitch = 0;
+    const moved = Math.hypot(this.x - this.prevX, this.z - this.prevZ);
+    this.limbAmount += (Math.min(1, moved * 4) - this.limbAmount) * 0.4;
+    this.limbPhase += moved * 6;
+    if (this.age % 7 === 0 && this.onGround && moved > 0.15) host.sound(this.spec.sound === 'horse' ? 'step:grass' : 'step:grass', this.x, this.y, this.z, 0.18, 1.1);
+    return true;
+  }
+
+  /** 2.7: a Lavastrider rides on the lava's surface; anything else just falls as usual. */
+  protected physics(world: World, gravity: number, drag: number, groundFriction: number, airFriction = 0.91): void {
+    super.physics(world, gravity, drag, groundFriction, airFriction);
+    this.onLava = false;
+    if (!this.lavaWalker) return;
+    const bx = Math.floor(this.x), bz = Math.floor(this.z);
+    for (let cy = Math.floor(this.y + 0.4); cy >= Math.floor(this.y - 1.6); cy--) {
+      const b = world.getBlock(bx, cy, bz);
+      if (!IS_LAVA[b] || IS_LAVA[world.getBlock(bx, cy + 1, bz)]) continue;
+      const top = cy + 0.875;
+      if (this.y <= top + 0.02 && this.vy <= 0.06) {
+        this.y = top; this.vy = 0; this.onGround = true; this.onLava = true;
+        this.syncBox();
+      }
+      return;
+    }
+  }
+
   tick(host: EntityHost): void {
     if (!this.tickCommon(host)) return;
+    if (this.rider && this.tickRidden(host)) return;
     const p = host.player;
     let forward = 0;
     let speedMul = 1;
@@ -590,6 +681,8 @@ export class Mob extends Entity implements Hurtable {
       const jump = this.onGround ? 0 : -0.8;
       if (b) b.rotation.x = jump; if (c) c.rotation.x = jump;
     }
+    const saddle = P.get('saddle');
+    if (saddle) saddle.visible = this.saddled;
     const head = P.get('head');
     if (head) { head.rotation.y = this.headYaw; head.rotation.x = this.headPitch; }
     if (this.bow) this.bow.visible = true;
@@ -641,8 +734,9 @@ export class Mob extends Entity implements Hurtable {
 
   serialize(): Record<string, unknown> | null {
     if (!this.alive) return null;
-    const s: Record<string, unknown> = { t: 'mob', m: this.mobType, x: this.x, y: this.y, z: this.z, yaw: this.yaw, h: this.health, p: this.persistent || !!this.raider };
+    const s: Record<string, unknown> = { t: 'mob', m: this.mobType, x: this.x, y: this.y, z: this.z, yaw: this.yaw, h: this.health, p: this.persistent || !!this.raider || this.saddled };
     if (this.nameTag) s.n = this.nameTag;
+    if (this.saddled) s.sd = 1;
     return s;
   }
 }

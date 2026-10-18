@@ -18,6 +18,7 @@ import { SnowPal } from './SnowPal';
 import { Snowball } from './Snowball';
 import { SplashPotion } from './SplashPotion';
 import { Sledge } from './Sledge';
+import { Horse } from './Horse';
 import { Minecart } from './Minecart';
 import { cleanStack } from '../inventory/Inventory';
 import { Boat } from './Boat';
@@ -27,7 +28,7 @@ import type { Facing } from '../world/BlockRegistry';
 import type { MobType } from './mobModels';
 import type { ItemStack } from '../inventory/ItemStack';
 import { rayBox } from '../interaction/VoxelRaycaster';
-import { GRASS, IS_FLUID, IS_SOLID, AIR, SNOWY_GRASS, SAND, RED_SAND, STONE, SNOW, SPAWN_FLOOR, EMBER_LAMP } from '../world/BlockRegistry';
+import { GRASS, IS_FLUID, IS_LAVA, IS_SOLID, AIR, SNOWY_GRASS, SAND, RED_SAND, STONE, SNOW, SPAWN_FLOOR, EMBER_LAMP } from '../world/BlockRegistry';
 import { BIOME_BADLANDS, BIOME_DESERT, BIOME_MOUNTAINS, BIOME_SNOWY, BIOME_TAIGA, BIOME_FOREST, BIOME_BIRCH } from '../world/BiomeSystem';
 import { UNLOADED } from '../world/World';
 import { WORLD_HEIGHT } from '../world/constants';
@@ -50,7 +51,8 @@ function passiveFor(biome: number, ground: number): MobType | null {
   if (biome === BIOME_TAIGA) return pick<MobType>([['rabbit', 24], ['sheep', 20], ['pig', 12], ['cow', 12], ['goat', 9], ['hound', 13], ['fox', 10]]);
   if (biome === BIOME_FOREST && Math.random() < 0.08) return 'hound';
   if (biome === BIOME_BIRCH && Math.random() < 0.05) return 'hound';
-  return Math.random() < 0.1 ? 'rabbit' : PASSIVE[Math.floor(Math.random() * PASSIVE.length)];
+  const r = Math.random();
+  return r < 0.1 ? 'rabbit' : r < 0.17 ? 'horse' : PASSIVE[Math.floor(Math.random() * PASSIVE.length)];
 }
 
 /**
@@ -85,7 +87,7 @@ export class EntityManager implements EntityQueries {
     const m = type === 'villager' ? new Villager(host) : type === 'sentinel' ? new Sentinel(host) : type === 'hound' ? new Hound(host)
       : type === 'ashboar' ? new Ashboar(host) : type === 'hollowdrake' ? new Hollowdrake(host) : type === 'drifter' ? new Drifter(host)
       : type === 'sheep' ? new Sheep(host) : FARM_TYPES.includes(type) ? new FarmAnimal(type, host)
-      : type === 'fox' ? new Fox(host) : type === 'snowpal' ? new SnowPal(host) : new Mob(type, host);
+      : type === 'horse' ? new Horse(host) : type === 'fox' ? new Fox(host) : type === 'snowpal' ? new SnowPal(host) : new Mob(type, host);
     m.setPos(x, y, z);
     // 2.3: snowy-white foxes in the snowy lands
     if (m instanceof Fox && host.world.dim === 'overworld') {
@@ -253,10 +255,10 @@ export class EntityManager implements EntityQueries {
   }
 
   /** Nearest living mob hit by a ray (used for melee targeting and arrows). */
-  rayHitMob(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number): { mob: Mob & Hurtable; t: number } | null {
+  rayHitMob(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number, except?: Mob | null): { mob: Mob & Hurtable; t: number } | null {
     let best: { mob: Mob; t: number } | null = null;
     for (const e of this.list) {
-      if (!(e instanceof Mob) || !e.alive) continue;
+      if (!(e instanceof Mob) || !e.alive || e === except) continue;
       if (Math.abs(e.x - ox) > max + 3 || Math.abs(e.z - oz) > max + 3) continue;
       const b = e.box;
       const r = rayBox(ox, oy, oz, dx, dy, dz, b.minX - 0.05, b.minY, b.minZ - 0.05, b.maxX + 0.05, b.maxY + 0.05, b.maxZ + 0.05);
@@ -313,7 +315,7 @@ export class EntityManager implements EntityQueries {
       const spot = this.findSpawnSpot(host, 20, 56, false);
       const type = spot ? passiveFor(host.world.generator.column(Math.floor(spot.x), Math.floor(spot.z)).biome, spot.ground) : null;
       if (spot && type) {
-        const herd = type === 'fox' ? 1 + Math.floor(Math.random() * 2) : type === 'chicken' || type === 'rabbit' || type === 'goat' ? 1 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 3);
+        const herd = type === 'fox' || type === 'horse' ? 1 + Math.floor(Math.random() * 2) : type === 'chicken' || type === 'rabbit' || type === 'goat' ? 1 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 3);
         for (let i = 0; i < herd; i++) {
           const ox = spot.x + (Math.random() - 0.5) * 3, oz = spot.z + (Math.random() - 0.5) * 3;
           const y = this.groundAt(host, Math.floor(ox), Math.floor(oz), spot.y + 3);
@@ -347,12 +349,15 @@ export class EntityManager implements EntityQueries {
    */
   private trySpawnDeep(host: EntityHost): void {
     const p = host.player;
-    let hostile = 0, boars = 0;
+    let hostile = 0, boars = 0, striders = 0;
     for (const e of this.list) {
       if (!(e instanceof Mob) || Math.hypot(e.x - p.x, e.z - p.z) > 96) continue;
       if (e.spec.hostile) { if (Math.hypot(e.x - p.x, e.z - p.z) <= 80) hostile++; }
       else if (e instanceof Ashboar) boars++;
+      else if (e.mobType === 'lavastrider') striders++;
     }
+    // 2.7: Lavastriders wade across the lava seas
+    if (striders < 6 && Math.random() < 0.05) this.spawnStriders(host);
     // 2.1: Ashboar herds graze the cavern floors (any light, but never near an Ember Lamp)
     if (boars < 8 && Math.random() < 0.06) this.spawnHerd(host);
     const cap = host.difficulty === 'peaceful' ? 0 : host.difficulty === 'easy' ? 5 : host.difficulty === 'normal' ? 8 : 12;
@@ -371,6 +376,20 @@ export class EntityManager implements EntityQueries {
         this.spawnMob(Math.random() < 0.62 ? 'cinderling' : 'smoulderer', x + 0.5, y + 1, z + 0.5, host);
         return;
       }
+    }
+  }
+
+  /** One or two Lavastriders on the lava sea 20-44 blocks away. */
+  private spawnStriders(host: EntityHost): void {
+    const p = host.player, w = host.world;
+    const a = Math.random() * Math.PI * 2, r = 20 + Math.random() * 24;
+    const x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+    if (!w.isLoaded(x, z)) return;
+    const n = 1 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < n; i++) {
+      const sx = x + i * 2, sz = z;
+      if (!IS_LAVA[w.getBlock(sx, LAVA_SEA, sz)] || w.getBlock(sx, LAVA_SEA + 1, sz) !== AIR || w.getBlock(sx, LAVA_SEA + 2, sz) !== AIR) continue;
+      this.spawnMob('lavastrider', sx + 0.5, LAVA_SEA + 0.875, sz + 0.5, host);
     }
   }
 
@@ -491,6 +510,8 @@ export class EntityManager implements EntityQueries {
         if (m instanceof FarmAnimal && d.f && typeof d.f === 'object') m.restore(d.f as Record<string, unknown>);
         if (m instanceof Fox && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);
         if (m instanceof SnowPal && d.sp && typeof d.sp === 'object') m.restore(d.sp as Record<string, unknown>);
+        if (d.sd === 1) { m.saddled = true; m.persistent = true; }
+        if (m instanceof Horse && typeof d.cv === 'number') m.setCoat(d.cv);
         if (typeof d.n === 'string' && d.n.trim()) m.nameTag = d.n.trim().slice(0, NAME_TAG_MAX);
       } else if (d.t === 'painting' && typeof d.m === 'string') {
         const m = motifById(d.m);

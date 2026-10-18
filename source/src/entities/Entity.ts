@@ -145,10 +145,13 @@ export abstract class Entity {
   }
 
   /** Moves with collision; returns true if something blocked the movement. */
+  /** 2.7: a creature that walks on lava (it is not slowed or burned by it). */
+  protected lavaWalker = false;
+
   protected physics(world: World, gravity: number, drag: number, groundFriction: number, airFriction = 0.91): void {
     this.syncBox();
     this.inWater = boxTouches(world, this.box, (b) => IS_WATER[b] === 1);
-    this.inLava = boxTouches(world, this.box, (b) => IS_LAVA[b] === 1);
+    this.inLava = !this.lavaWalker && boxTouches(world, this.box, (b) => IS_LAVA[b] === 1);
     const ovx = this.vx, ovy = this.vy, ovz = this.vz;
     const [mx, my, mz] = moveBox(world, this.box, ovx, ovy, ovz, this.onGround ? this.stepHeight : 0);
     this.x = (this.box.minX + this.box.maxX) / 2;

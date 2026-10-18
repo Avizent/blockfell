@@ -8,7 +8,7 @@ import { DYE_RGB, type DyeColor } from '../world/dyes';
  * feet centre is the origin and it faces +Z.
  */
 export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound'
-  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal';
+  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider';
 export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker';
 
 const quad = (name: string, x: number, z: number, h: number, w: number, base: string, paint?: PartDef['paint']): PartDef => ({
@@ -33,6 +33,7 @@ function pig(): PartDef[] {
     quad('legFR', -3, 5, 6, 4, '#e39c9c'),
     quad('legBL', 3, -5, 6, 4, '#e39c9c'),
     quad('legBR', -3, -5, 6, 4, '#e39c9c'),
+    saddlePart(8, 5.5, 5),
   ];
 }
 
@@ -638,6 +639,97 @@ export function playerParts(): PartDef[] {
   });
 }
 
+/** 2.7: a Saddle on a creature's back (hidden until it is saddled): `top` is the body's top, `w` its width, `len` how long. */
+function saddlePart(top: number, w: number, len: number): PartDef {
+  return {
+    name: 'saddle', size: [w * 2, 1.5, len * 1.4], pivot: [0, 0, 0], from: [-w, top, -len * 0.7], base: '#7b4a28', noise: 0.08, parent: 'body',
+    paint: (p) => {
+      p.fill('top', '#8c5a32', 0.08, 3);
+      for (const f of ['left', 'right'] as const) { p.px(f, 0, 0, '#3b2615', 99, 1); p.px(f, 2, 0, '#d9b44a', 1, 1); }
+      p.px('front', 0, 0, '#3b2615', 99, 1); p.px('back', 0, 0, '#3b2615', 99, 1);
+    },
+  };
+}
+
+/** 2.7: coats a Horse can have: body, mane and tail, legs, and a white blaze or not. */
+const HORSE_COATS: { body: string; mane: string; leg: string; blaze: boolean }[] = [
+  { body: '#8b5a34', mane: '#2e2015', leg: '#774b2a', blaze: false },
+  { body: '#2e2b29', mane: '#171514', leg: '#262321', blaze: true },
+  { body: '#dcd8cf', mane: '#a29d94', leg: '#cfcac1', blaze: false },
+  { body: '#a85e2a', mane: '#e2b573', leg: '#98521f', blaze: true },
+  { body: '#d6b06a', mane: '#f2e6c8', leg: '#c8a05a', blaze: false },
+];
+export const HORSE_COAT_COUNT = HORSE_COATS.length;
+
+/** Horse (2.7): a long-legged, deep-chested steed with a mane and a flowing tail. */
+function horse(coat = 0): PartDef[] {
+  const c = HORSE_COATS[coat % HORSE_COATS.length];
+  const hoof = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 13, '#1d1815', 4, 1); };
+  return [
+    { name: 'body', size: [10, 9, 20], pivot: [0, 10, 0], from: [-5, 0, -10], base: c.body, noise: 0.07 },
+    { name: 'neck', size: [4, 9, 5], pivot: [0, 19, 0], from: [-2, 0, 6], base: c.body, noise: 0.07 },
+    { name: 'mane', size: [2, 11, 3], pivot: [0, 18, 0], from: [-1, 0, 3.5], base: c.mane, noise: 0.12 },
+    { name: 'head', size: [5, 5, 10], pivot: [0, 27, 9], from: [-2.5, -4, 0], base: c.body, noise: 0.06,
+      paint: (p) => {
+        for (const f of ['left', 'right'] as const) { p.px(f, 7, 1, '#fffdf7'); p.px(f, 8, 1, '#1a1410'); }
+        p.px('front', 0, 3, '#2a2220', 5, 2); p.px('front', 1, 3, '#14100e'); p.px('front', 3, 3, '#14100e');
+        if (c.blaze) { p.px('top', 1, 0, '#f4f0e6', 3, 9); p.px('front', 1, 0, '#f4f0e6', 3, 3); }
+      } },
+    { name: 'earL', size: [1.5, 3, 1.5], pivot: [0, 0, 0], from: [0.8, 1, 1], base: c.mane, parent: 'head' },
+    { name: 'earR', size: [1.5, 3, 1.5], pivot: [0, 0, 0], from: [-2.3, 1, 1], base: c.mane, parent: 'head' },
+    { name: 'tail', size: [2.5, 10, 2.5], pivot: [0, 19, -10], from: [-1.25, -9, -1.5], base: c.mane, noise: 0.12 },
+    saddlePart(9, 5.5, 5),
+    quad('legFL', 3.1, 7, 10, 3.6, c.leg, hoof),
+    quad('legFR', -3.1, 7, 10, 3.6, c.leg, hoof),
+    quad('legBL', 3.1, -7, 10, 3.6, c.leg, hoof),
+    quad('legBR', -3.1, -7, 10, 3.6, c.leg, hoof),
+  ];
+}
+
+/** 2.7: a Horse's model for a coat. */
+export function horseModel(coat: number): BuiltModel {
+  const key = `horse:${coat % HORSE_COATS.length}`;
+  let m = cache.get(key);
+  if (m) return m;
+  m = buildModel(horse(coat), 128, 64, 79 + coat);
+  cache.set(key, m);
+  return m;
+}
+
+/**
+ * Lavastrider (2.7): a tall-legged, slow-stepping beast of the lava seas. Dark
+ * red-brown hide, glowing ember fins along its flanks, amber eyes and four long
+ * thin legs that are never hurt by the heat.
+ */
+function lavastrider(): PartDef[] {
+  const hide = '#5a2a2a', dark = '#341919', ember = '#ff8a30', hot = '#ffd27a';
+  const foot = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => { for (const f of ['front', 'back', 'left', 'right'] as const) { p.px(f, 0, 12, ember, 3, 1); p.px(f, 0, 13, hot, 3, 1); } };
+  return [
+    { name: 'body', size: [12, 8, 14], pivot: [0, 14, 0], from: [-6, 0, -7], base: hide, noise: 0.1,
+      paint: (p) => {
+        for (const f of ['left', 'right'] as const) { p.px(f, 2, 2, ember, 1, 3); p.px(f, 5, 4, ember, 3, 1); p.px(f, 9, 1, ember, 1, 2); p.px(f, 11, 3, hot, 1, 1); }
+        p.px('back', 3, 2, ember, 1, 3); p.px('back', 7, 4, ember, 2, 1);
+        p.fill('bottom', ember, 0.08, 5);
+      } },
+    { name: 'finL', size: [1, 4, 9], pivot: [0, 0, 0], from: [6, 3, -4.5], base: ember, parent: 'body', paint: (p) => p.px('left', 1, 0, hot, 2, 1) },
+    { name: 'finR', size: [1, 4, 9], pivot: [0, 0, 0], from: [-7, 3, -4.5], base: ember, parent: 'body', paint: (p) => p.px('right', 1, 0, hot, 2, 1) },
+    { name: 'head', size: [7, 6, 6], pivot: [0, 20, 7], from: [-3.5, -3, 0], base: '#663030', noise: 0.08,
+      paint: (p) => {
+        p.px('front', 1, 1, hot, 2, 1); p.px('front', 4, 1, hot, 2, 1);
+        p.px('front', 2, 1, '#1a0f0f'); p.px('front', 4, 1, '#1a0f0f');
+        p.px('front', 1, 4, dark, 5, 1);
+        p.px('top', 2, 1, ember, 3, 2);
+      } },
+    { name: 'crest', size: [3, 3, 4], pivot: [0, 0, 0], from: [-1.5, 3, 1], base: ember, parent: 'head', paint: (p) => p.px('top', 0, 0, hot, 3, 1) },
+    { name: 'tail', size: [2, 6, 2], pivot: [0, 18, -7], from: [-1, -6, -1], base: dark, paint: (p) => p.fill('bottom', ember, 0, 2) },
+    saddlePart(8, 5.5, 5),
+    quad('legFL', 4, 4, 14, 3, dark, foot),
+    quad('legFR', -4, 4, 14, 3, dark, foot),
+    quad('legBL', 4, -4, 14, 3, dark, foot),
+    quad('legBR', -4, -4, 14, 3, dark, foot),
+  ];
+}
+
 const cache = new Map<string, BuiltModel>();
 
 export function mobModel(type: MobType): BuiltModel {
@@ -648,9 +740,9 @@ export function mobModel(type: MobType): BuiltModel {
   if (type === 'hollowdrake') return drakeModel();
   if (type === 'sheep') return sheepModel('white', false);
   if (type === 'fox') return foxModel('red', false);
-  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal }[type as Exclude<MobType, 'villager' | 'hound' | 'hollowdrake' | 'sheep' | 'fox'>]();
+  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider }[type as Exclude<MobType, 'villager' | 'hound' | 'hollowdrake' | 'sheep' | 'fox'>]();
   m = buildModel(parts, 64, 64, type.length * 13);
-  if (type === 'ashboar') glowSeams(m);
+  if (type === 'ashboar' || type === 'lavastrider') glowSeams(m);
   if (type === 'drifter') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.45; }
   cache.set(type, m);
   return m;

@@ -103,7 +103,7 @@ export class FarmAnimal extends Mob {
   }
 
   tick(host: EntityHost): void {
-    if (!this.alive) { super.tick(host); return; }
+    if (!this.alive || this.rider) { super.tick(host); return; }
     if (this.childAge > 1) this.childAge--;
     else if (this.childAge === 1) this.growUp(host);
     if (this.breedCooldown > 0) this.breedCooldown--;
