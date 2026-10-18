@@ -189,6 +189,9 @@ add({ id: 'bow', name: 'Bow', kind: 'bow', maxStack: 1, category: 'combat', dura
 add({ id: 'arrow', name: 'Arrow', category: 'combat' });
 // 2.6: Flame Arrows, and the Crossbow (three ids: the empty one, and loaded with an arrow or a flame arrow, which saves who is loaded)
 add({ id: 'flame_arrow', name: 'Flame Arrow', category: 'combat' });
+// 2.7: riding
+add({ id: 'saddle', name: 'Saddle', maxStack: 1, category: 'tools' });
+add({ id: 'ember_lure', name: 'Ember Lure', maxStack: 1, category: 'tools' });
 add({ id: 'crossbow', name: 'Crossbow', kind: 'crossbow', maxStack: 1, category: 'combat', durability: 465, fuel: 300 });
 add({ id: 'crossbow_loaded', name: 'Crossbow (loaded)', kind: 'crossbow', maxStack: 1, category: 'hidden' as unknown as Category, durability: 465, fuel: 300 });
 add({ id: 'crossbow_loaded_flame', name: 'Crossbow (loaded, flame)', kind: 'crossbow', maxStack: 1, category: 'hidden' as unknown as Category, durability: 465, fuel: 300 });
@@ -305,7 +308,7 @@ const MOBS: [string, string][] = [
   ['goat', 'Goat'], ['rabbit', 'Rabbit'], ['crawler', 'Crawler'], ['dustwalker', 'Dustwalker'],
   ['villager', 'Villager'], ['sentinel', 'Sentinel'], ['hound', 'Fellhound'],
   ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'], ['ashboar', 'Ashboar'], ['drifter', 'Drifter'],
-  ['fox', NAMES.fox], ['snowpal', NAMES.snowpal],
+  ['fox', NAMES.fox], ['snowpal', NAMES.snowpal], ['horse', 'Horse'], ['lavastrider', 'Lavastrider'],
 ];
 for (const [mob, name] of MOBS) {
   add({ id: `spawn_${mob}`, name: `${name} Spawn Egg`, kind: 'spawn', category: 'spawn', spawn: mob });
