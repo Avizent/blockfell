@@ -3,6 +3,7 @@ import { DESTROY_STAGES, LAVA_FRAMES, TEXTURE_NAMES, WATER_FRAMES } from './text
 import { DYE_COLORS, DYE_RGB } from '../world/dyes';
 import { starstone, starstoneBricks, starbloom, stargate, stormBell, stormBellMount, roost, drakeTrophy, drakeTrophyBase } from './starTextures';
 import { brewingStand, brewingBase } from './potionTextures';
+import { sporeloamTop, sporeloamSide, sporeStem, sporeStemTop, capTex, capGills, sporeTuft, sporeLamp } from './sporeTextures';
 
 /**
  * ORIGINAL procedural 16x16 pixel-art block textures.
@@ -1609,6 +1610,15 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   m.set('drake_trophy_base', drakeTrophyBase(R('drake_trophy_base')));
   m.set('brewing_stand', brewingStand(R('brewing_stand')));
   m.set('brewing_base', brewingBase(R('brewing_base')));
+  m.set('sporeloam_top', sporeloamTop(R('sporeloam_top')));
+  m.set('sporeloam_side', sporeloamSide(R('sporeloam_side')));
+  m.set('spore_stem', sporeStem(R('spore_stem')));
+  m.set('spore_stem_top', sporeStemTop(R('spore_stem_top')));
+  m.set('cap_violet', capTex(R('cap_violet'), [132, 78, 176]));
+  m.set('cap_crimson', capTex(R('cap_crimson'), [190, 58, 74]));
+  m.set('cap_gills', capGills(R('cap_gills')));
+  m.set('spore_tuft', sporeTuft(R('spore_tuft')));
+  m.set('spore_lamp', sporeLamp(R('spore_lamp')));
   // 2.4: rails and party things
   m.set('rail', railStraight(R('rail'), 'rail'));
   m.set('rail_curve', railCurve(R('rail_curve')));
