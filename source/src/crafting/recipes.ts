@@ -213,3 +213,9 @@ shapeless(['ember', 'arrow', 'arrow', 'arrow', 'arrow'], 'flame_arrow', 4);
 // 2.7: riding
 shaped(['LLL', 'LIL'], { L: 'leather', I: 'iron_ingot' }, 'saddle');
 shapeless(['stick', 'string', 'ember'], 'ember_lure');
+
+// 2.8: Spore Isle and the Trident
+shapeless(['sporecap', 'sporecap', 'sporecap', 'carrot'], 'spore_stew');
+shaped([' S ', 'SGS', ' S '], { S: 'sporecap', G: 'glass' }, 'spore_lamp');
+shaped(['I I', 'III', ' S '], { I: 'iron_ingot', S: 'stick' }, 'trident');
+shaped(['SS', 'SS'], { S: 'spore_stem' }, 'planks', 4);
