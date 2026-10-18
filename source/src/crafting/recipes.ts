@@ -209,3 +209,7 @@ function mendWings(grid: Slot[]): ItemStack | null | undefined {
 for (const [mat, id] of [['planks', 'wooden_spear'], ['cobblestone', 'stone_spear'], ['iron_ingot', 'iron_spear']] as const) shaped(['  M', ' S ', 'S  '], { M: mat, S: 'stick' }, id);
 shaped(['SIS', 'TST'], { S: 'stick', I: 'iron_ingot', T: 'string' }, 'crossbow');
 shapeless(['ember', 'arrow', 'arrow', 'arrow', 'arrow'], 'flame_arrow', 4);
+
+// 2.7: riding
+shaped(['LLL', 'LIL'], { L: 'leather', I: 'iron_ingot' }, 'saddle');
+shapeless(['stick', 'string', 'ember'], 'ember_lure');
