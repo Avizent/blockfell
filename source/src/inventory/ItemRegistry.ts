@@ -312,6 +312,7 @@ blockItem('spore_tuft', 'natural');
 blockItem('spore_lamp', 'decoration');
 add({ id: 'sporecap', name: 'Sporecap', kind: 'food', category: 'food', food: { hunger: 2, saturation: 1.6 } });
 add({ id: 'spore_stew', name: 'Spore Stew', kind: 'food', category: 'food', food: { hunger: 8, saturation: 10 } });
+add({ id: 'spore_compass', name: 'Spore Compass', maxStack: 1, category: 'tools' });
 add({
   id: 'trident', name: 'Trident', kind: 'tool', maxStack: 1, category: 'combat',
   tool: { type: 'spear', tier: 2, speed: 6, durability: 300 }, durability: 300, attack: 6.5,
