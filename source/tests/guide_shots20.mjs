@@ -51,7 +51,7 @@ await page.waitForSelector('[data-testid=btn-singleplayer]', { timeout: 60000 })
 await wait(1200);
 
 if (PARTS.includes('icons')) {
-  const ids = ['sporecap', 'spore_stew', 'trident', 'spore_lamp', 'sporeloam', 'spore_stem', 'cap_violet', 'cap_crimson', 'cap_gills', 'spore_tuft', 'spawn_sporecap', 'carrot', 'glass', 'iron_ingot', 'stick', 'shears'];
+  const ids = ['sporecap', 'spore_stew', 'trident', 'spore_lamp', 'sporeloam', 'spore_stem', 'cap_violet', 'cap_crimson', 'cap_gills', 'spore_tuft', 'spawn_sporecap', 'carrot', 'glass', 'spore_compass', 'iron_ingot', 'stick', 'shears'];
   const out = await ev(async (ids) => {
     const bf = window.__bf, ic = bf.engine.icons, old = ic.scale;
     ic.build(6);
@@ -142,5 +142,14 @@ if (PARTS.includes('trident')) {
   await view([gx + 0.5, gy + 1.0, gz + 3.5], [gx + 0.5, gy + 0.9, gz - 6], false);
   await ev(() => window.__bf.ui.set({ charge: 0.8 }));
   await shot('sp05_trident', true);
+}
+if (PARTS.includes('compass')) {
+  await clearMobs();
+  await kit([{ id: 'spore_compass', count: 1 }]);
+  await ev(([x, z]) => { const g = window.__bf.game; g.player.flying = true; g.teleport(x + 0.5, 72, z + 0.5 + 95); window.__bf.aimAt(x, 70, z + 40); }, [ISLE.x, ISLE.z]);
+  await settle(); await ticks(6);
+  await ev(([x, z]) => { window.__bf.aimAt(x + 30, 68, z); }, [ISLE.x, ISLE.z]);
+  await ticks(6);
+  await shot('sp06_compass', true);
 }
 await b.close();
