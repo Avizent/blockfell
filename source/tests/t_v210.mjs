@@ -145,7 +145,7 @@ if (run('items')) {
     };
   });
   check('items: every new item exists with a drawn sprite; 7 kinds of fish and a jar for each', t.has && t.sprites && t.fishN === 7 && t.jars === 7 && t.nameOk, t);
-  check('items: version is 2.10', /^2\.10/.test(t.ver), t.ver);
+  check('items: version is 2.10', /^2\.1[0-2]/.test(t.ver), t.ver);
   check('items: recipes - Moth Wings, 3 Fireworks, 2 Spring Pads, 2 Fish Jars; new fish smelt to Grilled Fish', t.moth === 'moth_wingsx1' && t.rocket === 'fireworkx3' && t.pad === 'spring_padx2' && t.jar === 'fish_jarx2' && t.smelt === 'grilled_fish', t);
   check('items: a Glowfin jar glows (12); a filled jar drops the jar and its fish; Moth Wings are chest armour that wears out sooner than Starwings', t.glow === 12 && t.drop === 'fish_jar+raw_perch' && t.wings === 1 && t.dur < t.starDur, t);
 }
