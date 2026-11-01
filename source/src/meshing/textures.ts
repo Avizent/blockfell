@@ -5,6 +5,7 @@ import { starstone, starstoneBricks, starbloom, stargate, stormBell, stormBellMo
 import { brewingStand, brewingBase } from './potionTextures';
 import { potatoes } from './spudTextures';
 import { springPadTop, springPadSide, jarTex, jarLid } from './jarTextures';
+import { rodSide, rodTip, tuneBoxTop, tuneBoxSide, jukeboxTop, jukeboxSide, noteBlockTex } from './musicTextures';
 import { FISH } from '../inventory/fish';
 import { sporeloamTop, sporeloamSide, sporeStem, sporeStemTop, capTex, capGills, sporeTuft, sporeLamp } from './sporeTextures';
 
@@ -1629,6 +1630,14 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   m.set('jar_lid', jarLid(R('jar_lid')));
   m.set('jar_empty', jarTex(R('jar_empty'), null));
   for (const f of FISH) m.set(`jar_${f.key}`, jarTex(R(`jar_${f.key}`), f));
+  // 2.11
+  m.set('rod_side', rodSide(R('rod_side')));
+  m.set('rod_tip', rodTip(R('rod_tip')));
+  m.set('tunebox_top', tuneBoxTop(R('tunebox_top')));
+  m.set('tunebox_side', tuneBoxSide(R('tunebox_side')));
+  m.set('jukebox_top', jukeboxTop(R('jukebox_top')));
+  m.set('jukebox_side', jukeboxSide(R('jukebox_side')));
+  m.set('note_block', noteBlockTex(R('note_block')));
   // 2.4: rails and party things
   m.set('rail', railStraight(R('rail'), 'rail'));
   m.set('rail_curve', railCurve(R('rail_curve')));
