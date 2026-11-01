@@ -140,8 +140,9 @@ blockItem('map_table', 'functional', { fuel: 300 });
 add({ id: 'dungeon_map', name: 'Dungeon Map', maxStack: 1, category: 'tools' });
 add({ id: 'ruin_map', name: 'Ruin Map', maxStack: 1, category: 'tools' });
 add({ id: 'village_map', name: 'Village Map', maxStack: 1, category: 'tools' });
+add({ id: 'treasure_map', name: 'Treasure Map', maxStack: 1, category: 'tools' });
 /** Explorer maps: hold one to see which way to go; right-click to look at it. */
-export const MAP_ITEMS: Record<string, 'dungeon' | 'ruin' | 'village'> = { dungeon_map: 'dungeon', ruin_map: 'ruin', village_map: 'village' };
+export const MAP_ITEMS: Record<string, 'dungeon' | 'ruin' | 'village' | 'treasure'> = { dungeon_map: 'dungeon', ruin_map: 'ruin', village_map: 'village', treasure_map: 'treasure' };
 
 // ---- ingredients
 add({ id: 'stick', name: 'Stick', category: 'ingredients', fuel: 100 });
@@ -398,3 +399,14 @@ for (const f of FISH) {
 }
 blockItem('spring_pad', 'decoration');
 blockItem('fish_jar', 'decoration');
+// ---- 2.11
+blockItem('lightning_rod', 'functional');
+blockItem('tune_box', 'functional');
+blockItem('jukebox', 'functional');
+blockItem('note_block', 'functional');
+add({ id: 'weather_glass', name: 'Weather Glass', maxStack: 1, category: 'tools' });
+add({ id: 'blank_disc', name: 'Blank Disc', maxStack: 16, category: 'tools' });
+add({ id: 'music_disc', name: 'Music Disc', maxStack: 1, category: 'tools' });
+add({ id: 'disc_jig', name: 'Disc: Fellfire Jig', maxStack: 1, category: 'tools' });
+add({ id: 'disc_lullaby', name: 'Disc: Moss Lullaby', maxStack: 1, category: 'tools' });
+add({ id: 'disc_drift', name: 'Disc: Starhollow Drift', maxStack: 1, category: 'tools' });

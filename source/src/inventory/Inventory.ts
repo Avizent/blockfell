@@ -1,4 +1,5 @@
 import type { MapTarget } from './ItemStack';
+import { cleanTune } from './tunes';
 import { BAG_SLOTS, ItemStack, Slot, cloneStack, makeStack, stacksMatch } from './ItemStack';
 import { wearChance } from './Enchantments';
 import { getItem, maxStackOf } from './ItemRegistry';
@@ -85,7 +86,7 @@ export function cleanStack(s: unknown): Slot {
   const o = s as ItemStack;
   if (typeof o.id !== 'string' || !o.id || typeof o.count !== 'number' || !(o.count > 0)) return null;
   const color = typeof o.color === 'number' && Number.isInteger(o.color) && o.color >= 0 && o.color <= 0xffffff ? { color: o.color } : {};
-  return { id: o.id, count: Math.floor(o.count), ...(o.damage ? { damage: o.damage } : {}), ...(cleanRunes(o.ench) ?? {}), ...(cleanMap(o.map) ?? {}), ...color, ...(o.id === 'party_bag' ? cleanBag(o.bag) : {}) };
+  return { id: o.id, count: Math.floor(o.count), ...(o.damage ? { damage: o.damage } : {}), ...(cleanRunes(o.ench) ?? {}), ...(cleanMap(o.map) ?? {}), ...color, ...(o.id === 'party_bag' ? cleanBag(o.bag) : {}), ...(o.id === 'music_disc' && cleanTune(o.tune) ? { tune: cleanTune(o.tune)! } : {}) };
 }
 
 /** Validated contents of a saved Party Bag (2.4): nine slots, no bags inside bags. */
@@ -111,7 +112,7 @@ function cleanRunes(e: unknown): { ench: Record<string, number> } | undefined {
 function cleanMap(m: unknown): { map: MapTarget } | undefined {
   if (!m || typeof m !== 'object') return undefined;
   const o = m as Record<string, unknown>;
-  if (o.kind !== 'dungeon' && o.kind !== 'ruin' && o.kind !== 'village') return undefined;
+  if (o.kind !== 'dungeon' && o.kind !== 'ruin' && o.kind !== 'village' && o.kind !== 'treasure') return undefined;
   if (![o.x, o.y, o.z].every((v) => typeof v === 'number' && Number.isFinite(v))) return undefined;
   return { map: { kind: o.kind, x: o.x as number, y: o.y as number, z: o.z as number, ...(typeof o.name === 'string' ? { name: o.name.slice(0, 40) } : {}), ...(o.found === true ? { found: true } : {}) } };
 }

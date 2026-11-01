@@ -13,6 +13,8 @@ export interface ItemStack {
   map?: MapTarget;
   /** 2.1: dyed leather armour, 0xRRGGBB (2.4: also Party Bags and Party Hats). */
   color?: number;
+  /** 2.11: the tune recorded on a Music Disc. */
+  tune?: import('./tunes').Tune;
   /** 2.4: what a Party Bag holds (nine slots; null = empty). */
   bag?: Slot[];
 }
@@ -22,7 +24,7 @@ export const BAG_SLOTS = 9;
 
 /** Where an explorer map leads (a dungeon, a ruin or another village). */
 export interface MapTarget {
-  kind: 'dungeon' | 'ruin' | 'village';
+  kind: 'dungeon' | 'ruin' | 'village' | 'treasure';
   x: number; y: number; z: number;
   /** The village a map leads to, or the village whose Mapmaker drew it. */
   name?: string;
@@ -39,7 +41,7 @@ export function makeStack(id: string, count = 1, damage?: number): ItemStack {
 }
 
 export function cloneStack(s: Slot): Slot {
-  return s ? { ...s, ...(s.ench ? { ench: { ...s.ench } } : {}), ...(s.map ? { map: { ...s.map } } : {}), ...(s.bag ? { bag: s.bag.map(cloneStack) } : {}) } : null;
+  return s ? { ...s, ...(s.ench ? { ench: { ...s.ench } } : {}), ...(s.map ? { map: { ...s.map } } : {}), ...(s.bag ? { bag: s.bag.map(cloneStack) } : {}), ...(s.tune ? { tune: { ...s.tune, mel: [...s.tune.mel], bass: [...s.tune.bass], drum: [...s.tune.drum] } } : {}) } : null;
 }
 
 function sameRunes(a: ItemStack, b: ItemStack): boolean {
@@ -51,7 +53,7 @@ function sameRunes(a: ItemStack, b: ItemStack): boolean {
 
 /** Two stacks can merge if they are the same item with no per-item state. */
 export function stacksMatch(a: Slot, b: Slot): boolean {
-  return !!a && !!b && a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && sameRunes(a, b) && !a.map && !b.map && a.color === b.color && !a.bag && !b.bag;
+  return !!a && !!b && a.id === b.id && (a.damage ?? 0) === (b.damage ?? 0) && sameRunes(a, b) && !a.map && !b.map && a.color === b.color && !a.bag && !b.bag && !a.tune && !b.tune;
 }
 
 /**
