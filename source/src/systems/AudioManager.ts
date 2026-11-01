@@ -211,6 +211,8 @@ export class AudioManager {
       case 'levelup': [523, 659, 784, 1046].forEach((f, i) => this.tone(dest, t + i * 0.09, 0.35, f, f, 'triangle', 0.25)); break;
       case 'hurt': this.tone(dest, t, 0.18, 330, 180, 'sawtooth', 0.25); this.noiseBurst(dest, t, 0.1, 700, 1, 'lowpass', 0.4); break;
       case 'eat': this.noiseBurst(dest, t, 0.08, 1100 * pitch, 1.2, 'bandpass', 0.5); break;
+      case 'powder_hiss': this.noiseBurst(dest, t, 0.9, 4200, 0.6, 'highpass', 0.4); this.tone(dest, t, 0.9, 300, 900, 'sawtooth', 0.05); break;
+      case 'blast': this.noiseBurst(dest, t, 0.6, 260, 0.6, 'lowpass', 0.9); this.tone(dest, t, 0.5, 120, 40, 'sawtooth', 0.3, 0.1); this.noiseBurst(dest, t, 0.4, 1800, 0.8, 'bandpass', 0.4); break;
       case 'burp': this.tone(dest, t, 0.25, 180, 90, 'sawtooth', 0.2); break;
       case 'bow': this.noiseBurst(dest, t, 0.15, 1800, 0.8, 'bandpass', 0.4); this.tone(dest, t, 0.12, 300, 700, 'triangle', 0.1); break;
       case 'arrow_hit': this.tone(dest, t, 0.08, 400, 200, 'triangle', 0.3); break;
@@ -285,6 +287,8 @@ export class AudioManager {
       case 'chicken': for (let i = 0; i < 3; i++) this.tone(dest, t + i * 0.09, 0.05, 1300 * p, 900 * p, 'square', 0.08); break;
       case 'shambler': this.tone(dest, t, 0.8, 95 * p, 70 * p, 'sawtooth', 0.16, 0.1); this.noiseBurst(dest, t, 0.6, 300, 1, 'lowpass', 0.2); break;
       case 'skeleton': for (let i = 0; i < 6; i++) this.noiseBurst(dest, t + i * 0.04, 0.03, 2500 * p, 3, 'bandpass', 0.4); break;
+      case 'powderbug': for (let i = 0; i < 3; i++) this.noiseBurst(dest, t + i * 0.05, 0.06, 2200 * p, 2, 'bandpass', 0.3); this.tone(dest, t, 0.2, 240 * p, 180 * p, 'square', 0.06); break;
+      case 'gloommoth': this.tone(dest, t, 0.35, (hurt ? 900 : death ? 300 : 620) * pitch, (hurt ? 500 : death ? 120 : 780) * pitch, 'triangle', 0.1, 0.1); this.noiseBurst(dest, t, 0.25, 1500, 0.8, 'bandpass', 0.15); break;
       case 'sporecap': for (let i = 0; i < 3; i++) this.tone(dest, t + i * 0.06, 0.07, (520 + i * 90) * p, (600 + i * 60) * p, 'sine', 0.1); break;
       case 'goat': this.tone(dest, t, 0.35, 420 * p, 380 * p, 'sawtooth', 0.12, 0.12); break;
       case 'rabbit': this.tone(dest, t, 0.06, 1800 * p, 1500 * p, 'sine', 0.08); break;
