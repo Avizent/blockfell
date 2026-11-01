@@ -77,6 +77,13 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   { id: 'saddle_up', title: 'Saddle Up', description: 'Saddle a creature and climb on', icon: 'saddle', parent: 'boat' },
   { id: 'lava_walker', title: 'Lava Walker', description: 'Ride a Lavastrider across lava with an Ember Lure', icon: 'ember_lure', parent: 'saddle_up' },
   { id: 'gallop', title: 'Gallop!', description: 'Ride a Horse 300 blocks', icon: 'saddle', parent: 'saddle_up' },
+  // 2.10: wings, fireworks, bouncing, fish and a companion
+  { id: 'moth_wings', title: 'Light as a Moth', description: 'Glide on Moth Wings', icon: 'moth_wings' },
+  { id: 'fireworks', title: 'Light Up the Sky', description: 'Launch a Firework', icon: 'firework' },
+  { id: 'bounce', title: 'Boing!', description: 'Bounce on a Spring Pad', icon: 'spring_pad' },
+  { id: 'fish_jar', title: 'Jar Keeper', description: 'Put a fish in a Fish Jar', icon: 'fish_jar', parent: 'fish' },
+  { id: 'rare_fish', title: 'Red Letter Day', description: 'Catch a Ruby Carp', icon: 'raw_ruby_carp', parent: 'fish' },
+  { id: 'hootlet', title: 'Wise Friend', description: 'Tame a Hootlet', icon: 'feather' },
   // 2.8: Spore Isle and the Trident
   { id: 'spore_isle', title: 'Fungus Among Us', description: 'Set foot on Spore Isle', icon: 'spore_tuft', parent: 'boat' },
   { id: 'spore_shear', title: 'Cap in Hand', description: 'Shear a Sporecap', icon: 'sporecap', parent: 'spore_isle' },
@@ -114,6 +121,9 @@ export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = 
   ['trades', 'Villager Trades', 'count'],
   ['raids_won', 'Raids Defended', 'count'],
   ['hounds_tamed', 'Fellhounds Tamed', 'count'],
+  ['bounces', 'Spring Pad Bounces', 'count'],
+  ['fireworks_launched', 'Fireworks Launched', 'count'],
+  ['hootlets_tamed', 'Hootlets Tamed', 'count'],
   ['boat', 'Distance by Boat', 'cm'],
   ['fish_caught', 'Fish Caught', 'count'],
   ['spawners_broken', 'Monster Cages Broken', 'count'],
