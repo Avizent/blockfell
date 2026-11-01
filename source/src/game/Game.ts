@@ -23,7 +23,7 @@ import type { WorldRecord, WorldExtra, GameRules } from '../systems/SaveManager'
 import { DEFAULT_RULES } from '../systems/SaveManager';
 import { type DimId, type Arrival, OVERWORLD } from '../world/dims';
 import { LAVA_SEA } from '../world/Cinderdeep';
-import { BIOME_CINDERDEEP, BIOME_STARHOLLOW, BIOME_SPORE } from '../world/BiomeSystem';
+import { BIOME_CINDERDEEP, BIOME_STARHOLLOW, BIOME_SPORE, BIOME_TAIGA } from '../world/BiomeSystem';
 import { newestGenVersion } from '../world/generators';
 import { WeatherSystem, WeatherKind } from '../systems/WeatherSystem';
 import { Precipitation, PrecipSource, PRECIP_NONE, PRECIP_RAIN, PRECIP_SNOW } from '../render/Precipitation';
@@ -37,6 +37,9 @@ import { SpawnerSystem } from './Spawners';
 import { Painting, placePainting } from '../entities/Painting';
 import { Boat, BOAT_HEIGHT, BOAT_WIDTH, BOAT_DRAFT, waterSurfaceAt } from '../entities/Boat';
 import { Bobber, rollCatch } from '../entities/Fishing';
+import { Hootlet, HOOTLET_FOOD } from '../entities/Hootlet';
+import { Fireworks } from './Fireworks';
+import { FISH } from '../inventory/fish';
 import { DYE_COLORS } from '../world/dyes';
 import { FluidSystem, waterFlow } from '../world/Fluids';
 import { Chunk } from '../world/Chunk';
@@ -164,6 +167,8 @@ export class Game implements EntityHost, PrecipSource {
   private targetStandAt = 0;
   /** The fishing float while a line is out. */
   bobber: Bobber | null = null;
+  /** 2.10: rockets in the sky. */
+  fireworks!: Fireworks;
   private readonly fishLine: THREE.Line;
   private readonly lineV = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
   /** The player was sitting in a boat when the world was saved. */
@@ -240,6 +245,7 @@ export class Game implements EntityHost, PrecipSource {
     r.scene.add(this.chunks.group);
     r.scene.add(this.entities.group);
     this.particles = new Particles(r.scene);
+    this.fireworks = new Fireworks({ particles: this.particles, sound: (n, x, y, z, v, pt) => this.sound(n, x, y, z, v, pt) });
     this.precip = new Precipitation(r.scene);
     this.signs = new SignRenderer(r.atlas);
     r.scene.add(this.signs.group);
@@ -422,6 +428,11 @@ export class Game implements EntityHost, PrecipSource {
 
   spawnSnowball(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob): void {
     this.entities.spawnSnowball(x, y, z, vx, vy, vz, shooter);
+  }
+
+  hootletWarn(owl: Mob, danger: Mob): void {
+    const who = owl.nameTag ?? 'Your Hootlet';
+    pushChat(`${who} hoots: danger nearby! (${danger.spec.name})`);
   }
 
   foxGift(fox: Mob, item: string): void {
@@ -1265,7 +1276,7 @@ export class Game implements EntityHost, PrecipSource {
     // taps are taken from the key-press queue so quick double taps are never missed
     for (let n = input.consumePresses('Space'); n > 0 && inGame; n--) {
       if (p.creative && this.jumpTap > 0) { p.flying = !p.flying; if (p.flying) { p.vy = 0; p.gliding = false; } this.jumpTap = 0; }
-      else if (this.canStartGlide()) { p.gliding = true; this.glideTicks = 0; this.sound('glide', p.x, p.y + 1, p.z, 0.6, 1); this.jumpTap = input.touchMode ? 10 : 7; }
+      else if (this.canStartGlide()) { p.gliding = true; p.glideMoth = this.wingsId() === 'moth_wings'; this.glideTicks = 0; this.sound('glide', p.x, p.y + 1, p.z, 0.6, 1); this.jumpTap = input.touchMode ? 10 : 7; }
       else this.jumpTap = input.touchMode ? 10 : 7; // a thumb on glass double-taps a little slower than a finger on a key
     }
     this.tickGlide();
@@ -1347,6 +1358,7 @@ export class Game implements EntityHost, PrecipSource {
     this.tickLavaAmbience();
     this.tickRandom();
     if (this.sleepTicks > 0) this.tickSleep();
+    this.fireworks.tick();
     this.particles.tick((x, y, z) => B.IS_SOLID[this.world.getBlock(x, y, z)] === 1 && this.world.getBlock(x, y, z) !== UNLOADED);
     this.hand.tick(this.inventory.selectedStack);
     this.progress.add('play_time');
@@ -1444,6 +1456,18 @@ export class Game implements EntityHost, PrecipSource {
     const bx = Math.floor(p.x), by = Math.floor(p.y - 0.05), bz = Math.floor(p.z);
     const under = this.world.getBlock(bx, by, bz);
     if (B.IS_FARMLAND(under) && dist > 1 && !p.flying) this.world.setBlock(bx, by, bz, B.DIRT, 'player');
+    // 2.10: Spring Pads: bounce (sneak to land softly instead); never any fall damage
+    if (under === B.SPRING_PAD && !p.flying && !p.inWater) {
+      if (!p.sneaking && dist > 0.2) {
+        p.vy = Math.min(1.6, 0.46 + 0.2 * Math.sqrt(dist));
+        p.onGround = false;
+        this.sound('spring', p.x, p.y, p.z, 0.7, 0.9 + Math.random() * 0.3);
+        this.effect('poof', p.x, p.y + 0.1, p.z, 3);
+        this.progress.grant('bounce');
+        this.progress.add('bounces');
+      }
+      return;
+    }
     if (p.creative || p.inWater) return;
     if (this.potions.has('featherfall')) { if (dist > 3) this.effect('poof', p.x, p.y + 0.1, p.z, 6); return; }   // 2.9.1
     let dmg = Math.ceil(dist - 3);
@@ -1767,10 +1791,16 @@ export class Game implements EntityHost, PrecipSource {
     else void change.call(this.engine, OVERWORLD, { kind: 'home' });
   }
 
-  /** 2.2: are Starwings worn (and not worn out)? */
+  /** 2.2: are wings worn (and not worn out)? 2.10: Starwings or Moth Wings. */
   wearingWings(): boolean {
+    return this.wingsId() !== null;
+  }
+
+  /** 2.10: which wings are worn and still good ('star_wings' / 'moth_wings'), or null. */
+  wingsId(): 'star_wings' | 'moth_wings' | null {
     const w = this.inventory.get(ARMOR_START + 1);
-    return !!w && w.id === 'star_wings' && (w.damage ?? 0) < (getItem('star_wings').durability ?? 1) - 1;
+    if (!w || (w.id !== 'star_wings' && w.id !== 'moth_wings')) return null;
+    return (w.damage ?? 0) < (getItem(w.id).durability ?? 1) - 1 ? w.id : null;
   }
 
   /** 2.2: jump in mid-air while falling, wearing Starwings, to start gliding. */
@@ -1785,7 +1815,7 @@ export class Game implements EntityHost, PrecipSource {
     if (!p.gliding) return;
     if (p.onGround || p.inWater || p.inLava || p.flying || p.dead || this.riding || !this.wearingWings()) { p.gliding = false; return; }
     if (++this.glideTicks % 20 === 0) {
-      this.progress.grant('glide');
+      this.progress.grant(p.glideMoth ? 'moth_wings' : 'glide');
       if (!p.creative && this.inventory.damageItem(ARMOR_START + 1, 1)) { this.sound('tool_break', p.x, p.eyeY, p.z); p.gliding = false; }
     }
     if (this.glideTicks % 30 === 1) this.sound('glide', p.x, p.y + 1, p.z, 0.25, 0.9 + Math.random() * 0.2);
@@ -2290,6 +2320,23 @@ export class Game implements EntityHost, PrecipSource {
       }
       return true;
     }
+    if (m instanceof Hootlet) {
+      const food = id && HOOTLET_FOOD.includes(id) ? id : null;
+      if (!m.tamed && !food) return false;
+      if (!food && p.sneaking) return false;
+      if (dry) return true;
+      const r = food ? m.feed(this, food) : 'no';
+      if ((r === 'tamed' || r === 'failed' || r === 'healed') && !p.creative) this.consume(slot);
+      if (r === 'tamed') {
+        this.progress.grant('hootlet');
+        this.progress.add('hootlets_tamed');
+        pushChat('The Hootlet is your companion now! It will warn you of danger and perch on your shoulder when you stand still. Right-click it to make it stay or follow.');
+      } else if (m.tamed && (r === 'no' || r === 'full')) {
+        m.toggleSit(this);
+        pushChat(m.sitting ? `${who} stays here.` : `${who} flutters after you.`);
+      }
+      return true;
+    }
     if (m instanceof SnowPal && !p.sneaking) {
       if (dry) return true;
       m.toggleFollow(this);
@@ -2460,6 +2507,8 @@ export class Game implements EntityHost, PrecipSource {
   private use(pressed: boolean): void {
     const p = this.player;
     const t = this.target;
+    // 2.10: Fish Jars
+    if (t && !p.sneaking && pressed && (t.block === B.FISH_JAR_EMPTY || B.fishInJar(t.block) !== null) && this.useJar(t.x, t.y, t.z, t.block)) { this.hand.swing(); return; }
     // interact with functional blocks
     if (t && !p.sneaking && pressed) {
       const def = B.getBlock(t.block);
@@ -2512,6 +2561,8 @@ export class Game implements EntityHost, PrecipSource {
       if (t && pressed && held.id === 'coal' && t.block === B.SNOW && this.buildSnowPal(t.x, t.y, t.z, slotIndex)) { this.hand.swing(); return; }
       if (t && pressed && (held.id === 'torch' || held.id === 'lava_bucket') && this.tryLightGate(t, slotIndex)) { this.hand.swing(); return; }
       if (t && pressed && held.id === 'star_lens' && this.tryLightStargate(t, slotIndex)) { this.hand.swing(); return; }
+      // 2.10: Fireworks
+      if (held.id === 'firework' && pressed && slotIndex !== OFFHAND) { this.launchFirework(slotIndex); this.hand.swing(); return; }
       // 2.4: Party Poppers and Party Bags
       if (held.id === 'party_popper' && pressed && slotIndex !== OFFHAND) { this.popParty(slotIndex); this.hand.swing(); return; }
       if (held.id === 'party_bag' && pressed && slotIndex !== OFFHAND) {
@@ -3006,6 +3057,46 @@ export class Game implements EntityHost, PrecipSource {
     this.sound('confetti', x, y, z, 0.8, 0.95 + Math.random() * 0.1);
   }
 
+  /** 2.10: right-click a Fish Jar. An empty jar takes a held raw fish; a full one gives its fish back. */
+  private useJar(x: number, y: number, z: number, block: number): boolean {
+    const held = this.inventory.selectedStack;
+    const here = B.fishInJar(block);
+    if (here === null) {
+      const key = held && held.id.startsWith('raw_') ? held.id.slice(4) : null;
+      const sp = key ? FISH.find((f) => f.key === key) : null;
+      if (!sp) { pushChat('Hold a raw fish to put it in the jar.'); return true; }
+      this.world.setBlock(x, y, z, B.FISH_JARS[sp.key], 'player');
+      if (!this.player.creative) this.consume(this.inventory.selected);
+      this.sound('jar', x + 0.5, y + 0.5, z + 0.5, 0.6, 1);
+      this.effect('splash', x + 0.5, y + 0.9, z + 0.5, 4);
+      this.progress.grant('fish_jar');
+      return true;
+    }
+    this.world.setBlock(x, y, z, B.FISH_JAR_EMPTY, 'player');
+    this.entities.spawnItem({ id: `raw_${here}`, count: 1 }, x + 0.5, y + 0.7, z + 0.5);
+    this.sound('jar', x + 0.5, y + 0.5, z + 0.5, 0.5, 0.8);
+    return true;
+  }
+
+  /** 2.10: launch a Firework (sneak to launch a volley of up to three). */
+  launchFirework(slot: number): void {
+    const p = this.player;
+    const st = this.inventory.get(slot);
+    if (!st || st.id !== 'firework') return;
+    const n = p.sneaking ? Math.min(3, st.count) : 1;
+    const [dx, , dz] = this.lookDir();
+    const h = Math.hypot(dx, dz) || 1;
+    const bx = p.x + (dx / h) * 1.6, bz = p.z + (dz / h) * 1.6;
+    for (let i = 0; i < n; i++) {
+      this.fireworks.launch(bx + (i - (n - 1) / 2) * 1.5 * (dz / h), p.y + 0.4, bz - (i - (n - 1) / 2) * 1.5 * (dx / h), i * 8);
+    }
+    this.sound('rocket', bx, p.y, bz, 0.6, 1);
+    this.progress.grant('fireworks');
+    this.progress.add('fireworks_launched', n);
+    if (!p.creative) for (let i = 0; i < n; i++) this.consume(slot);
+    this.useDelay = 10;
+  }
+
   /** A Party Popper: a bang, a burst of confetti, and nearby villagers cheer. */
   popParty(slot: number): void {
     const p = this.player;
@@ -3145,7 +3236,9 @@ export class Game implements EntityHost, PrecipSource {
     this.sound('reel', p.x, p.eyeY, p.z, 0.5, 1);
     let wear = 0;
     if (b.bite > 0) {
-      const { stack, kind } = rollCatch();
+      const col = this.world.generator.column(Math.floor(b.x), Math.floor(b.z));
+      const { stack, kind } = rollCatch(Math.random(), { night: !this.isDay(), cold: col.biome === BIOME_SNOWY || col.biome === BIOME_TAIGA, spore: col.biome === BIOME_SPORE });
+      if (stack.id === 'raw_ruby_carp') this.progress.grant('rare_fish');
       // the catch flies out of the water towards the player
       const dx = p.x - b.x, dy = p.eyeY - b.y, dz = p.z - b.z;
       const d = Math.hypot(dx, dy, dz);
