@@ -273,6 +273,9 @@ export class AudioManager {
       case 'bag_open': this.noiseBurst(dest, t, 0.22, 3000 * pitch, 0.6, 'highpass', 0.3); this.noiseBurst(dest, t + 0.07, 0.15, 2000 * pitch, 0.7, 'bandpass', 0.25); break;
       case 'cheer': [523, 659, 784, 1046].forEach((f, i) => this.tone(dest, t + i * 0.07, 0.3, f * pitch, f * pitch * 1.05, 'triangle', 0.14)); break;
       // 2.10: Spring Pad, fireworks, jars and the Hootlet
+      case 'note': this.noteVoice(dest, t, mat, pitch); break;
+      case 'drum': this.drumVoice(dest, t, mat); break;
+      case 'rodzap': this.noiseBurst(dest, t, 0.3, 3000, 0.7, 'highpass', 0.8); this.tone(dest, t, 0.35, 1800, 300, 'sawtooth', 0.2); break;
       case 'spring': this.tone(dest, t, 0.28, 200 * pitch, 640 * pitch, 'triangle', 0.16, 0.01); this.tone(dest, t + 0.05, 0.22, 400 * pitch, 900 * pitch, 'sine', 0.08); break;
       case 'rocket': this.noiseBurst(dest, t, 0.7, 1800 * pitch, 0.6, 'bandpass', 0.35, 0.5); this.tone(dest, t, 0.6, 300 * pitch, 900 * pitch, 'sawtooth', 0.05); break;
       case 'firework': this.noiseBurst(dest, t, 0.18, 300, 1, 'lowpass', 0.9); this.tone(dest, t, 0.25, 140 * pitch, 50, 'square', 0.2); this.noiseBurst(dest, t + 0.05, 0.9, 5200 * pitch, 0.7, 'highpass', 0.3, 0.9);
@@ -346,6 +349,46 @@ export class AudioManager {
     }
   }
 
+  // ------------------------------------------------------------------ music (2.11)
+  /** One note of an instrument. `ratio` is the pitch relative to middle C (261.6 Hz); the bass sits an octave lower. */
+  private noteVoice(dest: AudioNode, t: number, inst: string, ratio: number): void {
+    const f = 261.63 * ratio;
+    switch (inst) {
+      case 'harp':
+        this.tone(dest, t, 0.9, f, f * 0.998, 'triangle', 0.3, 0.004);
+        this.tone(dest, t, 0.45, f * 2, f * 2, 'sine', 0.09, 0.004);
+        break;
+      case 'bell':
+        this.tone(dest, t, 1.8, f * 2, f * 2, 'sine', 0.22, 0.003);
+        this.tone(dest, t, 1.1, f * 2 * 2.76, f * 2 * 2.76, 'sine', 0.08, 0.003);
+        this.tone(dest, t, 0.6, f * 2 * 5.4, f * 2 * 5.4, 'sine', 0.04, 0.003);
+        break;
+      case 'pipe':
+        this.tone(dest, t, 0.6, f, f, 'sine', 0.26, 0.07);
+        this.tone(dest, t, 0.5, f * 2, f * 2, 'triangle', 0.05, 0.08);
+        break;
+      case 'marimba':
+        this.tone(dest, t, 0.38, f, f, 'sine', 0.34, 0.002);
+        this.tone(dest, t, 0.09, f * 4, f * 4, 'sine', 0.12, 0.002);
+        this.noiseBurst(dest, t, 0.03, 2200, 1, 'bandpass', 0.18);
+        break;
+      case 'bass':
+        this.tone(dest, t, 0.45, f, f * 0.99, 'triangle', 0.4, 0.006);
+        break;
+      case 'thud':
+        this.tone(dest, t, 0.25, f / 3, f / 5, 'sine', 0.5, 0.003);
+        break;
+      default:
+        this.tone(dest, t, 0.4, f, f, 'triangle', 0.25, 0.004);
+    }
+  }
+
+  private drumVoice(dest: AudioNode, t: number, kind: string): void {
+    if (kind === 'kick') { this.tone(dest, t, 0.22, 160, 42, 'sine', 0.7, 0.002); this.noiseBurst(dest, t, 0.03, 400, 1, 'lowpass', 0.3); }
+    else if (kind === 'snare') { this.noiseBurst(dest, t, 0.16, 1900, 0.8, 'bandpass', 0.5); this.tone(dest, t, 0.08, 220, 150, 'triangle', 0.2); }
+    else this.noiseBurst(dest, t, 0.05, 7500, 0.8, 'highpass', 0.22);
+  }
+
   // ------------------------------------------------------------------ weather
   private rainNodes: { src: AudioBufferSourceNode; lp: BiquadFilterNode; gain: GainNode } | null = null;
 
@@ -353,9 +396,31 @@ export class AudioManager {
    * Continuous rain (or, in the snow, a soft wind): looping filtered noise whose
    * level follows the weather. Under a roof it is quieter and duller.
    */
-  setWeather(level: number, sheltered: boolean, snow: boolean): void {
+  private windNodes: { gain: GainNode } | null = null;
+
+  setWeather(level: number, sheltered: boolean, snow: boolean, storm = 0): void {
     if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
     const ctx = this.ctx;
+    // 2.11: in a thunderstorm the wind gusts, slowly rising and falling
+    if (!this.windNodes && storm > 0.05) {
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise; src.loop = true;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 520; lp.Q.value = 1.2;
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      const gust = ctx.createGain();
+      gust.gain.value = 0.6;
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.16;
+      const depth = ctx.createGain();
+      depth.gain.value = 0.4;
+      lfo.connect(depth).connect(gust.gain);
+      src.connect(lp).connect(gust).connect(gain).connect(this.sfx);
+      src.start(); lfo.start();
+      this.windNodes = { gain };
+    }
+    if (this.windNodes) this.windNodes.gain.gain.setTargetAtTime(0.1 * storm * (sheltered ? 0.4 : 1), ctx.currentTime, 0.8);
     if (!this.rainNodes) {
       if (level <= 0.001) return;
       const src = ctx.createBufferSource();
@@ -382,6 +447,7 @@ export class AudioManager {
   }
 
   stopWeather(): void {
+    if (this.windNodes) this.windNodes.gain.gain.value = 0;
     if (!this.rainNodes) return;
     try { this.rainNodes.src.stop(); } catch { /* already stopped */ }
     this.rainNodes.src.disconnect();

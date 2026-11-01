@@ -23,6 +23,7 @@ export interface PlayerSave {
   health: number; food: number; saturation: number; exhaustion: number; air: number;
   xpLevel: number; xpProgress: number; xpTotal: number;
   runeSeed?: number;
+  name?: string;
   flying: boolean; gameMode: GameMode; dead: boolean;
   spawn: { x: number; y: number; z: number };
   bed?: { x: number; y: number; z: number } | null;

@@ -29,6 +29,9 @@ export class WeatherSystem {
   rain = 0;
   thunder = 0;
   flash = 0;
+  /** 2.11: 0..1 rainbow, after rain ends in the daytime. */
+  rainbow = 0;
+  private rainbowTimer = 0;
 
   /** Advances the weather by one tick. `cycle` = the Weather Cycle game rule. */
   tick(cycle: boolean): void {
@@ -39,9 +42,14 @@ export class WeatherSystem {
     const wantThunder = this.kind === 'thunder' ? 1 : 0;
     this.rain += Math.max(-0.01, Math.min(0.01, wantRain - this.rain));
     this.thunder += Math.max(-0.01, Math.min(0.01, wantThunder - this.thunder));
+    if (this.rainbowTimer > 0) this.rainbowTimer--;
+    const wantBow = this.rainbowTimer > 0 && this.rain < 0.3 ? 1 : 0;
+    this.rainbow += Math.max(-0.004, Math.min(0.004, wantBow - this.rainbow));
   }
 
   set(kind: WeatherKind, duration = weatherDuration(kind), immediate = false): void {
+    if (kind === 'clear' && this.kind !== 'clear' && !immediate) this.rainbowTimer = 3000 + between(0, 1800);   // the rain has just stopped
+    if (kind !== 'clear') this.rainbowTimer = 0;
     this.kind = kind;
     this.timer = duration;
     if (immediate) {
@@ -49,6 +57,9 @@ export class WeatherSystem {
       this.thunder = kind === 'thunder' ? 1 : 0;
     }
   }
+
+  /** Ticks (of the current spell) left, for the Weather Glass. */
+  get left(): number { return this.timer; }
 
   get raining(): boolean { return this.rain > 0.2; }
   get stormy(): boolean { return this.thunder > 0.8; }
