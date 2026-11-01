@@ -1445,6 +1445,7 @@ export class Game implements EntityHost, PrecipSource {
     const under = this.world.getBlock(bx, by, bz);
     if (B.IS_FARMLAND(under) && dist > 1 && !p.flying) this.world.setBlock(bx, by, bz, B.DIRT, 'player');
     if (p.creative || p.inWater) return;
+    if (this.potions.has('featherfall')) { if (dist > 3) this.effect('poof', p.x, p.y + 0.1, p.z, 6); return; }   // 2.9.1
     let dmg = Math.ceil(dist - 3);
     if (under === B.HAY_BALE) dmg = Math.floor(dmg * 0.2);
     if (dmg > 0) {
