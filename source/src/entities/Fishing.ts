@@ -3,6 +3,7 @@ import { Entity, EntityHost } from './Entity';
 import { AABB, moveBox } from '../player/PlayerPhysics';
 import { IS_WATER, FLUID_LEVEL } from '../world/BlockRegistry';
 import type { ItemStack } from '../inventory/ItemStack';
+import { FISH } from '../inventory/fish';
 
 /** What a line can bring up, by weight: mostly fish, some junk, a little treasure. */
 export const CATCHES: { stack: () => ItemStack; weight: number; kind: 'fish' | 'junk' | 'treasure' }[] = [
@@ -17,11 +18,20 @@ export const CATCHES: { stack: () => ItemStack; weight: number; kind: 'fish' | '
   { stack: () => ({ id: 'bow', count: 1, damage: Math.floor(Math.random() * 300) }), weight: 1, kind: 'treasure' },
 ];
 
-export function rollCatch(r = Math.random()): { stack: ItemStack; kind: 'fish' | 'junk' | 'treasure' } {
-  const total = CATCHES.reduce((a, c) => a + c.weight, 0);
+/** 2.10: where the line is cast decides which of the newer fish are about. */
+export interface CatchCtx { night: boolean; cold: boolean; spore: boolean }
+
+export function rollCatch(r = Math.random(), ctx: CatchCtx = { night: false, cold: false, spore: false }): { stack: ItemStack; kind: 'fish' | 'junk' | 'treasure' } {
+  const table = CATCHES.slice();
+  for (const f of FISH) {
+    if (!f.isNew) continue;
+    const ok = f.where === 'rare' || (f.where === 'day' && !ctx.night) || (f.where === 'night' && ctx.night) || (f.where === 'cold' && ctx.cold) || (f.where === 'spore' && ctx.spore);
+    if (ok) table.push({ stack: () => ({ id: `raw_${f.key}`, count: 1 }), weight: f.weight, kind: 'fish' });
+  }
+  const total = table.reduce((a, c) => a + c.weight, 0);
   let x = r * total;
-  for (const c of CATCHES) { x -= c.weight; if (x <= 0) return { stack: c.stack(), kind: c.kind }; }
-  const last = CATCHES[0];
+  for (const c of table) { x -= c.weight; if (x <= 0) return { stack: c.stack(), kind: c.kind }; }
+  const last = table[0];
   return { stack: last.stack(), kind: last.kind };
 }
 

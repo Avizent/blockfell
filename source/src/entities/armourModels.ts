@@ -13,7 +13,7 @@ import type { Slot } from '../inventory/ItemStack';
 /** The colour plain (undyed) leather is tinted with. */
 export const LEATHER_TINT = 0xa66a3e;
 
-type Mat = 'leather' | 'iron' | 'wings' | 'party';
+type Mat = 'leather' | 'iron' | 'wings' | 'moth' | 'party';
 /** The colour a Party Hat is tinted with when it hasn't been dyed. */
 export const PARTY_TINT = 0xa862e8;
 /** One box of a piece: which humanoid part it sits on, its box, and how much bigger than the part it is drawn. */
@@ -25,11 +25,11 @@ const HIDE = { base: '#ece6df', light: '#f8f4ef', dark: '#c2b8ad', deep: '#9e928
 const SIDES = ['front', 'back', 'left', 'right'] as const;
 
 /** 2.2: Starwings - two violet, star-speckled wings on the back, edged with pale bone. */
-function wingShells(): Shell[] {
-  const wing = (name: string, x0: number): Shell => ({ on: 'body', grow: 1, def: { name, size: [10, 14, 1], pivot: [0, 11, -2.6], from: [x0, -13, -0.5], base: '#5b3f92', noise: 0.08,
+function wingShells(moth = false): Shell[] {
+  const wing = (name: string, x0: number): Shell => ({ on: 'body', grow: 1, def: { name, size: [10, 14, 1], pivot: [0, 11, -2.6], from: [x0, -13, -0.5], base: moth ? '#b4a8d6' : '#5b3f92', noise: 0.08,
     paint: (p) => {
       for (const f of ['front', 'back'] as const) {
-        for (let i = 0; i < 9; i++) p.px(f, (i * 7 + 3) % 10, (i * 5 + 2) % 14, '#ece6ff');
+        for (let i = 0; i < 9; i++) p.px(f, (i * 7 + 3) % 10, (i * 5 + 2) % 14, moth ? '#f6f2ff' : '#ece6ff');
         p.px(f, x0 < 0 ? 0 : 9, 0, '#ddd6c6', 1, 14); p.px(f, 0, 0, '#ddd6c6', 10, 1);
       }
     } } });
@@ -56,6 +56,7 @@ function partyShells(): Shell[] {
 
 function shells(mat: Mat, slot: number): Shell[] {
   if (mat === 'wings') return wingShells();
+  if (mat === 'moth') return wingShells(true);
   if (mat === 'party') return partyShells();
   const c = mat === 'iron' ? IRON : HIDE;
   const iron = mat === 'iron';
@@ -160,6 +161,7 @@ function pieceModel(mat: Mat, slot: number): { model: BuiltModel; on: Map<string
 /** Which armour material an item is made of (null: not armour this can show). */
 function materialOf(id: string): Mat | null {
   if (id === 'star_wings') return 'wings';
+  if (id === 'moth_wings') return 'moth';
   if (id === 'party_hat') return 'party';
   if (id.startsWith('leather_')) return 'leather';
   if (id.startsWith('iron_')) return 'iron';

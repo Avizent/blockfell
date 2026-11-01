@@ -12,6 +12,9 @@ import { Ashboar } from './Ashboar';
 import { Hollowdrake } from './Hollowdrake';
 import { Drifter } from './Drifter';
 import { StarBolt } from './StarBolt';
+import { Powderbug } from './Powderbug';
+import { Gloommoth } from './Gloommoth';
+import { Hootlet } from './Hootlet';
 import { FarmAnimal, Sheep, Sporecap, FARM_TYPES, FARM_GROW_TICKS, naturalWool } from './FarmAnimal';
 import { Fox } from './Fox';
 import { SnowPal } from './SnowPal';
@@ -49,8 +52,9 @@ function passiveFor(biome: number, ground: number): MobType | null {
   if (biome === BIOME_SNOWY) return pick<MobType>([['goat', 42], ['rabbit', 14], ['sheep', 14], ['hound', 16], ['fox', 14]]);
   if (biome === BIOME_MOUNTAINS) return pick<MobType>([['goat', 65], ['rabbit', 15], ['sheep', 20]]);
   if (ground === STONE || ground === SNOW) return null;
-  if (biome === BIOME_TAIGA) return pick<MobType>([['rabbit', 24], ['sheep', 20], ['pig', 12], ['cow', 12], ['goat', 9], ['hound', 13], ['fox', 10]]);
+  if (biome === BIOME_TAIGA) return pick<MobType>([['rabbit', 24], ['sheep', 20], ['pig', 12], ['cow', 12], ['goat', 9], ['hound', 13], ['fox', 10], ['hootlet', 6]]);
   if (biome === BIOME_FOREST && Math.random() < 0.08) return 'hound';
+  if ((biome === BIOME_FOREST || biome === BIOME_BIRCH || biome === BIOME_TAIGA) && ground !== STONE && Math.random() < 0.07) return 'hootlet';
   if (biome === BIOME_BIRCH && Math.random() < 0.05) return 'hound';
   const r = Math.random();
   return r < 0.1 ? 'rabbit' : r < 0.17 ? 'horse' : PASSIVE[Math.floor(Math.random() * PASSIVE.length)];
@@ -86,7 +90,7 @@ export class EntityManager implements EntityQueries {
 
   spawnMob(type: MobType, x: number, y: number, z: number, host: EntityHost): Mob {
     const m = type === 'villager' ? new Villager(host) : type === 'sentinel' ? new Sentinel(host) : type === 'hound' ? new Hound(host)
-      : type === 'ashboar' ? new Ashboar(host) : type === 'hollowdrake' ? new Hollowdrake(host) : type === 'drifter' ? new Drifter(host)
+      : type === 'ashboar' ? new Ashboar(host) : type === 'hollowdrake' ? new Hollowdrake(host) : type === 'drifter' ? new Drifter(host) : type === 'powderbug' ? new Powderbug(host) : type === 'gloommoth' ? new Gloommoth(host) : type === 'hootlet' ? new Hootlet(host)
       : type === 'sheep' ? new Sheep(host) : type === 'sporecap' ? new Sporecap(host) : FARM_TYPES.includes(type) ? new FarmAnimal(type, host)
       : type === 'horse' ? new Horse(host) : type === 'fox' ? new Fox(host) : type === 'snowpal' ? new SnowPal(host) : new Mob(type, host);
     m.setPos(x, y, z);
@@ -325,7 +329,7 @@ export class EntityManager implements EntityQueries {
       const spot = this.findSpawnSpot(host, 20, 56, false);
       const type = spot ? passiveFor(host.world.generator.column(Math.floor(spot.x), Math.floor(spot.z)).biome, spot.ground) : null;
       if (spot && type) {
-        const herd = type === 'fox' || type === 'horse' ? 1 + Math.floor(Math.random() * 2) : type === 'chicken' || type === 'rabbit' || type === 'goat' ? 1 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 3);
+        const herd = type === 'fox' || type === 'horse' || type === 'hootlet' ? 1 + Math.floor(Math.random() * 2) : type === 'chicken' || type === 'rabbit' || type === 'goat' ? 1 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 3);
         for (let i = 0; i < herd; i++) {
           const ox = spot.x + (Math.random() - 0.5) * 3, oz = spot.z + (Math.random() - 0.5) * 3;
           const y = this.groundAt(host, Math.floor(ox), Math.floor(oz), spot.y + 3);
@@ -348,8 +352,20 @@ export class EntityManager implements EntityQueries {
         const dry = biome === BIOME_DESERT || biome === BIOME_BADLANDS;
         const r = Math.random();
         const type: MobType = r < 0.2 ? 'crawler' : r < 0.62 ? (dry && Math.random() < 0.8 ? 'dustwalker' : 'shambler') : 'skeleton';
-        this.spawnMob(type, spot.x, spot.y, spot.z, host);
+        this.spawnMob(Math.random() < 0.12 && !dry ? 'powderbug' : type, spot.x, spot.y, spot.z, host);
         break;
+      }
+    }
+    // 2.9: Gloommoths flutter out of the night sky, a couple at a time
+    if (cap > 0 && !host.isDay() && host.world.dim === 'overworld' && Math.random() < 0.12) {
+      let moths = 0;
+      for (const e of this.list) if (e instanceof Gloommoth) moths++;
+      if (moths < (host.difficulty === 'hard' ? 3 : 2)) {
+        const a = Math.random() * Math.PI * 2, r = 16 + Math.random() * 16;
+        const x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+        const y = Math.floor(p.y + 6 + Math.random() * 6);
+        if (host.world.isLoaded(x, z) && host.world.highestSolid(x, z) < y - 2 && host.world.getBlock(x, y, z) === AIR
+          && host.world.generator.column(x, z).biome !== BIOME_SPORE) this.spawnMob('gloommoth', x + 0.5, y, z + 0.5, host);
       }
     }
   }

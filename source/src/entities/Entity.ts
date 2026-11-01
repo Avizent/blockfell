@@ -42,6 +42,8 @@ export interface EntityHost {
   sound(name: string, x: number, y: number, z: number, volume?: number, pitch?: number): void;
   effect(kind: EffectKind, x: number, y: number, z: number, count: number): void;
   onArrowHit(flame?: boolean, mob?: Mob): void;
+  /** 2.9: a Powderbug's blast: hurts creatures and the player, breaks only soft natural blocks. */
+  powderBlast?(x: number, y: number, z: number, radius: number, source: Mob): void;
   /** 2.8: a thrown Trident struck a creature. */
   onTridentHit(mob: Mob): void;
   /** 2.5: a splash potion has shattered here (the effect id is one of the Brewing list). */
@@ -104,6 +106,8 @@ export interface EntityHost {
   spawnSnowball?(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob): void;
   /** A tamed Fox Cub brought the player a present. */
   foxGift?(fox: Mob, item: string): void;
+  /** 2.10: a tamed Hootlet spotted a hostile creature near the player. */
+  hootletWarn?(owl: Mob, danger: Mob): void;
 }
 
 let nextId = 1;

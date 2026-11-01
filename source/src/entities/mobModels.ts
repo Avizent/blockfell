@@ -8,7 +8,7 @@ import { DYE_RGB, type DyeColor } from '../world/dyes';
  * feet centre is the origin and it faces +Z.
  */
 export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound'
-  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider' | 'sporecap';
+  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider' | 'sporecap' | 'powderbug' | 'gloommoth' | 'hootlet';
 export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker';
 
 const quad = (name: string, x: number, z: number, h: number, w: number, base: string, paint?: PartDef['paint']): PartDef => ({
@@ -701,24 +701,123 @@ export function horseModel(coat: number): BuiltModel {
  * red-brown hide, glowing ember fins along its flanks, amber eyes and four long
  * thin legs that are never hurt by the heat.
  */
-/** 2.8: the Sporecap: a small round creature with a big spotted mushroom cap (hidden while it is sheared). */
-function sporecap(): PartDef[] {
+/** 2.9: Sporecap colours. `glow` caps shine softly in the dark. */
+export const SPORECAP_VARIANTS = [
+  { id: 'violet', name: 'Violet', cap: '#8f55c4', top: '#a468d8', dot: '#f7efe4', glow: false },
+  { id: 'crimson', name: 'Crimson', cap: '#b83a34', top: '#d4524a', dot: '#fbe9d6', glow: false },
+  { id: 'pale', name: 'Pale', cap: '#cfdbe8', top: '#e8f0f8', dot: '#9fc8ee', glow: true },
+] as const;
+export const SPORECAP_VARIANT_COUNT = SPORECAP_VARIANTS.length;
+
+/** 2.8: the Sporecap: a small round creature with a big spotted mushroom cap (hidden while it is sheared). 2.9: three colours. */
+function sporecap(variant = 0): PartDef[] {
+  const v = SPORECAP_VARIANTS[variant % SPORECAP_VARIANTS.length];
   const spots = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => {
-    p.px('top', 1, 1, '#f7efe4', 3, 3); p.px('top', 8, 3, '#f7efe4', 4, 4); p.px('top', 4, 9, '#f7efe4', 3, 3); p.px('left', 2, 0, '#f7efe4', 3, 1);
-    p.px('right', 8, 0, '#f7efe4', 2, 1); p.px('front', 3, 0, '#f7efe4', 4, 1);
+    p.px('top', 1, 1, v.dot, 3, 3); p.px('top', 8, 3, v.dot, 4, 4); p.px('top', 4, 9, v.dot, 3, 3); p.px('left', 2, 0, v.dot, 3, 1);
+    p.px('right', 8, 0, v.dot, 2, 1); p.px('front', 3, 0, v.dot, 4, 1);
   };
   return [
     { name: 'body', size: [8, 6, 9], pivot: [0, 3, 0], from: [-4, 0, -4.5], base: '#e6d9bd',
       paint: (p) => { p.px('left', 1, 4, '#d3c4a2', 4, 2); p.px('right', 2, 4, '#d3c4a2', 4, 2); } },
     { name: 'head', size: [6, 6, 6], pivot: [0, 6, 4.5], from: [-3, -3, 0], base: '#efe3c8',
       paint: (p) => { p.px('front', 1, 2, '#2a1c3a', 1, 2); p.px('front', 4, 2, '#2a1c3a', 1, 2); p.px('front', 2, 4, '#c98f8f', 2, 1); } },
-    { name: 'cap', size: [14, 3, 14], pivot: [0, 0, 0], from: [-7, 6, -7], base: '#8f55c4', parent: 'body', noise: 0.1, paint: spots },
-    { name: 'capTop', size: [8, 3, 8], pivot: [0, 0, 0], from: [-4, 9, -4], base: '#a468d8', parent: 'body', noise: 0.1, paint: spots },
+    { name: 'cap', size: [14, 3, 14], pivot: [0, 0, 0], from: [-7, 6, -7], base: v.cap, parent: 'body', noise: 0.1, paint: spots },
+    { name: 'capTop', size: [8, 3, 8], pivot: [0, 0, 0], from: [-4, 9, -4], base: v.top, parent: 'body', noise: 0.1, paint: spots },
     quad('legFL', 2.6, 3, 3, 2.4, '#d3c4a2'),
     quad('legFR', -2.6, 3, 3, 2.4, '#d3c4a2'),
     quad('legBL', 2.6, -3, 3, 2.4, '#d3c4a2'),
     quad('legBR', -2.6, -3, 3, 2.4, '#d3c4a2'),
   ];
+}
+
+export function sporecapModel(variant: number): BuiltModel {
+  const vi = ((variant % SPORECAP_VARIANT_COUNT) + SPORECAP_VARIANT_COUNT) % SPORECAP_VARIANT_COUNT;
+  const key = `sporecap:${vi}`;
+  let m = cache.get(key);
+  if (m) return m;
+  m = buildModel(sporecap(vi), 64, 64, 300 + vi);
+  if (SPORECAP_VARIANTS[vi].glow) { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.35; }
+  cache.set(key, m);
+  return m;
+}
+
+/**
+ * Powderbug (2.9): a round, many-legged beetle with a smouldering fuse on its back. ORIGINAL design.
+ */
+function powderbug(): PartDef[] {
+  const shell = '#4f5a46', dark = '#2f372b', fuse = '#f08a2a', hot = '#ffd36a';
+  const legs = (name: string, x: number, z: number): PartDef => quad(name, x, z, 3, 1.6, dark);
+  return [
+    { name: 'body', size: [10, 7, 12], pivot: [0, 3, 0], from: [-5, 0, -6], base: shell, noise: 0.12,
+      paint: (p) => {
+        p.px('top', 1, 1, dark, 8, 1); p.px('top', 1, 5, dark, 8, 1); p.px('top', 1, 9, dark, 8, 1);
+        for (const f of ['left', 'right'] as const) { p.px(f, 2, 2, fuse, 2, 1); p.px(f, 7, 3, fuse, 2, 1); }
+        p.px('back', 3, 3, fuse, 4, 1);
+      } },
+    { name: 'head', size: [6, 5, 4], pivot: [0, 4, 6], from: [-3, -1, 0], base: '#5d6a52',
+      paint: (p) => { p.px('front', 0, 1, '#e8e2c8', 2, 2); p.px('front', 4, 1, '#e8e2c8', 2, 2); p.px('front', 1, 2, '#161616'); p.px('front', 4, 2, '#161616'); p.px('front', 1, 4, dark, 4, 1); } },
+    { name: 'fuse', size: [1, 4, 1], pivot: [0, 0, 0], from: [-0.5, 7, -1], base: '#6b5a3a', parent: 'body', paint: (p) => p.px('top', 0, 0, hot, 1, 1) },
+    { name: 'spark', size: [2, 2, 2], pivot: [0, 0, 0], from: [-1, 11, -1.5], base: hot, parent: 'body' },
+    legs('legFL', 4.5, 3), legs('legFR', -4.5, 3), legs('legML', 4.5, -1), legs('legMR', -4.5, -1), legs('legBL', 4.5, -4), legs('legBR', -4.5, -4),
+  ];
+}
+
+/**
+ * Gloommoth (2.9): a night-flying moth with big soft wings and glowing eyes. ORIGINAL design.
+ */
+function gloommoth(): PartDef[] {
+  const fur = '#3a3350', wing = '#2a2440', dust = '#a99bff', eye = '#ffe27a';
+  const mark = (w: number, d: number) => (p: Parameters<NonNullable<PartDef['paint']>>[0]) => {
+    p.px('top', Math.floor(w * 0.35), Math.floor(d * 0.3), dust, 3, 3); p.px('top', Math.floor(w * 0.7), Math.floor(d * 0.55), dust, 2, 2);
+    p.px('top', Math.floor(w * 0.15), Math.floor(d * 0.7), '#6e5ea8', 2, 2);
+  };
+  return [
+    { name: 'body', size: [5, 5, 10], pivot: [0, 8, 0], from: [-2.5, 0, -5], base: fur, noise: 0.14,
+      paint: (p) => { p.px('top', 1, 1, '#6e5ea8', 3, 1); p.px('top', 1, 5, '#6e5ea8', 3, 1); } },
+    { name: 'head', size: [5, 5, 4], pivot: [0, 10, 5], from: [-2.5, -2.5, 0], base: '#463e62',
+      paint: (p) => { p.px('front', 0, 1, eye, 2, 2); p.px('front', 3, 1, eye, 2, 2); p.px('front', 1, 2, '#1a1424'); p.px('front', 3, 2, '#1a1424'); } },
+    { name: 'antL', size: [1, 4, 1], pivot: [0, 0, 0], from: [1, 2.5, 2], base: dust, parent: 'head' },
+    { name: 'antR', size: [1, 4, 1], pivot: [0, 0, 0], from: [-2, 2.5, 2], base: dust, parent: 'head' },
+    { name: 'wingL', size: [16, 1, 12], pivot: [2.5, 4, 0], from: [0, 0, -6], base: wing, parent: 'body', noise: 0.08, paint: mark(16, 12) },
+    { name: 'wingR', size: [16, 1, 12], pivot: [-2.5, 4, 0], from: [-16, 0, -6], base: wing, parent: 'body', noise: 0.08, paint: mark(16, 12) },
+  ];
+}
+
+/** 2.10: the Hootlet, a small ORIGINAL owl; a tamed one wears a red ribbon. */
+function hootlet(tamed: boolean): PartDef[] {
+  const feather = '#8a6a48', dark = '#5e4630', belly = '#eadcc0', disc = '#f2e8d2', gold = '#ffd23a', beak = '#e8902c';
+  return [
+    { name: 'body', size: [5, 6, 4], pivot: [0, 3, 0], from: [-2.5, 0, -2], base: feather, noise: 0.1,
+      paint: (p) => {
+        p.px('front', 1, 1, belly, 3, 4); p.px('front', 2, 2, '#cdb892', 1, 1); p.px('front', 1, 4, '#cdb892', 1, 1); p.px('front', 3, 3, '#cdb892', 1, 1);
+        p.px('back', 0, 0, dark, 5, 1); p.px('back', 1, 3, dark, 1, 2); p.px('back', 3, 2, dark, 1, 2);
+      } },
+    { name: 'head', size: [6, 5, 5], pivot: [0, 9, 0], from: [-3, 0, -2.5], base: feather, noise: 0.08,
+      paint: (p) => {
+        p.px('front', 0, 0, disc, 6, 4);
+        p.px('front', 0, 1, gold, 2, 2); p.px('front', 4, 1, gold, 2, 2);
+        p.px('front', 1, 1, '#1a1210', 1, 1); p.px('front', 4, 1, '#1a1210', 1, 1);
+        p.px('front', 2, 3, beak, 2, 1); p.px('front', 2, 2, beak, 2, 1);
+      } },
+    { name: 'tuftL', size: [1, 2, 1], pivot: [0, 0, 0], from: [1.5, 5, -0.5], base: dark, parent: 'head' },
+    { name: 'tuftR', size: [1, 2, 1], pivot: [0, 0, 0], from: [-2.5, 5, -0.5], base: dark, parent: 'head' },
+    ...(tamed ? [{ name: 'ribbon', size: [5.4, 1, 4.4], pivot: [0, 0, 0], from: [-2.7, 5.2, -2.2], base: '#d03a3a', parent: 'body' } as PartDef] : []),
+    { name: 'wingL', size: [1, 5, 3], pivot: [2.5, 8.5, 0], from: [0, -5, -1.5], base: dark, parent: 'body', noise: 0.1,
+      paint: (p) => { p.px('left', 0, 0, feather, 3, 2); p.px('right', 0, 0, feather, 3, 2); } },
+    { name: 'wingR', size: [1, 5, 3], pivot: [-2.5, 8.5, 0], from: [-1, -5, -1.5], base: dark, parent: 'body', noise: 0.1,
+      paint: (p) => { p.px('left', 0, 0, feather, 3, 2); p.px('right', 0, 0, feather, 3, 2); } },
+    { name: 'tail', size: [3, 1, 4], pivot: [0, 0.5, 0], from: [-1.5, 0, -5], base: dark, parent: 'body', noise: 0.1 },
+    { name: 'footL', size: [1, 2, 1], pivot: [0, 0, 0], from: [0.5, -2, -0.5], base: beak, parent: 'body' },
+    { name: 'footR', size: [1, 2, 1], pivot: [0, 0, 0], from: [-1.5, -2, -0.5], base: beak, parent: 'body' },
+  ];
+}
+export function hootletModel(tamed: boolean): BuiltModel {
+  const key = tamed ? 'hootlet:tamed' : 'hootlet';
+  let m = cache.get(key);
+  if (m) return m;
+  m = buildModel(hootlet(tamed), 64, 64, 77);
+  cache.set(key, m);
+  return m;
 }
 
 function lavastrider(): PartDef[] {
@@ -760,9 +859,11 @@ export function mobModel(type: MobType): BuiltModel {
   if (type === 'hollowdrake') return drakeModel();
   if (type === 'sheep') return sheepModel('white', false);
   if (type === 'fox') return foxModel('red', false);
-  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider, sporecap }[type as Exclude<MobType, 'villager' | 'hound' | 'hollowdrake' | 'sheep' | 'fox'>]();
+  if (type === 'hootlet') return hootletModel(false);
+  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider, sporecap, powderbug, gloommoth }[type as Exclude<MobType, 'villager' | 'hound' | 'hollowdrake' | 'sheep' | 'fox' | 'hootlet'>]();
   m = buildModel(parts, 64, 64, type.length * 13);
   if (type === 'ashboar' || type === 'lavastrider') glowSeams(m);
+  if (type === 'gloommoth') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.25; }
   if (type === 'drifter') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.45; }
   cache.set(type, m);
   return m;

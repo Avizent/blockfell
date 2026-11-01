@@ -76,6 +76,10 @@ export const MOB_SPECS: Record<MobType, MobSpec> = {
   horse: { name: 'Horse', hostile: false, health: 24, speed: 0.25, width: 1.3, height: 1.65, drops: [['leather', 0, 2]], xp: [1, 3], sound: 'horse', rideable: true, seat: 1.15, rideMul: 4.2, jump: 0.52 },
   sporecap: { name: 'Sporecap', hostile: false, health: 8, speed: 0.18, width: 0.8, height: 0.95, drops: [['sporecap', 0, 2]], xp: [1, 3], sound: 'sporecap' },
   lavastrider: { name: 'Lavastrider', hostile: false, health: 20, speed: 0.2, width: 0.9, height: 1.5, drops: [['ember', 0, 2], ['string', 0, 2]], xp: [1, 3], sound: 'lavastrider', fireproof: true, lavaWalker: true, needsLure: true, rideable: true, seat: 1.3, rideMul: 2.5, jump: 0.4 },
+  // 2.9
+  powderbug: { name: 'Powderbug', hostile: true, health: 12, speed: 0.22, width: 0.9, height: 0.8, drops: [['blast_powder', 0, 2], ['string', 0, 1]], xp: [5, 5], attack: 0, sound: 'powderbug' },
+  hootlet: { name: 'Hootlet', hostile: false, health: 8, speed: 0.3, width: 0.4, height: 0.6, drops: [['feather', 0, 2]], xp: [1, 3], sound: 'hootlet' },
+  gloommoth: { name: 'Gloommoth', hostile: true, health: 10, speed: 0.05, width: 0.8, height: 0.6, drops: [['gloomdust', 0, 2], ['moth_silk', 0, 2]], xp: [5, 5], attack: 3, sound: 'gloommoth', fireproof: false },
   snowpal: { name: NAMES.snowpal, hostile: false, health: 8, speed: 0.2, width: 0.7, height: 1.5, drops: [['snowball', 2, 6]], xp: [0, 0], sound: 'snowpal' },
 };
 
