@@ -53,6 +53,8 @@ export class Player {
   flying = false;
   /** 2.2: gliding on Starwings (the Game starts and stops it). */
   gliding = false;
+  /** 2.10: gliding on the lighter Moth Wings (more drag, less lift). */
+  glideMoth = false;
   sprinting = false;
   sneaking = false;
   readonly box = new AABB();
@@ -227,7 +229,7 @@ export class Player {
     const hl = Math.max(1e-4, cp);
     const hs = Math.hypot(this.vx, this.vz);
     const lift = cp * cp;
-    this.vy += -0.08 + lift * 0.06;
+    this.vy += -0.08 + lift * (this.glideMoth ? 0.047 : 0.06);
     if (this.vy < 0 && cp > 0) {
       const d = this.vy * -0.1 * lift;
       this.vy += d; this.vx += (lx / hl) * d; this.vz += (lz / hl) * d;
@@ -238,7 +240,8 @@ export class Player {
     }
     this.vx += ((lx / hl) * hs - this.vx) * 0.1;
     this.vz += ((lz / hl) * hs - this.vz) * 0.1;
-    this.vx *= 0.99; this.vy *= 0.98; this.vz *= 0.99;
+    const drag = this.glideMoth ? 0.983 : 0.99;
+    this.vx *= drag; this.vy *= 0.98; this.vz *= drag;
     const x0 = this.x, z0 = this.z;
     this.move(world);
     this.fallDistance = 0;
