@@ -78,6 +78,7 @@ export const MOB_SPECS: Record<MobType, MobSpec> = {
   lavastrider: { name: 'Lavastrider', hostile: false, health: 20, speed: 0.2, width: 0.9, height: 1.5, drops: [['ember', 0, 2], ['string', 0, 2]], xp: [1, 3], sound: 'lavastrider', fireproof: true, lavaWalker: true, needsLure: true, rideable: true, seat: 1.3, rideMul: 2.5, jump: 0.4 },
   // 2.9
   powderbug: { name: 'Powderbug', hostile: true, health: 12, speed: 0.22, width: 0.9, height: 0.8, drops: [['blast_powder', 0, 2], ['string', 0, 1]], xp: [5, 5], attack: 0, sound: 'powderbug' },
+  trader: { name: 'Wandering Trader', hostile: false, health: 20, speed: 0.25, width: 0.6, height: 1.95, drops: [], xp: [0, 0], sound: 'villager', folk: 'villager' },
   hootlet: { name: 'Hootlet', hostile: false, health: 8, speed: 0.3, width: 0.4, height: 0.6, drops: [['feather', 0, 2]], xp: [1, 3], sound: 'hootlet' },
   gloommoth: { name: 'Gloommoth', hostile: true, health: 10, speed: 0.05, width: 0.8, height: 0.6, drops: [['gloomdust', 0, 2], ['moth_silk', 0, 2]], xp: [5, 5], attack: 3, sound: 'gloommoth', fireproof: false },
   snowpal: { name: NAMES.snowpal, hostile: false, health: 8, speed: 0.2, width: 0.7, height: 1.5, drops: [['snowball', 2, 6]], xp: [0, 0], sound: 'snowpal' },
@@ -90,7 +91,7 @@ export const UNNAMEABLE = new Set<MobType>(['villager', 'sentinel', 'hollowdrake
 
 const plateCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
 /** A name tag's plate: the name in the game's font on a dark band, always facing the camera. */
-function makePlate(name: string): THREE.Sprite {
+export function makePlate(name: string): THREE.Sprite {
   const c = plateCanvas!;
   const ctx = c.getContext('2d')!;
   const font = '30px Blockfell, monospace';

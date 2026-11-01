@@ -8,8 +8,8 @@ import { DYE_RGB, type DyeColor } from '../world/dyes';
  * feet centre is the origin and it faces +Z.
  */
 export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound'
-  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider' | 'sporecap' | 'powderbug' | 'gloommoth' | 'hootlet';
-export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker';
+  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider' | 'sporecap' | 'powderbug' | 'gloommoth' | 'hootlet' | 'trader';
+export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker' | 'trader';
 
 const quad = (name: string, x: number, z: number, h: number, w: number, base: string, paint?: PartDef['paint']): PartDef => ({
   name, size: [w, h, w], pivot: [x, h, z], from: [-w / 2, -h, -w / 2], base, paint,
@@ -120,17 +120,41 @@ function humanoid(opts: {
   armW?: number; legW?: number; extra?: PartDef[]; torso?: PartDef['paint'];
 }): PartDef[] {
   const aw = opts.armW ?? 4, lw = opts.legW ?? 4;
+  const sides = ['front', 'back', 'left', 'right'] as const;
+  // 2.12: sleeves with a darker cuff and a pale seam; legs with a knee crease, a turned-up hem and shoes with a toecap and sole
+  const arm = (p: FacePainterLike) => {
+    for (const f of sides) { p.px(f, 0, 0, opts.shirt, aw, 4); p.px(f, 0, 3, shadeHex(opts.shirt, 0.78), aw, 1); }
+    for (const f of sides) p.px(f, 0, 11, shadeHex(opts.skin, 0.88), aw, 1);   // wrist
+  };
+  const leg = (p: FacePainterLike) => {
+    for (const f of sides) {
+      p.px(f, 0, 5, shadeHex(opts.pants, 0.84), lw, 1);                       // knee crease
+      p.px(f, 0, 9, shadeHex(opts.pants, 1.12), lw, 1);                       // hem
+      p.px(f, 0, 10, opts.shoes, lw, 2);
+      p.px(f, 0, 11, shadeHex(opts.shoes, 0.6), lw, 1);                       // sole
+    }
+    p.px('front', 1, 10, shadeHex(opts.shoes, 1.3), Math.max(1, lw - 2), 1);   // toecap shine
+    p.fill('bottom', opts.shoes, 0.05, 2);
+  };
   return [
     { name: 'body', size: [8, 12, 4], pivot: [0, 12, 0], from: [-4, 0, -2], base: opts.shirt, paint: opts.torso },
     { name: 'head', size: [8, 8, 8], pivot: [0, 24, 0], from: [-4, 0, -4], base: opts.skin, paint: opts.face },
-    { name: 'armL', size: [aw, 12, aw], pivot: [4 + aw / 2, 22, 0], from: [-aw / 2, -10, -aw / 2], base: opts.skin,
-      paint: (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 0, opts.shirt, aw, 4); } },
-    { name: 'armR', size: [aw, 12, aw], pivot: [-4 - aw / 2, 22, 0], from: [-aw / 2, -10, -aw / 2], base: opts.skin },
-    { name: 'legL', size: [lw, 12, lw], pivot: [2, 12, 0], from: [-lw / 2, -12, -lw / 2], base: opts.pants,
-      paint: (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 10, opts.shoes, lw, 2); p.fill('bottom', opts.shoes, 0.05, 2); } },
-    { name: 'legR', size: [lw, 12, lw], pivot: [-2, 12, 0], from: [-lw / 2, -12, -lw / 2], base: opts.pants },
+    { name: 'armL', size: [aw, 12, aw], pivot: [4 + aw / 2, 22, 0], from: [-aw / 2, -10, -aw / 2], base: opts.skin, paint: arm },
+    { name: 'armR', size: [aw, 12, aw], pivot: [-4 - aw / 2, 22, 0], from: [-aw / 2, -10, -aw / 2], base: opts.skin, paint: arm },
+    { name: 'legL', size: [lw, 12, lw], pivot: [2, 12, 0], from: [-lw / 2, -12, -lw / 2], base: opts.pants, paint: leg },
+    { name: 'legR', size: [lw, 12, lw], pivot: [-2, 12, 0], from: [-lw / 2, -12, -lw / 2], base: opts.pants, paint: leg },
     ...(opts.extra ?? []),
   ];
+}
+
+
+/** 2.12: ears, under-eye shadow, a nose-bridge highlight and a shaded jaw, so faces read as faces. */
+function faceExtras(p: FacePainterLike, skin: string, jaw = true): void {
+  const dk = shadeHex(skin, 0.8), dk2 = shadeHex(skin, 0.68);
+  for (const f of ['left', 'right'] as const) { p.px(f, 3, 3, dk, 2, 2); p.px(f, 3, 4, dk2, 1, 1); }   // ears
+  p.px('front', 1, 4, shadeHex(skin, 0.9), 2, 1); p.px('front', 5, 4, shadeHex(skin, 0.9), 2, 1);  // under the eyes
+  p.px('front', 4, 4, shadeHex(skin, 1.1), 1, 1);                                                   // bridge of the nose
+  if (jaw) p.px('front', 0, 7, shadeHex(skin, 0.86), 8, 1);
 }
 
 function shambler(): PartDef[] {
@@ -378,6 +402,7 @@ function villager(look: VillagerLook): PartDef[] {
     scribe: { skin: '#e8c0a0', tunic: '#6b4a8f', trim: '#d8b04a', pants: '#3e2d52', hair: '#c8c4bc' },
     fletcher: { skin: '#d7a27a', tunic: '#7a5a3a', trim: '#3f6b3a', pants: '#4a4034', hair: '#a0522d' },
     mapmaker: { skin: '#e0b090', tunic: '#2f6670', trim: '#d8c48a', pants: '#3a3f48', hair: '#6a4a2a' },
+    trader: { skin: '#cf9a74', tunic: '#b4561e', trim: '#e8c24a', pants: '#3a3430', hair: '#e2dccb' },
   };
   const o = outfit[look];
   const extra: PartDef[] = [];
@@ -395,6 +420,8 @@ function villager(look: VillagerLook): PartDef[] {
     p.px('front', 3, 6, '#8a4a3a', 2, 1);                                          // mouth
     if (look === 'smith') p.px('front', 1, 6, '#2e241e', 6, 2);                    // beard
     if (look === 'scribe') { p.px('front', 1, 3, '#caa84a', 2, 1); p.px('front', 5, 3, '#caa84a', 2, 1); p.px('front', 3, 3, '#caa84a', 2, 1); } // spectacles
+    if (look === 'trader') p.px('front', 1, 6, '#e2dccb', 6, 2);                   // white beard
+    faceExtras(p, o.skin, look !== 'smith' && look !== 'trader');
     if (look === 'mapmaker') { p.px('front', 5, 2, '#c9a640', 3, 3); p.px('front', 6, 3, '#ffffff'); p.px('front', 7, 5, '#c9a640', 1, 2); } // monocle on a chain
   };
   const tunic = (p: FacePainterLike) => {
@@ -430,6 +457,15 @@ function villager(look: VillagerLook): PartDef[] {
       paint: (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 2, '#c9a640', 8, 1); } });
     extra.push({ name: 'mapCase', size: [3, 11, 3], pivot: [0, 24, -2], from: [-1.5, -12, -2], base: '#7a5230', parent: 'body',
       paint: (p) => { p.px('back', 0, 0, '#d8c48a', 3, 1); p.px('back', 0, 10, '#d8c48a', 3, 1); } });
+  } else if (look === 'trader') {
+    // a deep orange hood with a gold edge, and a great bedroll-and-bundle pack on the back
+    extra.push({ name: 'hood', size: [9, 5, 9], pivot: [0, 0, 0], from: [-4.5, 6, -4.5], base: o.tunic, parent: 'head',
+      paint: (p) => { p.px('front', 0, 4, o.trim, 9, 1); } });
+    extra.push({ name: 'hoodTip', size: [5, 4, 5], pivot: [0, 0, 0], from: [-2.5, 11, -3], base: o.tunic, parent: 'head' });
+    extra.push({ name: 'pack', size: [10, 10, 5], pivot: [0, 24, -2], from: [-5, -11, -5], base: '#7a5230', parent: 'body',
+      paint: (p) => { p.px('back', 0, 0, o.trim, 10, 1); p.px('back', 4, 3, '#c9a640', 2, 2); p.px('left', 0, 4, '#4a3320', 5, 1); p.px('right', 0, 4, '#4a3320', 5, 1); } });
+    extra.push({ name: 'roll', size: [12, 3, 3], pivot: [0, 24, -2], from: [-6, -13, -7.5], base: '#2f6670', parent: 'body',
+      paint: (p) => { p.px('front', 0, 1, '#d8c48a', 12, 1); } });
   } else if (look === 'fletcher') {
     extra.push({ name: 'hood', size: [9, 3, 9], pivot: [0, 0, 0], from: [-4.5, 7, -4.5], base: o.trim, parent: 'head' });
     extra.push({ name: 'feather', size: [1, 5, 2], pivot: [0, 0, 0], from: [3, 9, -2], base: '#f4f4f0', parent: 'head',
@@ -630,6 +666,8 @@ export function playerParts(): PartDef[] {
       p.px('front', 2, 3, '#2d5d8f'); p.px('front', 5, 3, '#2d5d8f');
       p.px('front', 3, 5, '#c99c78', 2, 1);
       p.px('front', 2, 6, '#9a5a4a', 4, 1);
+      p.px('front', 1, 2, '#6e3018', 2, 1); p.px('front', 5, 2, '#6e3018', 2, 1);   // brows
+      faceExtras(p, '#e0b48f');
     },
     torso: (p) => {
       p.px('front', 0, 7, '#6b4a2a', 8, 1);
@@ -855,12 +893,13 @@ export function mobModel(type: MobType): BuiltModel {
   let m = cache.get(type);
   if (m) return m;
   if (type === 'villager') return villagerModel('none');
+  if (type === 'trader') return villagerModel('trader');
   if (type === 'hound') return houndModel(false);
   if (type === 'hollowdrake') return drakeModel();
   if (type === 'sheep') return sheepModel('white', false);
   if (type === 'fox') return foxModel('red', false);
   if (type === 'hootlet') return hootletModel(false);
-  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider, sporecap, powderbug, gloommoth }[type as Exclude<MobType, 'villager' | 'hound' | 'hollowdrake' | 'sheep' | 'fox' | 'hootlet'>]();
+  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider, sporecap, powderbug, gloommoth }[type as Exclude<MobType, 'villager' | 'trader' | 'hound' | 'hollowdrake' | 'sheep' | 'fox' | 'hootlet'>]();
   m = buildModel(parts, 64, 64, type.length * 13);
   if (type === 'ashboar' || type === 'lavastrider') glowSeams(m);
   if (type === 'gloommoth') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.25; }

@@ -15,6 +15,7 @@ import { StarBolt } from './StarBolt';
 import { Powderbug } from './Powderbug';
 import { Gloommoth } from './Gloommoth';
 import { Hootlet } from './Hootlet';
+import { WanderingTrader } from './WanderingTrader';
 import { FarmAnimal, Sheep, Sporecap, FARM_TYPES, FARM_GROW_TICKS, naturalWool } from './FarmAnimal';
 import { Fox } from './Fox';
 import { SnowPal } from './SnowPal';
@@ -89,7 +90,7 @@ export class EntityManager implements EntityQueries {
   }
 
   spawnMob(type: MobType, x: number, y: number, z: number, host: EntityHost): Mob {
-    const m = type === 'villager' ? new Villager(host) : type === 'sentinel' ? new Sentinel(host) : type === 'hound' ? new Hound(host)
+    const m = type === 'villager' ? new Villager(host) : type === 'trader' ? new WanderingTrader(host) : type === 'sentinel' ? new Sentinel(host) : type === 'hound' ? new Hound(host)
       : type === 'ashboar' ? new Ashboar(host) : type === 'hollowdrake' ? new Hollowdrake(host) : type === 'drifter' ? new Drifter(host) : type === 'powderbug' ? new Powderbug(host) : type === 'gloommoth' ? new Gloommoth(host) : type === 'hootlet' ? new Hootlet(host)
       : type === 'sheep' ? new Sheep(host) : type === 'sporecap' ? new Sporecap(host) : FARM_TYPES.includes(type) ? new FarmAnimal(type, host)
       : type === 'horse' ? new Horse(host) : type === 'fox' ? new Fox(host) : type === 'snowpal' ? new SnowPal(host) : new Mob(type, host);
@@ -465,6 +466,18 @@ export class EntityManager implements EntityQueries {
         if (!IS_SOLID[a1] && !IS_SOLID[a2] && !IS_FLUID[a1] && !IS_FLUID[a2]) return y + 1;
         return null;
       }
+    }
+    return null;
+  }
+
+  /** 2.11: a visiting Wandering Trader arrives on open ground 24-40 blocks away (one at a time). Returns him, or null. */
+  trySpawnTrader(host: EntityHost): WanderingTrader | null {
+    if (this.list.some((e) => e instanceof WanderingTrader && !e.removed)) return null;
+    for (let tries = 0; tries < 300; tries++) {
+      const spot = this.findSpawnSpot(host, 24, 40, false);
+      if (!spot || spot.ground === STONE || spot.ground === SNOW) continue;
+      const m = this.spawnMob('trader', spot.x, spot.y, spot.z, host);
+      return m instanceof WanderingTrader ? m : null;
     }
     return null;
   }

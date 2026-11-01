@@ -1,6 +1,6 @@
 import { Mob, wrapAngle } from './Mob';
 import type { EntityHost } from './Entity';
-import { villagerModel } from './mobModels';
+import { villagerModel, type MobType, type VillagerLook } from './mobModels';
 import * as B from '../world/BlockRegistry';
 import type { Facing, Profession } from '../world/BlockRegistry';
 import { findPath, nearestStandable, canStand, Step } from './Pathfinder';
@@ -65,8 +65,8 @@ export class Villager extends Mob {
   private waveAnim = 0;
   private doorCheck = 0;
 
-  constructor(host?: EntityHost, job: Profession | null = null) {
-    super('villager', host, villagerModel(job ?? 'none'));
+  constructor(host?: EntityHost, job: Profession | null = null, type: MobType = 'villager', look?: VillagerLook) {
+    super(type, host, villagerModel(look ?? job ?? 'none'));
     this.persistent = true;
     if (job) this.setJob(job);
   }
@@ -251,7 +251,7 @@ export class Villager extends Mob {
     return best;
   }
 
-  private findFreeWorkstation(host: EntityHost): Spot | null {
+  protected findFreeWorkstation(host: EntityHost): Spot | null {
     const cx = Math.floor(this.x), cy = Math.floor(this.y), cz = Math.floor(this.z);
     let best: Spot | null = null, bd = 1e9;
     for (let dy = -3; dy <= 4; dy++) for (let dz = -16; dz <= 16; dz++) for (let dx = -16; dx <= 16; dx++) {
@@ -265,7 +265,7 @@ export class Villager extends Mob {
     return best;
   }
 
-  private findFreeBed(host: EntityHost): (Spot & { f: Facing }) | null {
+  protected findFreeBed(host: EntityHost): (Spot & { f: Facing }) | null {
     const cx = Math.floor(this.x), cy = Math.floor(this.y), cz = Math.floor(this.z);
     let best: (Spot & { f: Facing }) | null = null, bd = 1e9;
     for (let dy = -3; dy <= 4; dy++) for (let dz = -20; dz <= 20; dz++) for (let dx = -20; dx <= 20; dx++) {

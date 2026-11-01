@@ -70,7 +70,7 @@ const POOLS: Record<Profession, O[][]> = {
     [always(sell(4, 'ruin_map', 1, undefined, 2)), buy('leather', 6), buy('feather', 10), buy('string', 12)],
     [always(sell(7, 'dungeon_map', 1, undefined, 2)), sell(1, 'torch', 12), buy('glass', 8), sell(2, 'ladder', 8)],
     [always(sell(5, 'village_map', 1, undefined, 2)), sell(2, 'painting'), sell(2, 'lantern', 2), sell(3, 'sign', 3)],
-    [sell(9, 'dungeon_map', 1, undefined, 4), sell(4, 'map_table', 1, undefined, 3), sell(6, 'bell', 1, undefined, 2)],
+    [always(sell(8, 'treasure_map', 1, undefined, 3)), sell(9, 'dungeon_map', 1, undefined, 4), sell(4, 'map_table', 1, undefined, 3), sell(6, 'bell', 1, undefined, 2)],
   ],
 };
 const TRADE_XP = [2, 5, 10, 15];
@@ -91,4 +91,39 @@ export function levelForXp(xp: number): number {
   let l = 1;
   for (let i = 1; i < LEVEL_XP.length; i++) if (xp >= LEVEL_XP[i]) l = i + 1;
   return l;
+}
+
+// ---------------------------------------------------------------- 2.11 wandering trader
+/**
+ * The Wandering Trader (2.11): a visitor who sells everyday goods nobody else has (potatoes, milk)
+ * and rare finds. Pays and charges in Amber. Offers are fixed for the visit and do not restock.
+ */
+const TRADER_ALWAYS: O[] = [
+  sell(1, 'potato', 8, undefined, 6),
+  sell(2, 'milk_bucket', 1, undefined, 3),
+  buy('feather', 12, 1, 6),
+];
+const TRADER_RARE: O[] = [
+  sell(12, 'treasure_map', 1, undefined, 1),
+  sell(9, 'disc_jig', 1, undefined, 1),
+  sell(9, 'disc_lullaby', 1, undefined, 1),
+  sell(9, 'disc_drift', 1, undefined, 1),
+  sell(4, 'blank_disc', 2, undefined, 2),
+  sell(3, 'fish_jar', 2, undefined, 3),
+  sell(6, 'moth_silk', 3, undefined, 2),
+  sell(4, 'firework', 8, undefined, 3),
+  sell(14, 'spore_compass', 1, undefined, 1),
+  sell(3, 'sporecap', 4, undefined, 3),
+  sell(5, 'spring_pad', 2, undefined, 2),
+  sell(6, 'rune_shard', 6, undefined, 2),
+  sell(7, 'name_tag', 1, undefined, 2),
+  sell(5, 'raw_ruby_carp', 2, undefined, 2),
+  sell(8, 'lantern', 2, undefined, 2),
+  buy('raw_glowfin', 3, 3, 4),
+];
+export function traderTrades(rng: () => number): Trade[] {
+  const rare = [...TRADER_RARE].sort(() => rng() - 0.5).slice(0, 4);
+  return [...TRADER_ALWAYS, ...rare].map((o) => ({
+    cost: o.cost, cost2: o.cost2, result: o.result, ench: o.ench, uses: 0, maxUses: o.max ?? 4, xp: 2, tier: 1,
+  }));
 }

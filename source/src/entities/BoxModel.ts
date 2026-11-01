@@ -71,6 +71,49 @@ export function paintNoise(ctx: CanvasRenderingContext2D, x: number, y: number, 
   }
 }
 
+/**
+ * 2.12: the richer-pixel-art pass. After a part is painted, every face gets: a soft light-to-dark
+ * gradient (lit from above), darker edges where boxes meet (ambient shading), a pale rim on top
+ * edges, and 2x2 blotches of slightly different tone so large areas look like fur, cloth or skin
+ * rather than flat colour. Hand-painted details (eyes, belts, buckles) are kept: pixels far from
+ * the part's base colour only get half of the effect. See-through pixels are never touched.
+ */
+function enhancePart(ctx: CanvasRenderingContext2D, painter: FacePainter, part: PartDef, seed: number): void {
+  const base = new THREE.Color(part.base);
+  const br = base.r * 255, bg = base.g * 255, bb = base.b * 255;
+  const rng = mulberry32(seed);
+  for (const face of FACE_ORDER) {
+    const [fx, fy, fw, fh] = painter.rect(face);
+    if (fw < 2 || fh < 2) continue;
+    const img = ctx.getImageData(fx, fy, fw, fh);
+    const d = img.data;
+    // one random tone per 2x2 blotch
+    const bw = Math.ceil(fw / 2), bh = Math.ceil(fh / 2);
+    const blot = new Float32Array(bw * bh);
+    for (let k = 0; k < blot.length; k++) blot[k] = (rng() - 0.5) * 0.13;
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+      const o = (y * fw + x) * 4;
+      if (d[o + 3] < 128) continue;
+      const detail = Math.abs(d[o] - br) + Math.abs(d[o + 1] - bg) + Math.abs(d[o + 2] - bb) > 70;
+      const k = detail ? 0.5 : 1;
+      let f = 1;
+      if (face === 'top') f += 0.05 * k;
+      else if (face === 'bottom') f -= 0.05 * k;
+      else f += (0.5 - y / (fh - 1)) * 0.24 * k;                  // lit from above
+      if (face !== 'top' && face !== 'bottom') {
+        if (x === 0 || x === fw - 1) f -= 0.09 * k;               // edges where boxes turn away
+        if (y === fh - 1) f -= 0.07 * k;                            // underside shade
+      } else if (y === 0 || y === fh - 1 || x === 0 || x === fw - 1) f -= 0.04 * k;
+      if (y === 0 && face !== 'bottom') f += 0.05 * k;              // rim light on the top edge
+      f += blot[(y >> 1) * bw + (x >> 1)] * k;
+      d[o] = Math.max(0, Math.min(255, d[o] * f));
+      d[o + 1] = Math.max(0, Math.min(255, d[o + 1] * f));
+      d[o + 2] = Math.max(0, Math.min(255, d[o + 2] * f));
+    }
+    ctx.putImageData(img, fx, fy);
+  }
+}
+
 export interface BuiltModel {
   root: THREE.Group;
   parts: Map<string, THREE.Object3D>;
@@ -107,6 +150,7 @@ export function buildModel(parts: PartDef[], texW = 64, texH = 64, seed = 7): Bu
     ctx.fillStyle = 'rgba(0,0,0,0.18)';
     ctx.fillRect(bx, by, bw, bh);
     p.paint?.(painter);
+    enhancePart(ctx, painter, p, seed * 977 + i * 31);
   });
   const texture = new THREE.CanvasTexture(canvas);
   texture.magFilter = THREE.NearestFilter;
