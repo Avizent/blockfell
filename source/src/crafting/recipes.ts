@@ -133,6 +133,7 @@ shaped(['G G', ' G '], { G: 'glass' }, 'glass_bottle', 3);
 shaped([' I ', 'CCC'], { I: 'iron_ingot', C: 'cobblestone' }, 'brewing_stand');
 shaped([' S ', ' W ', 'WWW'], { S: 'string', W: 'wool' }, 'party_hat');
 shapeless(['string', 'red_dye', 'yellow_dye', 'blue_dye'], 'party_popper', 3);
+shapeless(['string', 'blast_powder'], 'party_popper', 2);   // 2.9
 shaped(['SSS', 'RYB'], { S: 'string', R: 'red_dye', Y: 'yellow_dye', B: 'blue_dye' }, 'bunting', 3);
 shaped(['RYB', ' S '], { S: 'string', R: 'red_dye', Y: 'yellow_dye', B: 'blue_dye' }, 'balloons', 2);
 shaped(['AAA', 'BTB', 'WWW'], { A: 'apple', B: 'bread', T: 'torch', W: 'wheat' }, 'cake');
