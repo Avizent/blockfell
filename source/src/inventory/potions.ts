@@ -6,7 +6,7 @@
  *   Water Bottle + ingredient (Brewing Stand, 20 s)  -->  Potion
  *   Potion + Glimmer Dust                            -->  Splash Potion
  */
-export type EffectId = 'swiftness' | 'might' | 'mending' | 'night_eyes' | 'deep_breath' | 'emberward';
+export type EffectId = 'swiftness' | 'might' | 'mending' | 'night_eyes' | 'deep_breath' | 'emberward' | 'featherfall';
 
 export interface EffectDef {
   id: EffectId;
@@ -30,9 +30,10 @@ export const EFFECTS: EffectDef[] = [
   { id: 'swiftness', name: 'Swiftness', potion: 'Potion of Swiftness', splash: 'Splash Potion of Swiftness', rgb: [120, 200, 255], duration: 3600, ingredient: 'feather', blurb: 'Run a third faster.' },
   { id: 'might', name: 'Might', potion: 'Potion of Might', splash: 'Splash Potion of Might', rgb: [210, 70, 60], duration: 3600, ingredient: 'bone', blurb: 'Your blows hit 1.5 hearts harder.' },
   { id: 'mending', name: 'Mending', potion: 'Potion of Mending', splash: 'Splash Potion of Mending', rgb: [255, 120, 170], duration: 900, ingredient: 'starbloom', blurb: 'Heal half a heart every two seconds.' },
-  { id: 'night_eyes', name: 'Night Eyes', potion: 'Potion of Night Eyes', splash: 'Splash Potion of Night Eyes', rgb: [150, 110, 230], duration: 4800, ingredient: 'glowcap', alt: 'gloomdust', blurb: 'See in the dark.' },
+  { id: 'night_eyes', name: 'Night Eyes', potion: 'Potion of Night Eyes', splash: 'Splash Potion of Night Eyes', rgb: [150, 110, 230], duration: 4800, ingredient: 'glowcap', blurb: 'See in the dark.' },
   { id: 'deep_breath', name: 'Deep Breath', potion: 'Potion of Deep Breath', splash: 'Splash Potion of Deep Breath', rgb: [60, 130, 240], duration: 4800, ingredient: 'drift_silk', blurb: 'Breathe under water without running out of air.' },
   { id: 'emberward', name: 'Emberward', potion: 'Potion of Emberward', splash: 'Splash Potion of Emberward', rgb: [255, 150, 40], duration: 4800, ingredient: 'ember', blurb: 'Fire and lava cannot hurt you.' },
+  { id: 'featherfall', name: 'Featherfall', potion: 'Potion of Featherfall', splash: 'Splash Potion of Featherfall', rgb: [205, 232, 255], duration: 4800, ingredient: 'gloomdust', blurb: 'Fall from any height without being hurt.' },
 ];
 
 export const EFFECT_BY_ID: Record<string, EffectDef> = Object.fromEntries(EFFECTS.map((e) => [e.id, e]));
