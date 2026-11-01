@@ -1537,7 +1537,7 @@ export class Game implements EntityHost, PrecipSource {
       fall: 'You hit the ground too hard', mob: 'You were slain by a creature', arrow: 'You were shot by a Bone Archer',
       drown: 'You drowned', starve: 'You starved to death', void: 'You fell out of the world', cactus: 'You were pricked to death',
       lightning: 'You were struck by lightning', hound: 'You were mauled by a pack of Fellhounds',
-      lava: 'You sank into the lava', burn: 'You burned to death', ember: 'You were burned by a Smoulderer\'s ember',
+      blast: 'You were blown up by a Powderbug', lava: 'You sank into the lava', burn: 'You burned to death', ember: 'You were burned by a Smoulderer\'s ember',
     };
     const score = p.xpTotal;
     if (this.screen) this.closeScreen();
@@ -1554,6 +1554,32 @@ export class Game implements EntityHost, PrecipSource {
     }
     this.engine.input.exitLock();
     ui.set({ overlay: 'death', deathMessage: messages[kind] ?? 'You died', score });
+  }
+
+  /** 2.9: a Powderbug pops. Hurts creatures and the player; breaks only soft natural blocks. */
+  powderBlast(x: number, y: number, z: number, radius: number, source: Mob): void {
+    const p = this.player;
+    const SOFT = new Set<number>([B.DIRT, B.GRASS, B.SAND, B.RED_SAND, B.GRAVEL, B.SNOW, B.SNOWY_GRASS, B.SPORELOAM]);
+    this.sound('blast', x, y, z, 1, 0.95 + Math.random() * 0.1);
+    this.effect('poof', x, y + 0.3, z, 26);
+    this.effect('smoke', x, y + 0.5, z, 18);
+    this.effect('flame', x, y + 0.3, z, 10);
+    const R = Math.ceil(radius);
+    for (let dx = -R; dx <= R; dx++) for (let dy = -R; dy <= R; dy++) for (let dz = -R; dz <= R; dz++) {
+      if (dx * dx + dy * dy + dz * dz > radius * radius) continue;
+      const bx = Math.floor(x) + dx, by = Math.floor(y) + dy, bz = Math.floor(z) + dz;
+      const id = this.world.getBlock(bx, by, bz);
+      if (!SOFT.has(id) || Math.random() > 0.85) continue;
+      this.world.setBlock(bx, by, bz, B.AIR, 'growth');
+    }
+    const scale = this.difficulty === 'easy' ? 0.6 : this.difficulty === 'hard' ? 1.3 : 1;
+    const dp = Math.hypot(p.x - x, p.y + 0.9 - y, p.z - z);
+    if (!p.dead && !p.creative && dp < radius + 1.5) this.damagePlayer(Math.max(1, (1 - dp / (radius + 1.5)) * 14 * scale), { x, y, z, kind: 'blast' });
+    for (const m of this.entities.mobsNear(x, y, z, radius + 1.5)) {
+      if (m === source || !m.alive) continue;
+      const d = Math.hypot(m.x - x, m.y - y, m.z - z);
+      m.hurt(Math.max(1, (1 - d / (radius + 1.5)) * 14), this, m.x - x, m.z - z, false);
+    }
   }
 
   respawn(): void {
@@ -2195,6 +2221,20 @@ export class Game implements EntityHost, PrecipSource {
         }
       }
     }
+    // ---- 2.9: milk
+    if (id === 'bucket' && m instanceof FarmAnimal && m.mobType === 'cow') {
+      if (dry) return !m.isBaby;
+      if (m.isBaby) { pushChat('This calf is too young to milk.'); return true; }
+      if (!p.creative) {
+        const s = this.inventory.get(slot)!;
+        if (s.count <= 1) this.inventory.slots[slot] = makeStack('milk_bucket');
+        else { s.count--; const left = this.inventory.add(makeStack('milk_bucket')); if (left) this.dropStack(makeStack('milk_bucket')); }
+        this.inventory.changed();
+      }
+      this.sound('bucket_fill', m.x, m.y + 0.8, m.z, 0.6, 1.3);
+      pushChat('You milk the cow. Drink the Milk Bucket to clear every potion effect.');
+      return true;
+    }
     if (m instanceof Sporecap && id === 'shears') {
       if (dry) return true;
       const r = m.shear(this);
@@ -2404,7 +2444,7 @@ export class Game implements EntityHost, PrecipSource {
     }
     if (byPlayer) {
       this.progress.add('blocks_mined');
-      if (id === B.WHEAT[7] || id === B.CARROTS[3]) this.progress.grant('harvest');
+      if (id === B.WHEAT[7] || id === B.CARROTS[3] || id === B.POTATOES[3]) this.progress.grant('harvest');
       p.addExhaustion(0.005);
       if (id === B.STONE && harvest) this.progress.grant('stone');
       if (id === B.SPAWNER) { this.progress.grant('spawner'); this.progress.add('spawners_broken'); }
@@ -3569,7 +3609,7 @@ export class Game implements EntityHost, PrecipSource {
   private tickDrinking(held: ItemStack | null, rmb: boolean): boolean {
     const p = this.player;
     const info = held ? effectOfItem(held.id) : null;
-    const drinkable = !!held && (held.id === 'water_bottle' || (!!info && !info.splash));
+    const drinkable = !!held && (held.id === 'water_bottle' || held.id === 'milk_bucket' || (!!info && !info.splash));
     if (drinkable && rmb) {
       this.drinkTicks++;
       this.hand.eating = this.drinkTicks;
@@ -3587,6 +3627,14 @@ export class Game implements EntityHost, PrecipSource {
     this.drinkTicks = 0;
     this.hand.eating = 0;
     if (!s) return;
+    if (s.id === 'milk_bucket') {
+      const had = this.potions.any;
+      this.potions.clear();
+      this.sound('burp', p.x, p.eyeY, p.z, 0.3, 1.1);
+      pushChat(had ? 'The milk washes every potion effect away.' : 'Fresh milk.');
+      if (!p.creative) { this.inventory.slots[this.inventory.selected] = makeStack('bucket'); this.inventory.changed(); }
+      return;
+    }
     const info = effectOfItem(s.id);
     if (info && !info.splash) {
       const e = info.effect;
