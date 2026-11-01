@@ -502,7 +502,8 @@ export class Engine implements EngineServices {
     }
     if (this.game && s.overlay === 'sleep') { ui.set({ overlay: null }); this.game.wake(false); }
     if (this.game && s.overlay === 'sign') this.game.finishSign();
-    if (this.game && s.overlay === 'nametag') this.game.nameTagFor = null;
+    if (this.game && s.overlay === 'tune') this.game.finishTune();
+    if (this.game && s.overlay === 'nametag') { this.game.nameTagFor = null; this.game.nameTagSelf = false; }
     ui.set({ overlay: null });
     this.input.releaseAll();
     if (this.game && !this.game.player.dead) this.input.requestLock();
