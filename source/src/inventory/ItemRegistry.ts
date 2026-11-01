@@ -235,12 +235,15 @@ const FOOD: [string, string, number, number, string?][] = [
   // 2.1: from Ashboars in the Cinderdeep
   ['raw_ashboar', 'Raw Ashboar', 3, 1.8, 'roast_ashboar'],
   ['roast_ashboar', 'Roast Ashboar', 8, 12.8],
+  // 2.9
+  ['potato', 'Potato', 2, 1.2, 'baked_potato'],
+  ['baked_potato', 'Baked Potato', 5, 6],
 ];
 for (const [id, name, hunger, saturation, cooked] of FOOD) {
   add({
     id, name, kind: 'food', category: 'food', food: { hunger, saturation },
     smelt: cooked ? { result: cooked, xp: 0.35 } : undefined,
-    ...(id === 'carrot' ? { block: B.CARROTS[0] } : {}),
+    ...(id === 'carrot' ? { block: B.CARROTS[0] } : id === 'potato' ? { block: B.POTATOES[0] } : {}),
   });
 }
 
@@ -325,10 +328,16 @@ const MOBS: [string, string][] = [
   ['villager', 'Villager'], ['sentinel', 'Sentinel'], ['hound', 'Fellhound'],
   ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'], ['ashboar', 'Ashboar'], ['drifter', 'Drifter'],
   ['fox', NAMES.fox], ['snowpal', NAMES.snowpal], ['horse', 'Horse'], ['lavastrider', 'Lavastrider'], ['sporecap', 'Sporecap'],
+  ['powderbug', 'Powderbug'], ['gloommoth', 'Gloommoth'],
 ];
 for (const [mob, name] of MOBS) {
   add({ id: `spawn_${mob}`, name: `${name} Spawn Egg`, kind: 'spawn', category: 'spawn', spawn: mob });
 }
+
+// ---- 2.9
+add({ id: 'milk_bucket', name: 'Milk Bucket', kind: 'item', maxStack: 1, category: 'tools' });
+add({ id: 'blast_powder', name: 'Blast Powder', category: 'ingredients' });
+add({ id: 'gloomdust', name: 'Gloomdust', category: 'ingredients' });
 
 export const ITEMS: ReadonlyArray<ItemDef> = items;
 

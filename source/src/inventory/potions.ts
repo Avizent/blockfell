@@ -20,6 +20,8 @@ export interface EffectDef {
   duration: number;
   /** What a Water Bottle is brewed with. */
   ingredient: string;
+  /** 2.9: a second ingredient that brews the same potion. */
+  alt?: string;
   /** One line for the guide and the tooltip. */
   blurb: string;
 }
@@ -28,7 +30,7 @@ export const EFFECTS: EffectDef[] = [
   { id: 'swiftness', name: 'Swiftness', potion: 'Potion of Swiftness', splash: 'Splash Potion of Swiftness', rgb: [120, 200, 255], duration: 3600, ingredient: 'feather', blurb: 'Run a third faster.' },
   { id: 'might', name: 'Might', potion: 'Potion of Might', splash: 'Splash Potion of Might', rgb: [210, 70, 60], duration: 3600, ingredient: 'bone', blurb: 'Your blows hit 1.5 hearts harder.' },
   { id: 'mending', name: 'Mending', potion: 'Potion of Mending', splash: 'Splash Potion of Mending', rgb: [255, 120, 170], duration: 900, ingredient: 'starbloom', blurb: 'Heal half a heart every two seconds.' },
-  { id: 'night_eyes', name: 'Night Eyes', potion: 'Potion of Night Eyes', splash: 'Splash Potion of Night Eyes', rgb: [150, 110, 230], duration: 4800, ingredient: 'glowcap', blurb: 'See in the dark.' },
+  { id: 'night_eyes', name: 'Night Eyes', potion: 'Potion of Night Eyes', splash: 'Splash Potion of Night Eyes', rgb: [150, 110, 230], duration: 4800, ingredient: 'glowcap', alt: 'gloomdust', blurb: 'See in the dark.' },
   { id: 'deep_breath', name: 'Deep Breath', potion: 'Potion of Deep Breath', splash: 'Splash Potion of Deep Breath', rgb: [60, 130, 240], duration: 4800, ingredient: 'drift_silk', blurb: 'Breathe under water without running out of air.' },
   { id: 'emberward', name: 'Emberward', potion: 'Potion of Emberward', splash: 'Splash Potion of Emberward', rgb: [255, 150, 40], duration: 4800, ingredient: 'ember', blurb: 'Fire and lava cannot hurt you.' },
 ];
@@ -59,13 +61,13 @@ export function effectOfItem(id: string): { effect: EffectDef; splash: boolean }
 
 /** Is this an ingredient the Brewing Stand takes? */
 export function isIngredient(id: string): boolean {
-  return id === SPLASH_INGREDIENT || EFFECTS.some((e) => e.ingredient === id);
+  return id === SPLASH_INGREDIENT || EFFECTS.some((e) => e.ingredient === id || e.alt === id);
 }
 
 /** What a bottle becomes with an ingredient, or null if they don't go together. */
 export function brewResult(bottle: string, ingredient: string): string | null {
   if (bottle === 'water_bottle') {
-    const e = EFFECTS.find((x) => x.ingredient === ingredient);
+    const e = EFFECTS.find((x) => x.ingredient === ingredient || x.alt === ingredient);
     return e ? potionItem(e.id) : null;
   }
   if (bottle.startsWith('potion_') && ingredient === SPLASH_INGREDIENT) {
