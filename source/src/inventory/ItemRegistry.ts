@@ -1,3 +1,4 @@
+import { FISH } from './fish';
 import * as B from '../world/BlockRegistry';
 import { DYE_COLORS, DYE_NAMES, woolKey } from '../world/dyes';
 import { NAMES } from '../world/names';
@@ -328,7 +329,7 @@ const MOBS: [string, string][] = [
   ['villager', 'Villager'], ['sentinel', 'Sentinel'], ['hound', 'Fellhound'],
   ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'], ['ashboar', 'Ashboar'], ['drifter', 'Drifter'],
   ['fox', NAMES.fox], ['snowpal', NAMES.snowpal], ['horse', 'Horse'], ['lavastrider', 'Lavastrider'], ['sporecap', 'Sporecap'],
-  ['powderbug', 'Powderbug'], ['gloommoth', 'Gloommoth'],
+  ['powderbug', 'Powderbug'], ['gloommoth', 'Gloommoth'], ['hootlet', 'Hootlet'],
 ];
 for (const [mob, name] of MOBS) {
   add({ id: `spawn_${mob}`, name: `${name} Spawn Egg`, kind: 'spawn', category: 'spawn', spawn: mob });
@@ -382,3 +383,18 @@ for (const e of EFFECTS) {
 for (const e of EFFECTS) {
   add({ id: splashItem(e.id), name: e.splash, category: 'combat', maxStack: 16 });
 }
+
+// ---- 2.10: Moth Wings, Fireworks, more fish, Fish Jars and the Spring Pad (appended last)
+/** Moth Silk: soft silk from Gloommoths. Four and a string make Moth Wings. */
+add({ id: 'moth_silk', name: 'Moth Silk', category: 'ingredients' });
+/** Moth Wings: lighter Starwings you can make early. Worn in the chest slot; jump while falling to glide (a shorter, steeper glide that wears out sooner). */
+add({ id: 'moth_wings', name: 'Moth Wings', kind: 'armor', maxStack: 1, category: 'combat', armor: { slot: 1, points: 1 }, durability: 160 });
+/** Firework: right-click to launch (sneak to launch a volley of three). */
+add({ id: 'firework', name: 'Firework', category: 'tools', maxStack: 64 });
+add({ id: 'grilled_fish', name: 'Grilled Fish', kind: 'food', category: 'food', food: { hunger: 6, saturation: 9.6 } });
+for (const f of FISH) {
+  if (!f.isNew) continue;
+  add({ id: `raw_${f.key}`, name: `Raw ${f.name}`, kind: 'food', category: 'food', food: { hunger: 2, saturation: 0.4 }, smelt: { result: 'grilled_fish', xp: 0.35 } });
+}
+blockItem('spring_pad', 'decoration');
+blockItem('fish_jar', 'decoration');
