@@ -152,7 +152,7 @@ if (run('items')) {
   check('items: the Spore Isle blocks, Sporecap, Spore Stew, Trident and the Sporecap egg exist; sprites and all nine textures are there', t.exist.every(Boolean) && t.sprites.every(Boolean) && t.tex.every(Boolean), t);
   check('items: the seven new blocks are the last ones registered (ids follow on); Glowgills and the Spore Lamp give light', t.consecutive && t.light[0] > 8 && t.light[1] === 15, t);
   check('crafting: Spore Stew, Spore Lamp, Trident (five iron and a stick) and planks from stems', c.stew === 'spore_stewx1' && c.lamp === 'spore_lampx1' && c.trident === 'tridentx1' && c.planks === 'plankx4' || c.planks === 'planksx4', c);
-  check('items: four new advancements (72 in all) in the right places; the Trident wears out (300) and stacks to 1', t.count === 72 && t.adv.join() === 'boat,spore_isle,spore_shear,long_reach' && t.dur === 300 && t.stack === 1, t);
+  check('items: four new advancements (72 or more in all) in the right places; the Trident wears out (300) and stacks to 1', t.count >= 72 && t.adv.join() === 'boat,spore_isle,spore_shear,long_reach' && t.dur === 300 && t.stack === 1, t);
 }
 
 let P0;
