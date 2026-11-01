@@ -3,6 +3,7 @@ import { useStore } from './core/store';
 import { ui } from './ui/uiStore';
 import { TitleScreen, WorldSelect, CreateWorld, EditWorld, LoadingScreen, QuitScreen, ImportWorld, CloudScreen } from './ui/Menus';
 import { TheEnd } from './ui/TheEnd';
+import { TuneEditor } from './ui/TuneEditor';
 import { OptionsScreen, PauseMenu, DeathScreen, AdvancementsScreen, StatsScreen, SleepScreen, SignEditor, MapScreen, NameTagScreen } from './ui/GameMenus';
 import { HUD, Toasts } from './ui/HUD';
 import { SurvivalInventory, CraftingTableScreen, ChestScreen, BagScreen, FurnaceScreen, BrewingScreen, CreativeScreen, RuneTableScreen, TradeScreen } from './ui/InventoryUI';
@@ -53,6 +54,7 @@ export function App() {
           {overlay === 'trade' && <TradeScreen />}
           {overlay === 'sleep' && <SleepScreen />}
           {overlay === 'sign' && <SignEditor />}
+          {overlay === 'tune' && <TuneEditor />}
           {overlay === 'nametag' && <NameTagScreen />}
           {overlay === 'map' && <MapScreen />}
           <TouchControls />
