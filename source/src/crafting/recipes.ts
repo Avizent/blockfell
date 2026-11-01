@@ -222,3 +222,9 @@ shaped(['I I', 'III', ' S '], { I: 'iron_ingot', S: 'stick' }, 'trident');
 shaped(['SS', 'SS'], { S: 'spore_stem' }, 'planks', 4);
 // 2.8.1: the Spore Compass
 shaped([' I ', 'ISI', ' I '], { I: 'iron_ingot', S: 'sporecap' }, 'spore_compass');
+
+// 2.10: Moth Wings, Fireworks, Spring Pads and Fish Jars
+shaped(['S S', 'STS'], { S: 'moth_silk', T: 'string' }, 'moth_wings');
+shapeless(['blast_powder', 'stick', 'string'], 'firework', 3);
+shaped(['LLL', 'TIT', 'PPP'], { L: 'leather', T: 'string', I: 'iron_ingot', P: 'planks' }, 'spring_pad', 2);
+shaped(['G G', 'G G', 'GGG'], { G: 'glass' }, 'fish_jar', 2);
