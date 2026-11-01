@@ -17,6 +17,8 @@ export class Sky {
   private cloudMat: THREE.ShaderMaterial;
   private cloudTex: THREE.CanvasTexture;
   cloudsEnabled = true;
+  /** 2.11: the rainbow that follows rain in the daytime (opposite the sun). */
+  private rainbow: THREE.Mesh;
 
   constructor() {
     this.group.name = 'sky';
@@ -113,6 +115,25 @@ export class Sky {
     this.clouds.renderOrder = 2;
     this.clouds.frustumCulled = false;
     this.group.add(this.clouds);
+
+    // 2.11: rainbow, seven bands on a half-ring
+    const rc = document.createElement('canvas');
+    rc.width = 512; rc.height = 256;
+    const rx = rc.getContext('2d')!;
+    const bands = ['#e8453c', '#f08a36', '#f4d63e', '#5cbf55', '#3f9be0', '#4a5bc4', '#8a4cb8'];
+    bands.forEach((col, i) => {
+      rx.strokeStyle = col; rx.globalAlpha = 0.75; rx.lineWidth = 15;
+      rx.beginPath(); rx.arc(256, 256, 238 - i * 14, Math.PI, 2 * Math.PI); rx.stroke();
+    });
+    const rt = new THREE.CanvasTexture(rc);
+    this.rainbow = new THREE.Mesh(
+      new THREE.PlaneGeometry(420, 210),
+      new THREE.MeshBasicMaterial({ map: rt, transparent: true, depthWrite: false, depthTest: true, fog: false, opacity: 0 }),
+    );
+    this.rainbow.renderOrder = -97;
+    this.rainbow.frustumCulled = false;
+    this.rainbow.visible = false;
+    this.group.add(this.rainbow);
   }
 
   private billboard(tex: THREE.Texture, size: number): THREE.Mesh {
@@ -125,7 +146,7 @@ export class Sky {
     return m;
   }
 
-  update(camPos: THREE.Vector3, s: SkyState, timeSeconds: number, viewDistance: number): void {
+  update(camPos: THREE.Vector3, s: SkyState, timeSeconds: number, viewDistance: number, rainbow = 0): void {
     this.dome.position.copy(camPos);
     this.stars.position.copy(camPos);
     const u = this.domeMat.uniforms;
@@ -148,6 +169,17 @@ export class Sky {
     this.starMat.opacity = s.starAlpha;
     this.stars.visible = s.starAlpha > 0.01;
     this.stars.rotation.z = s.angle;
+
+    // the rainbow hangs in the half of the sky away from the sun, while the sun is up
+    const sunUp = Math.max(0, Math.min(1, (s.sunDir.y - 0.12) * 3));
+    const ra = rainbow * sunUp * s.clear;
+    this.rainbow.visible = ra > 0.01;
+    if (this.rainbow.visible) {
+      const hx = -s.sunDir.x, hz = -s.sunDir.z, hl = Math.hypot(hx, hz) || 1;
+      this.rainbow.position.set(camPos.x + (hx / hl) * 320, camPos.y + 70, camPos.z + (hz / hl) * 320);
+      this.rainbow.lookAt(camPos.x, this.rainbow.position.y, camPos.z);
+      (this.rainbow.material as THREE.MeshBasicMaterial).opacity = Math.min(1, ra) * 0.8;
+    }
 
     this.clouds.visible = this.cloudsEnabled;
     this.clouds.position.set(camPos.x, 150, camPos.z);

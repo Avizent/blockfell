@@ -364,6 +364,7 @@ const mapSprite = (mark: string[], markPal: Record<string, [number, number, numb
 };
 SPRITES.dungeon_map = mapSprite(['M.M', '.M.', 'M.M'], { M: [190, 36, 30] });
 SPRITES.ruin_map = mapSprite(['WW.', 'W.W', 'WWW'], { W: [124, 104, 80] });
+SPRITES.treasure_map = mapSprite(['.X.', 'XXX', '.X.'], { X: [214, 168, 40] });
 SPRITES.village_map = mapSprite(['.R.', 'RRR', 'HDH'], { R: [170, 70, 50], H: [222, 196, 140], D: [110, 76, 40] });
 
 SPRITES.rune_shard = {
@@ -1263,4 +1264,24 @@ SPRITES.firework = {
     '................', '................',
   ],
   pal: { o: [54, 24, 24], R: [206, 56, 62], W: [250, 244, 230], S: [140, 100, 56], Y: [255, 224, 90], O: [255, 150, 40] },
+};
+
+// ---- 2.11 sprites
+const discMap = [
+  '................', '.....oooooo.....', '...ooDDDDDDoo...', '..oDDDDDDDDDDo..', '..oDDMMMMMDDDo..', '.oDDMMLLLMMDDDo.',
+  '.oDDMLL.LLMDDDo.', '.oDDMLL.LLMDDDo.', '.oDDMMLLLMMDDDo.', '.oDDDMMMMMDDDDo.', '..oDDDDDDDDDDo..', '..ooDDDDDDDDoo..',
+  '...ooooooooooo..', '................', '................', '................',
+];
+SPRITES.blank_disc = { map: discMap, pal: { o: [20, 20, 26], D: [52, 52, 62], M: [92, 92, 106], L: [150, 150, 164] } };
+SPRITES.music_disc = { map: discMap, pal: { o: [20, 20, 26], D: [52, 52, 62], M: [214, 70, 70], L: [250, 214, 110] } };
+SPRITES.disc_jig = { map: discMap, pal: { o: [20, 20, 26], D: [60, 36, 30], M: [236, 130, 40], L: [255, 226, 120] } };
+SPRITES.disc_lullaby = { map: discMap, pal: { o: [20, 20, 26], D: [30, 54, 40], M: [88, 168, 98], L: [214, 244, 190] } };
+SPRITES.disc_drift = { map: discMap, pal: { o: [20, 20, 26], D: [34, 30, 70], M: [120, 110, 220], L: [230, 226, 255] } };
+SPRITES.weather_glass = {
+  map: [
+    '................', '.....oooooo.....', '....oGGGGGGo....', '...oGBBBBBBGo...', '...oGBBWWBBGo...', '...oGBBWWBBGo...',
+    '...oGBBBBBBGo...', '...oGBBBBBBGo...', '...oGBBRRBBGo...', '...oGBRRRRBGo...', '....oGRRRRGo....', '.....ooGGoo.....',
+    '.......ss.......', '......sooS......', '................', '................',
+  ],
+  pal: { o: [40, 44, 56], G: [190, 214, 226], B: [150, 180, 206], W: [244, 248, 252], R: [214, 78, 70], s: [150, 110, 60], S: [120, 84, 44] },
 };
