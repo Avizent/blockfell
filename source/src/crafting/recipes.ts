@@ -228,3 +228,11 @@ shaped(['S S', 'STS'], { S: 'moth_silk', T: 'string' }, 'moth_wings');
 shapeless(['blast_powder', 'stick', 'string'], 'firework', 3);
 shaped(['LLL', 'TIT', 'PPP'], { L: 'leather', T: 'string', I: 'iron_ingot', P: 'planks' }, 'spring_pad', 2);
 shaped(['G G', 'G G', 'GGG'], { G: 'glass' }, 'fish_jar', 2);
+
+// 2.11: Lightning Rod, Tune Box, Jukebox, Note Block, discs and the Weather Glass
+shaped(['A', 'I', 'I'], { A: 'amber', I: 'iron_ingot' }, 'lightning_rod');
+shaped(['PPP', 'PAP', 'PPP'], { P: 'planks', A: 'amber' }, 'tune_box');
+shaped(['PPP', 'PIP', 'PPP'], { P: 'planks', I: 'iron_ingot' }, 'jukebox');
+shaped(['PPP', 'PSP', 'PPP'], { P: 'planks', S: 'string' }, 'note_block');
+shaped([' C ', 'CAC', ' C '], { C: 'coal', A: 'amber' }, 'blank_disc', 2);
+shaped(['G', 'A', 'I'], { G: 'glass', A: 'amber', I: 'iron_ingot' }, 'weather_glass');
