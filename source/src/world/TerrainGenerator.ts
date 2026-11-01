@@ -12,7 +12,7 @@ import {
 
 /** Newest terrain version. Worlds remember theirs so saved landscapes never change. */
 /** (5 = 1.7 lava and dungeons; 6 = 1.8 a Village Bell on the well and a Mapmaker in new villages.) */
-export const GEN_VERSION = 7;
+export const GEN_VERSION = 8;   // 8 = 2.11 buried treasure
 
 export interface GenOptions {
   structures: boolean;
@@ -33,7 +33,7 @@ export interface ColumnInfo {
 /** A generated structure that owns a container (chest) whose loot is created lazily. */
 export interface GeneratedContainer {
   x: number; y: number; z: number;
-  loot: 'ruin' | 'village' | 'dungeon' | 'shrine' | 'starfall';
+  loot: 'ruin' | 'village' | 'dungeon' | 'shrine' | 'starfall' | 'treasure';
 }
 
 /** A Monster Cage placed by generation and the creature it makes. */
@@ -596,6 +596,14 @@ export class TerrainGenerator implements DimensionGenerator {
     this.placePlants(cx, cz, blocks, cols);
     if (this.villages) this.villages.stampChunk(cx, cz, blocks, containers);
     if (this.opts.structures && !this.villages?.inVillage(cx * 16 + 8, cz * 16 + 8, 24)) this.placeRuin(cx, cz, blocks, cols, containers);
+    const tr = this.treasureAt(cx, cz);
+    if (tr) {
+      const i = localIndex(tr.x - cx * 16, tr.y, tr.z - cz * 16);
+      if (blocks[i] !== B.AIR && blocks[i] !== B.WATER && blocks[i] !== B.LAVA && blocks[i] !== B.BEDROCK) {
+        blocks[i] = B.CHEST[2];
+        containers.push({ x: tr.x, y: tr.y, z: tr.z, loot: 'treasure' });
+      }
+    }
     return { blocks, containers, spawners };
   }
 
@@ -695,6 +703,21 @@ export class TerrainGenerator implements DimensionGenerator {
   /** Could this chunk hold a ruin? (The cheap first test of placeRuin: 1 chunk in 42.) */
   ruinCandidate(cx: number, cz: number): boolean {
     return this.opts.structures && hashFloat(this.seed, cx, cz, 0x5a1) < 1 / 42;
+  }
+
+  /**
+   * 2.11: a buried treasure chest, 1 chunk in 50 on dry land (version 8 worlds, structures on).
+   * Pure function of the seed: the Mapmaker's Treasure Map finds these without generating the chunk.
+   */
+  treasureAt(cx: number, cz: number): { x: number; y: number; z: number } | null {
+    if (this.version < 8 || !this.opts.structures || hashFloat(this.seed, cx, cz, 0x7c3) >= 1 / 50) return null;
+    const lx = 4 + (hash4(this.seed, cx, cz, 0x7c4) % 8), lz = 4 + (hash4(this.seed, cx, cz, 0x7c5) % 8);
+    const x = cx * 16 + lx, z = cz * 16 + lz;
+    if (this.villages?.inVillage(x, z, 28)) return null;
+    const col = this.column(x, z, { height: 0, biome: 0, mountain: 0, river: 0 });
+    if (col.height <= SEA_LEVEL + 1 || col.biome === BIOME_RIVER || col.biome === BIOME_OCEAN || col.biome === BIOME_SPORE) return null;
+    const y = Math.max(10, col.height - 4 - (hash4(this.seed, cx, cz, 0x7c6) % 3));
+    return { x, y, z };
   }
 
   /** Are structures (villages, ruins, dungeons) generated in this world? */

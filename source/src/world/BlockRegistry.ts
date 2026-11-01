@@ -21,7 +21,7 @@ export const RENDER_RAIL = 7;       // 2.4: flat track whose shape comes from th
 export type ToolType = 'pickaxe' | 'axe' | 'shovel' | 'sword' | null;
 export type SoundType = 'stone' | 'wood' | 'grass' | 'gravel' | 'sand' | 'glass' | 'wool' | 'snow';
 export type Facing = 'n' | 'e' | 's' | 'w';
-export type Interaction = 'crafting' | 'furnace' | 'chest' | 'runes' | 'door' | 'bed' | 'gate' | 'trapdoor' | 'sign' | 'pot' | 'bell' | 'storm_bell' | 'cake' | 'brewing' | null;
+export type Interaction = 'crafting' | 'furnace' | 'chest' | 'runes' | 'door' | 'bed' | 'gate' | 'trapdoor' | 'sign' | 'pot' | 'bell' | 'storm_bell' | 'cake' | 'brewing' | 'tunebox' | 'jukebox' | 'note' | null;
 export type Shape = 'slab' | 'stairs' | 'door' | 'bed' | 'wall_torch'
   | 'fence' | 'pane' | 'gate' | 'ladder' | 'trapdoor' | 'sign' | 'wall_sign' | 'lantern' | 'pot' | 'rail' | 'bunting' | 'cake' | null;
 
@@ -934,6 +934,28 @@ export function fishInJar(id: number): string | null {
   for (const k in FISH_JARS) if (FISH_JARS[k] === id) return k;
   return null;
 }
+// ======================================================================
+// Version 2.11 blocks: Lightning Rod, Tune Box, Jukebox, Note Block. Appended only.
+// ======================================================================
+/** Lightning Rod: during a thunderstorm bolts within 16 blocks are drawn to it, and a rod strike harms nothing. */
+export const LIGHTNING_ROD = reg('lightning_rod', 'Lightning Rod', {
+  tex: 'rod_side', render: RENDER_MODEL, opaque: false, lightOpacity: 0, hardness: 1.5, tool: 'pickaxe', sound: 'stone',
+  model: [5, 0, 5, 11, 2, 11, 7, 2, 7, 9, 14, 9, 6, 14, 6, 10, 16, 10],
+  modelFaces: [null, null, ['rod_tip', 'rod_tip', 'rod_tip', 'rod_tip', 'rod_tip', 'rod_tip']],
+  collision: [6, 0, 6, 10, 16, 10],
+}).id;
+/** Tune Box: write a tune on it (right-click), and press a Blank Disc into it to record. */
+export const TUNE_BOX = reg('tune_box', 'Tune Box', {
+  tex: 'tunebox_side', top: 'tunebox_top', side: 'tunebox_side', bottom: 'tunebox_side', hardness: 1.5, tool: 'axe', sound: 'wood', interact: 'tunebox',
+}).id;
+/** Jukebox: right-click with a Music Disc to play it (round and round); right-click again to take it out. */
+export const JUKEBOX = reg('jukebox', 'Jukebox', {
+  tex: 'jukebox_side', top: 'jukebox_top', side: 'jukebox_side', bottom: 'jukebox_side', hardness: 1.5, tool: 'axe', sound: 'wood', interact: 'jukebox',
+}).id;
+/** Note Block: right-click to change its note, left-click (or walk-by tapping) to play it. The block under it chooses the instrument. */
+export const NOTE_BLOCK = reg('note_block', 'Note Block', {
+  tex: 'note_block', hardness: 0.8, tool: 'axe', sound: 'wood', interact: 'note',
+}).id;
 /** Blocks a Deepgate's ring may be made of. */
 export const GATE_RING = [CINDERSTONE, CINDERSTONE_BRICKS];
 /** 2.2: a Stargate's ring is eight Glimmerstone. */

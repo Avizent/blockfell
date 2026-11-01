@@ -39,7 +39,13 @@ export interface SpawnerEntity {
   mob: string;              // the creature this Monster Cage makes
   delay: number;            // ticks until its next attempt
 }
-export type BlockEntity = ChestEntity | FurnaceEntity | BrewEntity | SignEntity | SpawnerEntity;
+/** 2.11: a Note Block's note (0..24 semitones above F-sharp-ish low; see Game.noteFreq). */
+export interface NoteEntity { type: 'note'; note: number }
+/** 2.11: a Jukebox and the disc in it. */
+export interface JukeboxEntity { type: 'jukebox'; disc: Slot }
+/** 2.11: the tune written on a Tune Box. */
+export interface TuneBoxEntity { type: 'tunebox'; tune: import('../inventory/tunes').Tune }
+export type BlockEntity = ChestEntity | FurnaceEntity | BrewEntity | SignEntity | SpawnerEntity | NoteEntity | JukeboxEntity | TuneBoxEntity;
 
 export interface WorldEvents extends Record<string, unknown> {
   blockChanged: { x: number; y: number; z: number; old: number; id: number; cause: string };
