@@ -119,7 +119,7 @@ if (run('items')) {
     const Bk = await import('/src/world/BlockRegistry.ts');
     const Po = await import('/src/inventory/potions.ts');
     const bf = window.__bf, n = null;
-    const E = ['swiftness', 'might', 'mending', 'night_eyes', 'deep_breath', 'emberward'];
+    const E = ['swiftness', 'might', 'mending', 'night_eyes', 'deep_breath', 'emberward', 'featherfall'];
     const ids = ['brewing_stand', 'glass_bottle', 'water_bottle', ...E.map((e) => 'potion_' + e), ...E.map((e) => 'splash_' + e)];
     const brew = E.map((e, i) => Po.brewResult('water_bottle', Po.EFFECTS[i].ingredient));
     const splash = E.map((e) => Po.brewResult('potion_' + e, 'glimmer_dust'));
@@ -136,12 +136,12 @@ if (run('items')) {
       stand: bf.craft([n, 'iron_ingot', n, 'cobblestone', 'cobblestone', 'cobblestone', n, n, n]),
     };
   });
-  check('items: stand, bottles, 6 potions and 6 splash potions exist (stack 16), each with a drawn sprite',
+  check('items: stand, bottles, 7 potions and 7 splash potions exist (stack 16), each with a drawn sprite',
     t.names.every(Boolean) && t.stacks.slice(1).every((s) => s === 16) && t.sprites.every((c) => c > 30), t);
   check('items: three new advancements, parented stand -> drink -> splash', t.adv >= 62 && t.advIds.join() === 'furnace,brew_stand,brew_drink', t);
   check('brewing table: each ingredient makes its potion, glimmer dust makes it splash; wrong pairs make nothing',
-    t.brew.join() === 'potion_swiftness,potion_might,potion_mending,potion_night_eyes,potion_deep_breath,potion_emberward' &&
-    t.splash.join() === 'splash_swiftness,splash_might,splash_mending,splash_night_eyes,splash_deep_breath,splash_emberward' && t.wrong.every((r) => r === null) && t.distinct === 6, t);
+    t.brew.join() === 'potion_swiftness,potion_might,potion_mending,potion_night_eyes,potion_deep_breath,potion_emberward,potion_featherfall' &&
+    t.splash.join() === 'splash_swiftness,splash_might,splash_mending,splash_night_eyes,splash_deep_breath,splash_emberward,splash_featherfall' && t.wrong.every((r) => r === null) && t.distinct === 7, t);
   check('save safety: the Brewing Stand (286) and Trophy (285) keep their ids (no saved block id moved; later releases only append)', t.last[2] === 286 && t.last[3] === 285, t.last);
   check('crafting: 3 glass make 3 Glass Bottles; iron + 3 cobblestone make a Brewing Stand', t.bottles?.id === 'glass_bottle' && t.bottles.count === 3 && t.stand?.id === 'brewing_stand', t);
 }

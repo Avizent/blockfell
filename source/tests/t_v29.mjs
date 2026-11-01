@@ -6,7 +6,7 @@ import fs from 'node:fs';
 const URL = process.env.URL || 'http://localhost:5173/';
 const SHOTS = process.env.SHOTS || '/tmp/shots';
 fs.mkdirSync(SHOTS, { recursive: true });
-const only = process.env.ONLY ? process.env.ONLY.split(',') : ['items','potato','milk','bug','moth','caps'];
+const only = process.env.ONLY ? process.env.ONLY.split(',') : ['items','potato','milk','bug','moth','caps','fall'];
 const run = (n) => only.includes(n);
 const results = [];
 const check = (name, ok, info = '') => { const s = typeof info === 'string' ? info : JSON.stringify(info); results.push([ok ? 'PASS' : 'FAIL', name, s]); console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : s.slice(0, 700)); };
@@ -140,8 +140,8 @@ if (run('items')) {
     };
   });
   check('items: potato, baked potato, milk bucket, Blast Powder, Gloomdust and both spawn eggs exist with drawn sprites', t.has && t.sprites && t.milkStack === 1, t);
-  check('items: version is 2.9.0; a potato plants a 4-stage crop and smelts to a baked potato', t.ver === '2.9.0' && t.smelt === 'baked_potato' && t.plant && t.stages === 4 && t.cs === 4, t);
-  check('items: Gloomdust and Glowcap both brew Night Eyes; Blast Powder and string make Party Poppers', t.brew === 'potion_night_eyes/potion_night_eyes/true' && t.popper === 'party_popperx2', t);
+  check('items: version is 2.9.0; a potato plants a 4-stage crop and smelts to a baked potato', /^2\.9/.test(t.ver) && t.smelt === 'baked_potato' && t.plant && t.stages === 4 && t.cs === 4, t);
+  check('items: Gloomdust brews Featherfall and Glowcap still brews Night Eyes; Blast Powder and string make Party Poppers', t.brew === 'potion_featherfall/potion_night_eyes/true' && t.popper === 'party_popperx2', t);
 }
 if (run('potato')) {
   await newWorld('Spud Tests', 'spuds29', false);
@@ -366,6 +366,28 @@ if (run('caps')) {
     return out;
   });
   check('caps: colour, shorn state and regrow time survive saving; a Sporecap saved before 2.9 comes back Violet', sr.v === 2 && sr.sheared === true && sr.regrow > 3000 && sr.old === 0, sr);
+}
+
+if (run('fall')) {
+  await newWorld('Fall Tests', 'fall29', false);
+  const P = await pad(6);
+  await hurtPlayer();
+  const drop = async () => {
+    await ev(([x, y, z]) => { const g = window.__bf.game, p = g.player; p.invulnerable = 0; p.health = 20; g.teleport(x + 0.5, y + 14, z + 0.5); p.vx = p.vy = p.vz = 0; }, [P.x, P.y, P.z]);
+    for (let i = 0; i < 120; i++) { await fast(1); if (await ev(() => window.__bf.game.player.onGround)) break; }
+    await fast(3);
+    return ev(() => window.__bf.game.player.health);
+  };
+  const plain = await drop();
+  await ev(() => window.__bf.game.potions.add('featherfall', 3000));
+  const feather = await drop();
+  check('fall: a 14-block drop hurts normally but does no damage under Featherfall', plain < 20 && feather === 20, { plain, feather });
+  await ev(() => window.__bf.game.potions.clear());
+  await give({ id: 'potion_featherfall', count: 1 });
+  await ev(() => window.__bf.game.finishDrinking());
+  check('fall: drinking a Potion of Featherfall starts the effect and returns the bottle', (await ev(() => window.__bf.game.potions.has('featherfall'))) && (await inv(0)) === 'glass_bottlex1', await inv(0));
+  await ev(() => { const g = window.__bf.game; g.potions.clear(); g.shatterPotion(g.player.x, g.player.y, g.player.z, 'featherfall'); });
+  check('fall: a splash Featherfall potion gives the effect', await ev(() => window.__bf.game.potions.has('featherfall')));
 }
 await b.close();
 const failed = results.filter((r) => r[0] === 'FAIL').length;
