@@ -7,6 +7,7 @@ import { Player, MoveInput, Difficulty } from '../player/Player';
 import { AABB, boxCollides } from '../player/PlayerPhysics';
 import { PlayerInventory, Container, ARMOR_START, OFFHAND } from '../inventory/Inventory';
 import { ItemStack, Slot, makeStack, cloneStack, stacksMatch, BAG_SLOTS } from '../inventory/ItemStack';
+import { type Tune, STEPS, INST_KEYS, MEL_SEMI, BASS_SEMI, DRUM_KEYS, stepTicks, emptyTune, copyTune, tuneOfStack, tuneHasNotes } from '../inventory/tunes';
 import { getItem, itemForBlock, maxStackOf } from '../inventory/ItemRegistry';
 import { ScreenHandler } from '../inventory/ScreenHandler';
 import { canInscribe, runeLevel, runeOffers } from '../inventory/Enchantments';
@@ -37,6 +38,7 @@ import { SpawnerSystem } from './Spawners';
 import { Painting, placePainting } from '../entities/Painting';
 import { Boat, BOAT_HEIGHT, BOAT_WIDTH, BOAT_DRAFT, waterSurfaceAt } from '../entities/Boat';
 import { Bobber, rollCatch } from '../entities/Fishing';
+import { WanderingTrader } from '../entities/WanderingTrader';
 import { Hootlet, HOOTLET_FOOD } from '../entities/Hootlet';
 import { Fireworks } from './Fireworks';
 import { FISH } from '../inventory/fish';
@@ -62,6 +64,7 @@ import { SnowPal } from '../entities/SnowPal';
 import { Sledge, SLEDGE_WIDTH, SLEDGE_HEIGHT } from '../entities/Sledge';
 import { Minecart } from '../entities/Minecart';
 import { UNNAMEABLE, NAME_TAG_MAX } from '../entities/Mob';
+import { PlayerBody } from '../render/PlayerBody';
 import { NAMES } from '../world/names';
 import type { DyeColor } from '../world/dyes';
 import { StarhollowSystem } from './StarhollowSystem';
@@ -244,6 +247,7 @@ export class Game implements EntityHost, PrecipSource {
     this.chunks.greedy = engine.options.greedyMeshing;
     r.scene.add(this.chunks.group);
     r.scene.add(this.entities.group);
+    this.body = new PlayerBody(r.scene);
     this.particles = new Particles(r.scene);
     this.fireworks = new Fireworks({ particles: this.particles, sound: (n, x, y, z, v, pt) => this.sound(n, x, y, z, v, pt) });
     this.precip = new Precipitation(r.scene);
@@ -277,6 +281,7 @@ export class Game implements EntityHost, PrecipSource {
       p.health = s.health; p.food = s.food; p.saturation = s.saturation; p.exhaustion = s.exhaustion;
       p.air = s.air; p.xpLevel = s.xpLevel; p.xpProgress = s.xpProgress; p.xpTotal = s.xpTotal;
       if (s.runeSeed !== undefined) p.runeSeed = s.runeSeed;
+      p.name = typeof s.name === 'string' ? s.name.slice(0, NAME_TAG_MAX) : '';
       p.flying = s.flying && s.gameMode === 'creative';
       p.gameMode = s.gameMode;
       p.dead = s.dead;
@@ -589,7 +594,7 @@ export class Game implements EntityHost, PrecipSource {
       player: {
         x: this.leavingAt?.x ?? p.x, y: this.leavingAt?.y ?? p.y, z: this.leavingAt?.z ?? p.z, yaw: p.yaw, pitch: p.pitch,
         health: p.health, food: p.food, saturation: p.saturation, exhaustion: p.exhaustion, air: p.air,
-        xpLevel: p.xpLevel, xpProgress: p.xpProgress, xpTotal: p.xpTotal, runeSeed: p.runeSeed,
+        xpLevel: p.xpLevel, xpProgress: p.xpProgress, xpTotal: p.xpTotal, runeSeed: p.runeSeed, name: p.name,
         flying: p.flying, gameMode: p.gameMode, dead: p.dead,
         spawn: { x: p.spawnX, y: p.spawnY, z: p.spawnZ },
         bed: p.bed,
@@ -715,6 +720,7 @@ export class Game implements EntityHost, PrecipSource {
       if (be.loot) {
         if (be.loot === 'dungeon') this.progress.grant('dungeon');
         if (be.loot === 'shrine') this.progress.grant('shrine');
+        if (be.loot === 'treasure') { this.progress.grant('treasure'); this.progress.add('treasures_dug'); pushChat('You dug up buried treasure!'); }
         this.fillLoot(be, x, y, z);
         delete be.loot;
       }
@@ -781,6 +787,7 @@ export class Game implements EntityHost, PrecipSource {
     if (!held) return;
     if (this.dim !== OVERWORLD) { pushChat('Maps only work on the surface'); return; }
     const kind = MAP_ITEMS[held.id];
+    if (!held.map && kind === 'treasure' && this.world.genVersion < 8) { pushChat('Treasure is only buried in worlds made in 2.11 or later.'); return; }
     if (!held.map) {
       const p = this.player;
       const t = this.villages.findMapTarget(kind, p.x, p.z, null);
@@ -826,7 +833,7 @@ export class Game implements EntityHost, PrecipSource {
       else if (!t) mh = { label: getItem(held.id).name, text: 'Not drawn yet: right-click to draw it', arrow: null, found: false };
       else {
         const dx = t.x + 0.5 - p.x, dz = t.z + 0.5 - p.z, dist = Math.hypot(dx, dz), dy = t.y - p.y;
-        const label = t.kind === 'village' ? `Village of ${t.name ?? '?'}` : t.kind === 'dungeon' ? 'Dungeon' : 'Ruin';
+        const label = t.kind === 'village' ? `Village of ${t.name ?? '?'}` : t.kind === 'dungeon' ? 'Dungeon' : t.kind === 'treasure' ? 'Buried treasure' : 'Ruin';
         const reached = dist < 5 && Math.abs(dy) < 4;
         if (reached && !t.found) {
           t.found = true;
@@ -845,6 +852,19 @@ export class Game implements EntityHost, PrecipSource {
         const arrow = dist < 2 ? null : Math.round((((p.yaw - Math.atan2(-dx, -dz)) * 180) / Math.PI % 360 + 720) % 360);
         mh = { label, text, arrow, found: !!t.found };
       }
+    }
+    // 2.11: a held Weather Glass forecasts the weather
+    if (held && held.id === 'weather_glass') {
+      const label = 'Weather Glass';
+      const w = this.weather;
+      const mins = Math.max(1, Math.round(w.left / 1200));
+      let text: string;
+      if (this.dim !== OVERWORLD) text = 'The glass is still in this place';
+      else if (!this.rules.doWeatherCycle) text = `${w.kind === 'clear' ? 'Clear' : w.kind === 'rain' ? 'Rain' : 'Storm'}: the weather is held (Weather Cycle is off)`;
+      else if (w.kind === 'clear') text = w.left < 2400 ? `Clear, but the glass is falling: rain or a storm within about ${mins} min` : `Clear and steady for about ${mins} more min`;
+      else if (w.kind === 'rain') text = `Rain, clearing in about ${mins} min`;
+      else text = `Thunderstorm, easing in about ${mins} min`;
+      mh = { label, text, arrow: null, found: false };
     }
     // 2.8.1: a held Spore Compass points at the nearest Spore Isle
     if (held && held.id === 'spore_compass') {
@@ -907,6 +927,7 @@ export class Game implements EntityHost, PrecipSource {
       // a map is drawn as it is sold: to the nearest place this village hasn't mapped yet
       const mapKind = MAP_ITEMS[stack.id];
       if (mapKind) {
+        if (mapKind === 'treasure' && this.world.genVersion < 8) { pushChat(`${v.name} says no treasure is buried in this old world (only worlds made in 2.11 or later).`); break; }
         const plan = v.villageId ? this.villages.plan(v.villageId) : null;
         const target = this.villages.findMapTarget(mapKind, plan?.x ?? v.x, plan?.z ?? v.z, v.villageId);
         if (!target) {
@@ -930,6 +951,7 @@ export class Game implements EntityHost, PrecipSource {
     }
     if (done) {
       this.progress.grant('trade');
+      if (v instanceof WanderingTrader) this.progress.grant('trader');
       this.progress.add('trades', done);
       this.villages.onTrade(v, done);
       this.sound('villager_yes', v.x, v.y + 1.6, v.z, 0.7, 1);
@@ -952,6 +974,7 @@ export class Game implements EntityHost, PrecipSource {
     if (be.loot === 'dungeon') { this.fillDungeonLoot(be, rng); return; }
     if (be.loot === 'shrine') { this.fillShrineLoot(be, rng); return; }
     if (be.loot === 'starfall') { this.fillStarfallLoot(be, rng); return; }
+    if (be.loot === 'treasure') { this.fillTreasureLoot(be, rng); return; }
     const table: [string, number, number, number][] = be.loot === 'village' ? [
       ['bread', 1, 4, 0.7], ['wheat', 2, 8, 0.5], ['wheat_seeds', 2, 6, 0.5], ['carrot', 1, 5, 0.5], ['apple', 1, 3, 0.4],
       ['amber', 1, 3, 0.45], ['torch', 2, 6, 0.4], ['iron_ingot', 1, 2, 0.2], ['stone_hoe', 1, 1, 0.15], ['bone_meal', 2, 6, 0.3],
@@ -960,7 +983,7 @@ export class Game implements EntityHost, PrecipSource {
       ['coal', 2, 8, 0.7], ['iron_ingot', 1, 3, 0.45], ['raw_iron', 1, 4, 0.5], ['apple', 1, 3, 0.5],
       ['torch', 2, 6, 0.5], ['bone', 1, 4, 0.4], ['string', 1, 3, 0.35], ['arrow', 4, 8, 0.3],
       ['leather', 1, 3, 0.3], ['bow', 1, 1, 0.12], ['iron_pickaxe', 1, 1, 0.06], ['stone_sword', 1, 1, 0.2],
-      ['cooked_porkchop', 1, 3, 0.3], ['iron_helmet', 1, 1, 0.08],
+      ['cooked_porkchop', 1, 3, 0.3], ['iron_helmet', 1, 1, 0.08], ['treasure_map', 1, 1, 0.08],
     ];
     for (const [id, a, b, chance] of table) {
       if (rng() > chance) continue;
@@ -968,6 +991,30 @@ export class Game implements EntityHost, PrecipSource {
       if (be.items[slot]) continue;
       be.items[slot] = makeStack(id, a + Math.floor(rng() * (b - a + 1)));
     }
+  }
+
+  /** 2.11 buried treasure: amber, gold-bright gems, runes, a good tool, now and then a spare map. */
+  private fillTreasureLoot(be: ChestEntity, rng: () => number): void {
+    const put = (st: ItemStack) => {
+      for (let tries = 0; tries < 12; tries++) {
+        const slot = Math.floor(rng() * 27);
+        if (be.items[slot]) continue;
+        be.items[slot] = st;
+        return;
+      }
+    };
+    put(makeStack('amber', 6 + Math.floor(rng() * 10)));
+    const table: [string, number, number, number][] = [
+      ['iron_ingot', 2, 6, 0.7], ['rune_shard', 2, 6, 0.6], ['coal', 4, 10, 0.5], ['arrow', 8, 16, 0.4],
+      ['bread', 2, 5, 0.5], ['bone_meal', 3, 8, 0.4], ['potato', 3, 8, 0.4], ['lumen', 1, 3, 0.3], ['feather', 2, 6, 0.4],
+    ];
+    for (const [id, a, b, chance] of table) if (rng() <= chance) put(makeStack(id, a + Math.floor(rng() * (b - a + 1))));
+    const r = rng();
+    if (r < 0.3) put({ ...makeStack('iron_pickaxe'), ench: { [rng() < 0.5 ? 'swift' : 'bounty']: 1 + Math.floor(rng() * 2) } });
+    else if (r < 0.55) put({ ...makeStack('iron_sword'), ench: { keen: 1 + Math.floor(rng() * 2) } });
+    else if (r < 0.75) put({ ...makeStack('bow'), ench: { might: 1 + Math.floor(rng() * 2) } });
+    if (rng() < 0.2) put(makeStack('treasure_map'));
+    if (rng() < 0.12) put(makeStack('moth_wings'));
   }
 
   /** Dungeon chests: food, bones and string from the creatures, iron, a little treasure. */
@@ -1269,6 +1316,7 @@ export class Game implements EntityHost, PrecipSource {
       if (w !== 0) this.select((this.inventory.selected + (w > 0 ? 1 : -1) + 9) % 9);
       if (input.consumePress('KeyQ')) this.dropSelected(input.isDown('ControlLeft') || input.isDown('MetaLeft'));
       if (input.consumePress('KeyF')) this.swapOffhand();
+      if (input.consumePress('KeyV')) this.cycleView();
     }
 
     // ---- movement
@@ -1341,6 +1389,8 @@ export class Game implements EntityHost, PrecipSource {
     this.dayNight.tick(this.rules.doDaylightCycle);
     this.weather.tick(this.rules.doWeatherCycle);
     this.tickWeather();
+    this.tickTrader();
+    this.tickMusic();
     this.entities.mobSpawning = this.rules.doMobSpawning;
     this.entities.tick(this);
     if (this.riding) this.carryRider();
@@ -2144,7 +2194,7 @@ export class Game implements EntityHost, PrecipSource {
       const v = this.targetMob;
       const held = this.inventory.selectedStack;
       const giftable = !!held && GIFT_FOOD[held.id] !== undefined;
-      if (giftable && (p.sneaking || v.isChild || !v.job)) { this.giveGift(v); return; }
+      if (giftable && (p.sneaking || v.isChild || (!v.job && !(v instanceof WanderingTrader)))) { this.giveGift(v); return; }
       if (!p.sneaking) {
         this.hand.swing();
         this.useDelay = 4;
@@ -2152,10 +2202,19 @@ export class Game implements EntityHost, PrecipSource {
         const eyes = v.y + v.height * 0.82;
         if (v.isChild) { this.sound('villager', v.x, eyes, v.z, 0.6, 1.5); pushChat(`${v.name} is too young to trade.`); }
         else if (st.key === 'distrustful' || st.key === 'hostile') { this.sound('villager_no', v.x, eyes, v.z, 0.6, 1); pushChat(`${v.name} won't trade with you. (Your standing in ${this.villages.name(v.villageId)}: ${st.name})`); }
-        else if (v.job && v.trades.length) this.engine.openTrade(v);
+        else if ((v.job || v instanceof WanderingTrader) && v.trades.length) this.engine.openTrade(v);
         else { this.sound('villager_no', v.x, eyes, v.z, 0.6, 1); pushChat(`${v.name} has no job yet. Put a workstation near them.`); }
         return;
       }
+    }
+
+    // 2.11.1: a Name Tag used on nothing in particular names you
+    if (rmbPress && !this.targetMob && this.inventory.selectedStack?.id === 'name_tag' && !(this.target && B.getBlock(this.target.block).interact)) {
+      this.hand.swing();
+      this.useDelay = 4;
+      this.nameTagSelf = true;
+      this.engine.openOverlay('nametag');
+      return;
     }
 
     // ---- functional blocks take priority over item use (bow, food...)
@@ -2355,9 +2414,33 @@ export class Game implements EntityHost, PrecipSource {
 
   /** The creature a Name Tag is being written for (the name-tag screen is open). */
   nameTagFor: Mob | null = null;
+  /** 2.11.1: the Name Tag screen is naming the player, not a creature. */
+  nameTagSelf = false;
+  /** 0 first person, 1 behind you, 2 in front of you (V). */
+  viewMode = 0;
+  private body: PlayerBody;
+  /** The view button (V, or the touch button). */
+  cycleView(): void {
+    this.viewMode = (this.viewMode + 1) % 3;
+    pushChat(['First-person view', 'Behind-you view', 'Front view'][this.viewMode]);
+  }
 
   /** The name-tag screen's Done: names the creature and uses up the tag. */
   applyNameTag(text: string): boolean {
+    if (this.nameTagSelf) {
+      this.nameTagSelf = false;
+      const nm = text.replace(/\s+/g, ' ').trim().slice(0, NAME_TAG_MAX);
+      const sl = this.inventory.selectedStack?.id === 'name_tag' ? this.inventory.selected : -1;
+      if (!nm || (!this.player.creative && sl < 0)) return false;
+      if (!this.player.creative) this.consume(sl);
+      this.player.name = nm;
+      this.sound('pop', this.player.x, this.player.y + 1.8, this.player.z, 0.6, 1.2);
+      this.progress.grant('nametag');
+      this.progress.add('names_given');
+      pushChat(`You are now called ${nm}. Press V (or the view button) to see your name.`);
+      if (this.viewMode === 0) this.viewMode = 2;
+      return true;
+    }
     const m = this.nameTagFor;
     this.nameTagFor = null;
     const p = this.player;
@@ -2429,6 +2512,7 @@ export class Game implements EntityHost, PrecipSource {
     const b = this.breaking;
     if (!b || b.x !== t.x || b.y !== t.y || b.z !== t.z || b.block !== t.block) {
       this.breaking = { x: t.x, y: t.y, z: t.z, block: t.block, progress: 0 };
+      if (t.block === B.NOTE_BLOCK) this.playNote(t.x, t.y, t.z);
     }
     const br = this.breaking!;
     const inc = breakProgressPerTick(t.block, held, p.eyeInWater, p.onGround || p.flying);
@@ -2458,6 +2542,7 @@ export class Game implements EntityHost, PrecipSource {
     const light = this.brightnessAt(x, y + 1, z);
     // containers spill their contents
     const be = this.world.blockEntities.get(posKey(x, y, z));
+    if (be && be.type === 'jukebox' && be.disc) { this.scatter(be.disc, x + 0.5, y + 0.5, z + 0.5); be.disc = null; this.jukes.delete(posKey(x, y, z)); }
     if (be && (be.type === 'chest' || be.type === 'furnace' || be.type === 'brewing')) {
       if (be.type === 'chest' && (be as ChestEntity).loot) this.fillLoot(be as ChestEntity, x, y, z);
       for (const s of be.items) if (s) this.scatter(s, x + 0.5, y + 0.5, z + 0.5);
@@ -2688,6 +2773,9 @@ export class Game implements EntityHost, PrecipSource {
     else if (kind === 'pot') this.usePot(x, y, z);
     else if (kind === 'bell') this.villages.ring(x, y, z);
     else if (kind === 'cake') this.eatCake(x, y, z);
+    else if (kind === 'tunebox') this.openTuneBox(x, y, z);
+    else if (kind === 'jukebox') this.useJukebox(x, y, z);
+    else if (kind === 'note') this.tuneNote(x, y, z);
     else if (kind === 'storm_bell') { if (this.star) this.star.ringBell(x, y, z); else pushChat('The Storm Bell is silent here.'); }
     else this.engine.openBlockScreen(x, y, z, kind);
   }
@@ -3544,6 +3632,180 @@ export class Game implements EntityHost, PrecipSource {
     this.weather.set(kind);
   }
 
+  // ======================================================================= music (2.11)
+  private jukes = new Map<string, MusicPlayer>();
+  private preview: MusicPlayer | null = null;
+  tunePos: { x: number; y: number; z: number } | null = null;
+
+  private static CHROMA = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  /** "A4" for note 21 (a Note Block's 0..24, 12 = middle C). */
+  static noteLabel(n: number): string {
+    const s = n - 12;
+    return Game.CHROMA[((s % 12) + 12) % 12] + (4 + Math.floor(s / 12));
+  }
+  /** Which instrument a Note Block plays, from the block under it. */
+  private noteInstrument(x: number, y: number, z: number): string {
+    const snd = B.getBlock(this.world.getBlock(x, y - 1, z)).sound;
+    return snd === 'wood' ? 'bass' : snd === 'stone' ? 'thud' : snd === 'grass' ? 'harp' : snd === 'glass' ? 'bell' : snd === 'wool' || snd === 'snow' ? 'pipe' : snd === 'sand' ? 'drum:snare' : snd === 'gravel' ? 'drum:hat' : 'marimba';
+  }
+
+  /** Plays a Note Block (its note, and the instrument from the block below). */
+  playNote(x: number, y: number, z: number): void {
+    const be = this.world.blockEntities.get(posKey(x, y, z));
+    const note = be && be.type === 'note' ? be.note : 12;
+    const inst = this.noteInstrument(x, y, z);
+    if (inst.startsWith('drum:')) this.sound(inst, x + 0.5, y + 0.5, z + 0.5, 1);
+    else this.sound('note:' + inst, x + 0.5, y + 0.5, z + 0.5, 1, 2 ** ((note - 12) / 12) * (inst === 'bass' ? 0.5 : 1));
+    this.effect('happy', x + 0.5, y + 1.1, z + 0.5, 1);
+    this.progress.add('notes_played');
+  }
+
+  /** Right-click: the next note up, played. */
+  tuneNote(x: number, y: number, z: number): void {
+    const key = posKey(x, y, z);
+    let be = this.world.blockEntities.get(key);
+    if (!be || be.type !== 'note') { be = { type: 'note', note: 12 }; this.world.blockEntities.set(key, be); }
+    else be.note = (be.note + 1) % 25;
+    this.playNote(x, y, z);
+    this.progress.grant('note');
+    pushChat(`Note: ${Game.noteLabel(be.note)}`);
+  }
+
+  private startMusic(map: Map<string, MusicPlayer>, key: string, x: number, y: number, z: number, tune: Tune): void {
+    map.set(key, { x: x + 0.5, y: y + 1.2, z: z + 0.5, tune, step: 0, acc: 9999 });
+  }
+
+  private playStep(m: MusicPlayer, vol: number): void {
+    const t = m.tune, i = m.step;
+    const mel = t.mel[i], bass = t.bass[i], drum = t.drum[i];
+    if (mel >= 0) this.sound('note:' + INST_KEYS[t.inst], m.x, m.y, m.z, vol, 2 ** (MEL_SEMI[mel] / 12));
+    if (bass >= 0) this.sound('note:bass', m.x, m.y, m.z, vol * 0.9, 2 ** (BASS_SEMI[bass] / 12));
+    if (drum > 0) this.sound('drum:' + DRUM_KEYS[drum], m.x, m.y, m.z, vol * 0.8);
+    if (mel >= 0 && i % 2 === 0) this.effect('happy', m.x + (Math.random() - 0.5) * 0.6, m.y + 0.2, m.z + (Math.random() - 0.5) * 0.6, 1);
+  }
+
+  private advanceMusic(m: MusicPlayer, vol: number): void {
+    m.acc += 1;
+    const st = stepTicks(m.tune);
+    let guard = 4;
+    while (m.acc >= st && guard-- > 0) {
+      m.acc -= st;
+      if (m.acc > st * 4) m.acc = 0;
+      this.playStep(m, vol);
+      m.step = (m.step + 1) % STEPS;
+    }
+  }
+
+  private tickMusic(): void {
+    const p = this.player;
+    if (this.tickCount % 40 === 7) {
+      for (const [k, be] of this.world.blockEntities) {
+        if (be.type !== 'jukebox' || !be.disc || this.jukes.has(k)) continue;
+        const [x, y, z] = k.split(',').map(Number);
+        const tune = tuneOfStack(be.disc);
+        if (tune && Math.hypot(x - p.x, z - p.z) < 28 && this.world.getBlock(x, y, z) === B.JUKEBOX) this.startMusic(this.jukes, k, x, y, z, tune);
+      }
+    }
+    for (const [k, m] of this.jukes) {
+      const be = this.world.blockEntities.get(k);
+      const [x, y, z] = k.split(',').map(Number);
+      if (!be || be.type !== 'jukebox' || !be.disc || this.world.getBlock(x, y, z) !== B.JUKEBOX || Math.hypot(m.x - p.x, m.z - p.z) > 40) { this.jukes.delete(k); continue; }
+      this.advanceMusic(m, 0.9);
+    }
+    if (this.preview) this.advanceMusic(this.preview, 1);
+  }
+
+  /** Right-click a Jukebox: put a disc in (while holding one), or take the disc out. */
+  useJukebox(x: number, y: number, z: number): void {
+    const key = posKey(x, y, z);
+    let be = this.world.blockEntities.get(key);
+    if (!be || be.type !== 'jukebox') { be = { type: 'jukebox', disc: null }; this.world.blockEntities.set(key, be); }
+    if (be.disc) {
+      this.scatter(be.disc, x + 0.5, y + 1.1, z + 0.5);
+      be.disc = null;
+      this.jukes.delete(key);
+      pushChat('Disc taken out');
+      return;
+    }
+    const held = this.inventory.selectedStack;
+    const tune = tuneOfStack(held);
+    if (!held || !tune) { pushChat('Hold a Music Disc and right-click the Jukebox'); return; }
+    be.disc = { ...cloneStack(held)!, count: 1 };
+    if (!this.player.creative) this.consume(this.inventory.selected);
+    this.startMusic(this.jukes, key, x, y, z, tune);
+    pushChat(`Now playing: ${tune.name}`);
+    this.sound('click', x + 0.5, y + 1, z + 0.5, 0.8, 0.8);
+    this.progress.grant('jukebox');
+    this.progress.add('discs_played');
+  }
+
+  // ---- the Tune Box
+  openTuneBox(x: number, y: number, z: number): void {
+    const key = posKey(x, y, z);
+    let be = this.world.blockEntities.get(key);
+    if (!be || be.type !== 'tunebox') { be = { type: 'tunebox', tune: emptyTune() }; this.world.blockEntities.set(key, be); }
+    this.tunePos = { x, y, z };
+    this.engine.openOverlay('tune');
+  }
+  /** The tune being edited. */
+  tuneBoxTune(): Tune | null {
+    const t = this.tunePos;
+    if (!t) return null;
+    const be = this.world.blockEntities.get(posKey(t.x, t.y, t.z));
+    return be && be.type === 'tunebox' ? be.tune : null;
+  }
+  /** Starts or stops the preview of the Tune Box's tune. */
+  previewTune(on: boolean): void {
+    const t = this.tunePos, tune = this.tuneBoxTune();
+    if (!on || !t || !tune) { this.preview = null; return; }
+    this.preview = { x: t.x + 0.5, y: t.y + 1.2, z: t.z + 0.5, tune, step: 0, acc: 9999 };
+  }
+  /** The step the preview is on (-1 = not playing), for the editor's moving highlight. */
+  previewStep(): number {
+    return this.preview ? (this.preview.step + STEPS - 1) % STEPS : -1;
+  }
+  finishTune(): void {
+    this.preview = null;
+    this.tunePos = null;
+  }
+  /** Copies the tune from the disc in your hand into the Tune Box. */
+  tuneFromDisc(): string {
+    const held = this.inventory.selectedStack, tune = tuneOfStack(held), box = this.tuneBoxTune(), pos = this.tunePos;
+    if (!tune || !box || !pos) return 'Hold a Music Disc to copy its tune';
+    this.world.blockEntities.set(posKey(pos.x, pos.y, pos.z), { type: 'tunebox', tune: copyTune(tune) });
+    return `Copied "${tune.name}"`;
+  }
+  /** Records the Tune Box's tune onto a Blank Disc from your hand. */
+  recordDisc(): string {
+    const held = this.inventory.selectedStack, box = this.tuneBoxTune();
+    if (!box) return '';
+    if (!held || held.id !== 'blank_disc') return 'Hold a Blank Disc to record on';
+    if (!tuneHasNotes(box)) return 'Write some notes first';
+    const disc: ItemStack = { id: 'music_disc', count: 1, tune: copyTune(box) };
+    if (!this.player.creative) this.consume(this.inventory.selected);
+    const left = this.giveItem(disc);
+    if (left > 0) this.dropStack({ ...disc, count: left });
+    this.sound('levelup', this.player.x, this.player.y, this.player.z, 0.5, 1.5);
+    this.progress.grant('composer');
+    this.progress.add('discs_recorded');
+    return `Recorded "${box.name}" on a disc`;
+  }
+
+  /** 2.11: a Wandering Trader visits the overworld now and then, in daylight, never in a storm. */
+  private traderWait = 9000 + Math.floor(Math.random() * 9000);
+  private tickTrader(): void {
+    if (this.dim !== OVERWORLD || this.player.dead) return;
+    if (--this.traderWait > 0) return;
+    this.traderWait = 400;      // try again soon if the moment is wrong
+    if (!this.isDay() || this.weather.rain > 0.3 || this.timeOfDayNow() > 9000 || this.screen) return;
+    const t = this.entities.trySpawnTrader(this);
+    if (!t) return;
+    this.traderWait = 24000 + Math.floor(Math.random() * 24000);
+    pushChat('A Wandering Trader has arrived nearby! Look for the orange hood and the big pack.');
+    this.sound('villager', t.x, t.y + 1.6, t.z, 0.8, 1.0);
+  }
+  private timeOfDayNow(): number { return this.dayNight.timeOfDay; }
+
   private tickWeather(): void {
     const w = this.weather, p = this.player;
     if (w.rain < 0.05) return;
@@ -3559,13 +3821,31 @@ export class Game implements EntityHost, PrecipSource {
     // lightning during thunderstorms
     if (w.stormy && Math.random() < 1 / 200) {
       const a = Math.random() * Math.PI * 2, r = 6 + Math.random() * 50;
-      const x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
-      if (this.world.isLoaded(x, z) && this.precipAt(x, z) !== PRECIP_NONE) this.strike(x, z);
+      let x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+      if (this.world.isLoaded(x, z) && this.precipAt(x, z) !== PRECIP_NONE) {
+        const rod = this.findRod(x, z);
+        if (rod) { x = rod.x; z = rod.z; }
+        this.strike(x, z, !!rod);
+      }
     }
   }
 
-  /** A bolt of lightning hits the highest block of column (x, z). */
-  strike(x: number, z: number): void {
+  /** 2.11: a Lightning Rod within 16 blocks of where a bolt was about to land (the rod must be the top block of its column). */
+  findRod(x: number, z: number): { x: number; z: number } | null {
+    let best: { x: number; z: number } | null = null, bd = 1e9;
+    for (let dx = -16; dx <= 16; dx++) for (let dz = -16; dz <= 16; dz++) {
+      const wx = x + dx, wz = z + dz;
+      if (!this.world.isLoaded(wx, wz)) continue;
+      const d = dx * dx + dz * dz;
+      if (d >= bd || d > 256) continue;
+      const top = this.rainTop(wx, wz);
+      if (top >= 0 && this.world.getBlock(wx, top, wz) === B.LIGHTNING_ROD) { bd = d; best = { x: wx, z: wz }; }
+    }
+    return best;
+  }
+
+  /** A bolt of lightning hits the highest block of column (x, z). A Lightning Rod takes the whole bolt harmlessly. */
+  strike(x: number, z: number, onRod = false): void {
     const top = this.rainTop(x, z);
     if (top < 0) return;
     const y = top + 1, cx = x + 0.5, cz = z + 0.5;
@@ -3574,11 +3854,18 @@ export class Game implements EntityHost, PrecipSource {
     this.weather.flash = 1;
     const d = Math.hypot(cx - p.x, cz - p.z);
     this.engine.audio.thunder(Math.max(0.25, 1 - d / 160), Math.min(1.2, d / 100));
-    for (const m of this.entities.mobsNear(cx, y, cz, 3.5)) {
-      if (m.alive && Math.hypot(m.x - cx, m.z - cz) < 3.5) m.hurt(5, this, m.x - cx, m.z - cz, false);
+    if (onRod) {
+      this.effect('star', cx, y + 0.4, cz, 14);
+      this.sound('rodzap', cx, y, cz, 0.9, 1);
+      this.progress.add('rod_strikes');
+      if (d < 40) this.progress.grant('rod');
+    } else {
+      for (const m of this.entities.mobsNear(cx, y, cz, 3.5)) {
+        if (m.alive && Math.hypot(m.x - cx, m.z - cz) < 3.5) m.hurt(5, this, m.x - cx, m.z - cz, false);
+      }
+      if (Math.hypot(p.x - cx, p.z - cz) < 3 && Math.abs(p.y - y) < 4) this.damagePlayer(5, { x: cx, y, z: cz, kind: 'lightning' });
+      this.effect('smoke', cx, y + 0.3, cz, 8);
     }
-    if (Math.hypot(p.x - cx, p.z - cz) < 3 && Math.abs(p.y - y) < 4) this.damagePlayer(5, { x: cx, y, z: cz, kind: 'lightning' });
-    this.effect('smoke', cx, y + 0.3, cz, 8);
     if (d < 32) this.progress.grant('storm');
     this.lastStrike = { x, y, z, tick: this.tickCount };
   }
@@ -3951,6 +4238,22 @@ export class Game implements EntityHost, PrecipSource {
       cam.rotation.z += Math.sin(ph) * bobAmt * 0.3;
       cam.rotation.x += Math.abs(Math.cos(ph - 0.2)) * bobAmt * 0.5;
     }
+    // 2.11.1: third-person views, with your body and its floating name
+    const third = this.viewMode !== 0 && !p.dead && this.sleepTicks === 0;
+    if (third) {
+      const cp = Math.cos(p.pitch), fx = -Math.sin(p.yaw) * cp, fy = Math.sin(p.pitch), fz = -Math.cos(p.yaw) * cp;
+      const ex = px, ey = py + eye, ez = pz;
+      const sgn = this.viewMode === 1 ? -1 : 1;
+      let d = 3.6;
+      for (let t = 0.3; t <= 3.6; t += 0.2) {
+        const bx = Math.floor(ex + fx * t * sgn), by = Math.floor(ey + fy * t * sgn), bz = Math.floor(ez + fz * t * sgn);
+        if (B.IS_SOLID[this.world.getBlock(bx, by, bz)]) { d = Math.max(0.5, t - 0.35); break; }
+      }
+      cam.position.set(ex + fx * d * sgn, ey + fy * d * sgn, ez + fz * d * sgn);
+      if (this.viewMode === 1) cam.rotation.set(p.pitch, p.yaw, 0, 'YXZ');
+      else cam.rotation.set(-p.pitch, p.yaw + Math.PI, 0, 'YXZ');
+    }
+    this.body.update(third, px, py, pz, p.yaw, p.pitch, walk, Math.hypot(p.vx, p.vz), p.name, this.brightnessAt(px, py + 1, pz), p.sneaking);
     this.hurtTilt = Math.max(0, this.hurtTilt - dt * 3);
     cam.rotation.z += Math.sin(this.hurtTilt * Math.PI) * 0.12 * this.hurtTilt;
     if (p.dead) { cam.rotation.z = 0.6; cam.position.y = py + 0.3; }
@@ -4019,7 +4322,7 @@ export class Game implements EntityHost, PrecipSource {
       u.uFogFar.value = far * (1 - 0.12 * wet);
     }
     r.sky.cloudsEnabled = opts.clouds && !starry;
-    r.sky.update(cam.position, this.dayNight.sky, performance.now() / 1000, far);
+    r.sky.update(cam.position, this.dayNight.sky, performance.now() / 1000, far, this.weather.rainbow);
     r.sunLight.position.set(cam.position.x + 30, cam.position.y + 100, cam.position.z + 50);
     r.sunLight.target.position.copy(cam.position);
     r.sunLight.target.updateMatrixWorld();
@@ -4037,7 +4340,7 @@ export class Game implements EntityHost, PrecipSource {
     {
       const kind = this.precipAt(Math.floor(p.x), Math.floor(p.z));
       const sheltered = this.rainTop(Math.floor(p.x), Math.floor(p.z)) > p.eyeY;
-      eng.audio.setWeather(kind === PRECIP_NONE || this.paused ? 0 : this.weather.rain, sheltered, kind === PRECIP_SNOW);
+      eng.audio.setWeather(kind === PRECIP_NONE || this.paused ? 0 : this.weather.rain, sheltered, kind === PRECIP_SNOW, this.paused ? 0 : this.weather.thunder);
     }
     const t = this.target;
     if (t && !p.dead && ui.get().overlay === null) this.outline.show(t.x, t.y, t.z, this.selectionOf(t.block, t.x, t.y, t.z));
@@ -4051,7 +4354,7 @@ export class Game implements EntityHost, PrecipSource {
     this.signs.update(this.world, cam.position, (x, y, z) => this.brightnessAt(x, y, z));
     this.spawnerFigures.update(this.spawners, cam.position, (x, y, z) => this.brightnessAt(x, y, z), this.paused ? 0 : dt);
     const handLight = this.brightnessAt(p.x, p.eyeY, p.z);
-    this.hand.root.visible = this.sleepTicks === 0;   // no hand while lying in bed
+    this.hand.root.visible = this.sleepTicks === 0 && !third;   // no hand while lying in bed
     this.hand.update(a, walk, bobAmt * 2.2, handLight, this.fovCurrent);
     this.drawFishLine(cam, a);
 
@@ -4124,3 +4427,6 @@ export class Game implements EntityHost, PrecipSource {
     return this.world.blockEntities.get(posKey(x, y, z));
   }
 }
+
+/** A tune being played from a place in the world (a Jukebox, or the Tune Box preview). */
+interface MusicPlayer { x: number; y: number; z: number; tune: Tune; step: number; acc: number }

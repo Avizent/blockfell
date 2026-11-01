@@ -598,6 +598,18 @@ export class VillageManager {
       }
       return best;
     }
+    if (kind === 'treasure') {
+      if (gen.version < 8) return null;
+      const tx = Math.floor(fromX / 16), tz = Math.floor(fromZ / 16);
+      for (let r = 0; r <= 18 && !best; r++) {
+        for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+          if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+          const t = gen.treasureAt(tx + dx, tz + dz);
+          if (t) consider({ kind, x: t.x, y: t.y, z: t.z });
+        }
+      }
+      return best;
+    }
     if (kind === 'dungeon' && gen.version < 5) return null;
     const ccx = Math.floor(fromX / 16), ccz = Math.floor(fromZ / 16);
     const maxR = kind === 'dungeon' ? 14 : 24;
