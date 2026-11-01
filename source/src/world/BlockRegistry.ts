@@ -896,6 +896,12 @@ export const SPORE_TUFT = reg('spore_tuft', 'Spore Tuft', {
 }).id;
 /** Spore Lamp: sporecaps sealed in glass; as bright as a Lumen block. */
 export const SPORE_LAMP = reg('spore_lamp', 'Spore Lamp', { tex: 'spore_lamp', lightEmission: 15, hardness: 0.3, sound: 'glass' }).id;
+/** 2.9: Potatoes, a four-stage crop like Carrots. */
+export const POTATOES: number[] = [];
+for (let s = 0; s < 4; s++) {
+  POTATOES.push(reg(`potatoes:${s}`, 'Potatoes', { render: RENDER_CROSS, tex: `potatoes_${s}`, opaque: false, solid: false, cutout: true, lightOpacity: 0, hardness: 0, sound: 'grass', item: 'potato', variantOf: 'potatoes',
+    drops: s === 3 ? [{ item: 'potato', min: 2, max: 4 }] : [{ item: 'potato', min: 1, max: 1 }], selection: [0, 0, 0, 1, (s + 1) * 3 / 16, 1] }).id);
+}
 /** Blocks a Deepgate's ring may be made of. */
 export const GATE_RING = [CINDERSTONE, CINDERSTONE_BRICKS];
 /** 2.2: a Stargate's ring is eight Glimmerstone. */
@@ -977,12 +983,13 @@ export const CROP_MAX = new Int8Array(BLOCK_LIMIT);
 export const RANDOM_TICK = new Uint8Array(BLOCK_LIMIT);
 WHEAT.forEach((id, s) => { CROP_STAGE[id] = s; CROP_MAX[id] = 7; RANDOM_TICK[id] = 1; });
 CARROTS.forEach((id, s) => { CROP_STAGE[id] = s; CROP_MAX[id] = 3; RANDOM_TICK[id] = 1; });
+POTATOES.forEach((id, s) => { CROP_STAGE[id] = s; CROP_MAX[id] = 3; RANDOM_TICK[id] = 1; });
 RANDOM_TICK[FARMLAND] = 1;
 RANDOM_TICK[FARMLAND_MOIST] = 1;
 export function cropStages(id: number): number[] | null {
   const d = byId[id];
   if (!d) return null;
-  return d.variantOf === 'wheat' ? WHEAT : d.variantOf === 'carrots' ? CARROTS : null;
+  return d.variantOf === 'wheat' ? WHEAT : d.variantOf === 'carrots' ? CARROTS : d.variantOf === 'potatoes' ? POTATOES : null;
 }
 export const IS_FARMLAND = (id: number): boolean => id === FARMLAND || id === FARMLAND_MOIST;
 
