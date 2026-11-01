@@ -3,6 +3,7 @@ import { DESTROY_STAGES, LAVA_FRAMES, TEXTURE_NAMES, WATER_FRAMES } from './text
 import { DYE_COLORS, DYE_RGB } from '../world/dyes';
 import { starstone, starstoneBricks, starbloom, stargate, stormBell, stormBellMount, roost, drakeTrophy, drakeTrophyBase } from './starTextures';
 import { brewingStand, brewingBase } from './potionTextures';
+import { potatoes } from './spudTextures';
 import { sporeloamTop, sporeloamSide, sporeStem, sporeStemTop, capTex, capGills, sporeTuft, sporeLamp } from './sporeTextures';
 
 /**
@@ -1610,6 +1611,7 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   m.set('drake_trophy_base', drakeTrophyBase(R('drake_trophy_base')));
   m.set('brewing_stand', brewingStand(R('brewing_stand')));
   m.set('brewing_base', brewingBase(R('brewing_base')));
+  for (let s = 0; s < 4; s++) m.set(`potatoes_${s}`, potatoes(R('potatoes'), s));
   m.set('sporeloam_top', sporeloamTop(R('sporeloam_top')));
   m.set('sporeloam_side', sporeloamSide(R('sporeloam_side')));
   m.set('spore_stem', sporeStem(R('spore_stem')));

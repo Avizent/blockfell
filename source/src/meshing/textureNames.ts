@@ -57,7 +57,7 @@ const base = [
   // 2.5: the Brewing Stand (added last)
   'brewing_stand', 'brewing_base',
   // 2.8: Spore Isle (added last)
-  'sporeloam_top', 'sporeloam_side', 'spore_stem', 'spore_stem_top', 'cap_violet', 'cap_crimson', 'cap_gills', 'spore_tuft', 'spore_lamp',
+  'potatoes_0', 'potatoes_1', 'potatoes_2', 'potatoes_3', 'sporeloam_top', 'sporeloam_side', 'spore_stem', 'spore_stem_top', 'cap_violet', 'cap_crimson', 'cap_gills', 'spore_tuft', 'spore_lamp',
 ];
 
 export const TEXTURE_NAMES: string[] = [
