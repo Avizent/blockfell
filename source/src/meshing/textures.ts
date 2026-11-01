@@ -4,6 +4,8 @@ import { DYE_COLORS, DYE_RGB } from '../world/dyes';
 import { starstone, starstoneBricks, starbloom, stargate, stormBell, stormBellMount, roost, drakeTrophy, drakeTrophyBase } from './starTextures';
 import { brewingStand, brewingBase } from './potionTextures';
 import { potatoes } from './spudTextures';
+import { springPadTop, springPadSide, jarTex, jarLid } from './jarTextures';
+import { FISH } from '../inventory/fish';
 import { sporeloamTop, sporeloamSide, sporeStem, sporeStemTop, capTex, capGills, sporeTuft, sporeLamp } from './sporeTextures';
 
 /**
@@ -1621,6 +1623,12 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   m.set('cap_gills', capGills(R('cap_gills')));
   m.set('spore_tuft', sporeTuft(R('spore_tuft')));
   m.set('spore_lamp', sporeLamp(R('spore_lamp')));
+  // 2.10
+  m.set('spring_pad_top', springPadTop(R('spring_pad_top')));
+  m.set('spring_pad_side', springPadSide(R('spring_pad_side')));
+  m.set('jar_lid', jarLid(R('jar_lid')));
+  m.set('jar_empty', jarTex(R('jar_empty'), null));
+  for (const f of FISH) m.set(`jar_${f.key}`, jarTex(R(`jar_${f.key}`), f));
   // 2.4: rails and party things
   m.set('rail', railStraight(R('rail'), 'rail'));
   m.set('rail_curve', railCurve(R('rail_curve')));

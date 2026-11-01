@@ -58,6 +58,8 @@ const base = [
   'brewing_stand', 'brewing_base',
   // 2.8: Spore Isle (added last)
   'potatoes_0', 'potatoes_1', 'potatoes_2', 'potatoes_3', 'sporeloam_top', 'sporeloam_side', 'spore_stem', 'spore_stem_top', 'cap_violet', 'cap_crimson', 'cap_gills', 'spore_tuft', 'spore_lamp',
+  // 2.10: Spring Pad and Fish Jars (added last)
+  'spring_pad_top', 'spring_pad_side', 'jar_lid', 'jar_empty', 'jar_trout', 'jar_perch', 'jar_sunfin', 'jar_moonfin', 'jar_frostfin', 'jar_glowfin', 'jar_ruby_carp',
 ];
 
 export const TEXTURE_NAMES: string[] = [
