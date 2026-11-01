@@ -840,6 +840,7 @@ export const EGG_COLORS: Record<string, [RGBA, RGBA]> = {
   sporecap: [[150, 96, 200], [226, 214, 190]],
   powderbug: [[79, 90, 70], [240, 138, 42]],
   gloommoth: [[58, 51, 80], [169, 155, 255]],
+  hootlet: [[138, 106, 72], [242, 232, 210]],
 };
 for (const [mob, [a, s]] of Object.entries(EGG_COLORS)) {
   const L: RGBA = [Math.min(255, a[0] + 30), Math.min(255, a[1] + 30), Math.min(255, a[2] + 30)];
@@ -1207,4 +1208,59 @@ SPRITES.sledge = {
     '................',
   ],
   pal: { o: [60, 40, 20], P: [176, 136, 84], L: [140, 104, 60], R: [200, 62, 50], D: [150, 40, 34], H: [222, 206, 160] },
+};
+
+// ---- 2.10: more fish, Moth Silk, Moth Wings, Fireworks, grilled fish (ORIGINAL)
+import { FISH } from '../inventory/fish';
+for (const f of FISH) {
+  if (!f.isNew) continue;
+  fish(`raw_${f.key}`, f.body, f.belly, f.belly, f.fin, null);
+}
+fish('grilled_fish', [150, 104, 56], [204, 148, 88], [230, 204, 150], [130, 86, 46], [120, 80, 44]);
+SPRITES.moth_silk = {
+  map: [
+    '................', '................', '.....oo..oo.....', '....oSSooSSo....', '...oSWSSSSWSo...', '...oSSWSSWSSo...',
+    '....oSSWWSSo....', '....oSWSSWSo....', '...oSSSooSSSo...', '...oSWSo..oSWSo.', '....ooo....ooo..', '................',
+    '................', '................', '................', '................',
+  ],
+  pal: { o: [70, 62, 92], S: [186, 176, 214], W: [240, 236, 252] },
+};
+SPRITES.moth_wings = {
+  map: [
+    '................',
+    '..oo........oo..',
+    '.oWWo......oWWo.',
+    'oWSSWo....oWSSWo',
+    'oWSSSWo..oWSSSWo',
+    'oWSSSSWooWSSSSWo',
+    '.oWSSSSBBSSSSWo.',
+    '.oWSSSSBBSSSSWo.',
+    '..oWSSSBBSSSWo..',
+    '..oWWSSBBSSWWo..',
+    '...oWWSooSWWo...',
+    '....oWWo.oWWo...',
+    '.....ooo..ooo...',
+    '................', '................', '................',
+  ],
+  pal: { o: [76, 62, 96], W: [236, 232, 248], S: [176, 164, 210], B: [96, 78, 70] },
+};
+SPRITES.firework = {
+  map: [
+    '.......Y........',
+    '......YOY.......',
+    '.......Y........',
+    '......oRo.......',
+    '.....oRRRo......',
+    '.....oRWRo......',
+    '.....oRRRo......',
+    '.....oWWWo......',
+    '.....oRRRo......',
+    '.....oRRRo......',
+    '......oSo.......',
+    '......oSo.......',
+    '......oSo.......',
+    '.......o........',
+    '................', '................',
+  ],
+  pal: { o: [54, 24, 24], R: [206, 56, 62], W: [250, 244, 230], S: [140, 100, 56], Y: [255, 224, 90], O: [255, 150, 40] },
 };

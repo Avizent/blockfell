@@ -95,7 +95,7 @@ export type EffectKind = 'poof' | 'smoke' | 'flame' | 'crit' | 'splash' | 'happy
 export class Particles {
   private mesh: THREE.InstancedMesh;
   private items: Particle[] = [];
-  private readonly cap = 600;
+  private readonly cap = 1500;
   private dummy = new THREE.Object3D();
   private color = new THREE.Color();
 
