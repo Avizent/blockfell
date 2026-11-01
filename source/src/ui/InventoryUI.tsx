@@ -6,6 +6,7 @@ import { useStore } from '../core/store';
 import { ui } from './uiStore';
 import { StackView, ItemIcon, Glint } from './widgets';
 import { LEVEL_NAMES, LEVEL_XP, PROFESSION_NAMES } from '../entities/Trades';
+import { WanderingTrader } from '../entities/WanderingTrader';
 import type { ScreenHandler, SlotRef, SlotGroup } from '../inventory/ScreenHandler';
 import type { Slot } from '../inventory/ItemStack';
 import { makeStack } from '../inventory/ItemStack';
@@ -178,6 +179,7 @@ function tooltipLines(s: Slot, def: ItemDef): ReactNode {
   if (def.tool) extra.push(`${def.attack} attack damage`);
   if (def.armor) extra.push(`+${def.armor.points} armour`);
   if (s.color !== undefined) extra.push(dyedLabel(s.color));
+  if (s.tune) extra.push(`\u266a ${s.tune.name} (${s.tune.tempo} bpm)`);
   if (s.id === 'party_bag') {
     const n = (s.bag ?? []).filter((x) => x).length;
     extra.push(n === 0 ? 'Empty - right-click to fill it' : `Holds ${n} ${n === 1 ? 'kind of thing' : 'kinds of things'}`);
@@ -487,10 +489,11 @@ export function TradeScreen() {
   if (!c) return null;
   const g = engine.game!;
   const v = g.tradeWith;
-  if (!v || !v.job) return null;
+  const visitor = v instanceof WanderingTrader;
+  if (!v || (!v.job && !visitor)) return null;
   const ROWS = 7;
   const offers = v.trades;
-  const showLocked = v.level < 4;
+  const showLocked = !visitor && v.level < 4;
   const total = offers.length + (showLocked ? 1 : 0);
   const maxScroll = Math.max(0, total - ROWS);
   const sc = Math.min(scroll, maxScroll);
@@ -529,7 +532,7 @@ export function TradeScreen() {
             return (
               <div key={row} className={'trade-offer' + (ok ? '' : ' disabled') + (hover === i ? ' selected' : '')} style={{ top }}
                 data-testid={`trade-offer-${i}`}
-                title={sold ? 'Sold out: the villager restocks at its workstation' : 'Click to trade (Shift-click: as many as you can)'}
+                title={sold ? visitor ? 'Sold out' : 'Sold out: the villager restocks at its workstation' : 'Click to trade (Shift-click: as many as you can)'}
                 onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
                 onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); if (!recentTouch()) { g.trade(v, i, e.shiftKey); c.refresh(); } }}
                 onPointerUp={(e) => { if (e.pointerType !== 'mouse' && !swipe.current?.moved) { g.trade(v, i, false); c.refresh(); } }}>
@@ -542,10 +545,10 @@ export function TradeScreen() {
             );
           })}
         </div>
-        <div className="label" style={{ position: 'absolute', left: '112rem', top: '5rem', width: '160rem', whiteSpace: 'nowrap', overflow: 'hidden', fontSize: `${v.name.length + LEVEL_NAMES[lvl - 1].length + PROFESSION_NAMES[v.job].length > 24 ? 7 : 8}rem` }} data-testid="trade-title">
-          {v.name}, {LEVEL_NAMES[lvl - 1]} {PROFESSION_NAMES[v.job]}
+        <div className="label" style={{ position: 'absolute', left: '112rem', top: '5rem', width: '160rem', whiteSpace: 'nowrap', overflow: 'hidden', fontSize: `${visitor ? 8 : v.name.length + LEVEL_NAMES[lvl - 1].length + PROFESSION_NAMES[v.job!].length > 24 ? 7 : 8}rem` }} data-testid="trade-title">
+          {visitor ? `${v.name} (${(v as WanderingTrader).title})` : `${v.name}, ${LEVEL_NAMES[lvl - 1]} ${PROFESSION_NAMES[v.job!]}`}
         </div>
-        <div className="trade-xp" style={{ left: '112rem', top: '17rem', width: '100rem' }}><div style={{ width: `${Math.round(Math.max(0, Math.min(1, xpFrac)) * 100)}rem` }} /></div>
+        {!visitor && <div className="trade-xp" style={{ left: '112rem', top: '17rem', width: '100rem' }}><div style={{ width: `${Math.round(Math.max(0, Math.min(1, xpFrac)) * 100)}rem` }} /></div>}
         <div className="label" style={{ position: 'absolute', left: '112rem', top: '27rem', fontSize: '7rem', lineHeight: '10rem', width: '158rem' }}>
           {hov && hovCost ? (
             <>

@@ -257,6 +257,7 @@ function GameControls() {
         }}
         onPointerCancel={(e) => { if (hotbarTouch.current?.id === e.pointerId) { hotbarTouch.current = null; clearTimeout(hotbarTimer.current); } }} />
       <div className="tc-btn tc-pause" data-testid="touch-pause" {...button(() => engine.openOverlay('pause'))}><Icon kind="pause" /></div>
+      <div className="tc-btn tc-view" data-testid="touch-view" {...button(() => engine.game?.cycleView())}>👤</div>
       <div className="tc-btn tc-inv" data-testid="touch-inventory" {...button(() => { if (!engine.game?.player.dead) engine.openInventory(); })}><Icon kind="inventory" /></div>
       <div className={'tc-btn tc-sneak' + (sneak ? ' on' : '')} data-testid="touch-sneak"
         {...button(() => {

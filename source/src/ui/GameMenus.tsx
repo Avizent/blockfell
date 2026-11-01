@@ -207,7 +207,7 @@ export function SignEditor() {
 export function NameTagScreen() {
   const g = engine.game;
   const mob = g?.nameTagFor ?? null;
-  const [name, setName] = useState(mob?.nameTag ?? '');
+  const [name, setName] = useState(mob?.nameTag ?? (engine.game?.nameTagSelf ? engine.game.player.name : ''));
   const field = useRef<HTMLInputElement | null>(null);
   const touch = useStore(ui, (s) => s.touch);
   const gui = useStore(ui, (s) => s.gui);
@@ -217,12 +217,13 @@ export function NameTagScreen() {
     if (g && name.trim()) g.applyNameTag(name);
     engine.closeOverlay();
   };
+  const self = !!g?.nameTagSelf;
   const kind = mob ? mob.spec.name : 'creature';
   return (
     <div className="screen" data-testid="nametag-screen">
       <div className="overlay-dim" />
       <div className="menu-header" style={{ position: 'relative', marginTop: short ? '2rem' : '24rem' }}>
-        <Title>{`Name this ${kind}`}</Title>
+        <Title>{self ? 'Write your name' : `Name this ${kind}`}</Title>
       </div>
       <div className="nametag-card" style={short ? { marginTop: '2rem' } : undefined}>
         <div className="nametag-hole" />
@@ -262,7 +263,7 @@ export function MapScreen() {
   const inside = fx >= 0 && fx <= 1 && fz >= 0 && fz <= 1;
   const cx = Math.max(0, Math.min(1, fx)), cz = Math.max(0, Math.min(1, fz));
   const dist = Math.round(Math.hypot(t.x - p.x, t.z - p.z));
-  const kind = t.kind === 'village' ? `Map to ${t.name ?? 'a village'}` : t.kind === 'dungeon' ? 'Dungeon Map' : 'Ruin Map';
+  const kind = t.kind === 'village' ? `Map to ${t.name ?? 'a village'}` : t.kind === 'dungeon' ? 'Dungeon Map' : t.kind === 'treasure' ? 'Treasure Map' : 'Ruin Map';
   const by = t.kind === 'village' ? '' : t.name ? `Drawn by the Mapmaker of ${t.name}` : 'An explorer map';
   return (
     <div className="screen" data-testid="map-screen">
