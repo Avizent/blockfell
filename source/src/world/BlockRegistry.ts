@@ -1,6 +1,7 @@
 import { textureLayer, WATER_LAYER } from '../meshing/textureNames';
 import { DYE_COLORS, DYE_NAMES, DyeColor, woolKey } from './dyes';
 import { BLOCK_LIMIT } from './constants';
+import { FISH } from '../inventory/fish';
 
 /**
  * Block registry. Block ids are small integers (stored in Uint16Array chunk data;
@@ -901,6 +902,37 @@ export const POTATOES: number[] = [];
 for (let s = 0; s < 4; s++) {
   POTATOES.push(reg(`potatoes:${s}`, 'Potatoes', { render: RENDER_CROSS, tex: `potatoes_${s}`, opaque: false, solid: false, cutout: true, lightOpacity: 0, hardness: 0, sound: 'grass', item: 'potato', variantOf: 'potatoes',
     drops: s === 3 ? [{ item: 'potato', min: 2, max: 4 }] : [{ item: 'potato', min: 1, max: 1 }], selection: [0, 0, 0, 1, (s + 1) * 3 / 16, 1] }).id);
+}
+// ======================================================================
+// Version 2.10 blocks: Spring Pad and Fish Jars. Appended only.
+// ======================================================================
+/** Spring Pad: a springy low pad. Land on it and you bounce (sneak to stop bouncing); no fall damage. */
+export const SPRING_PAD = reg('spring_pad', 'Spring Pad', {
+  tex: 'spring_pad_side', top: 'spring_pad_top', side: 'spring_pad_side', render: RENDER_MODEL, opaque: false, lightOpacity: 0, hardness: 0.4, sound: 'wool',
+  model: [0, 0, 0, 16, 3, 16, 1, 3, 1, 15, 5, 15],
+  modelFaces: [null, ['spring_pad_top', 'spring_pad_top', 'spring_pad_top', 'spring_pad_top', 'spring_pad_top', 'spring_pad_top']],
+  collision: [0, 0, 0, 16, 5, 16],
+}).id;
+/** Fish Jar: empty, and one per kind of fish (right-click with a fish to put it in; right-click again to take it out). */
+export const FISH_JAR_EMPTY = reg('fish_jar', 'Fish Jar', {
+  tex: 'jar_empty', render: RENDER_MODEL, opaque: false, cutout: true, lightOpacity: 0, hardness: 0.3, sound: 'glass',
+  model: [3, 0, 3, 13, 12, 13], collision: [3, 0, 3, 13, 12, 13],
+  modelFaces: [['jar_empty', 'jar_empty', 'jar_lid', 'jar_lid', 'jar_empty', 'jar_empty']],
+}).id;
+/** Jar block id by fish key. */
+export const FISH_JARS: Record<string, number> = {};
+for (const f of FISH) {
+  FISH_JARS[f.key] = reg(`jar:${f.key}`, `Jar of ${f.name}`, {
+    tex: `jar_${f.key}`, render: RENDER_MODEL, opaque: false, cutout: true, lightOpacity: 0, lightEmission: f.glow, hardness: 0.3, sound: 'glass',
+    model: [3, 0, 3, 13, 12, 13], collision: [3, 0, 3, 13, 12, 13], item: 'fish_jar',
+    modelFaces: [Array.from({ length: 6 }, (_, i) => (i === 2 || i === 3 ? 'jar_lid' : `jar_${f.key}`))],
+    drops: [{ item: 'fish_jar', min: 1, max: 1 }, { item: `raw_${f.key}`, min: 1, max: 1 }],
+  }).id;
+}
+/** Which fish is in a jar block (null if not a filled jar). */
+export function fishInJar(id: number): string | null {
+  for (const k in FISH_JARS) if (FISH_JARS[k] === id) return k;
+  return null;
 }
 /** Blocks a Deepgate's ring may be made of. */
 export const GATE_RING = [CINDERSTONE, CINDERSTONE_BRICKS];
