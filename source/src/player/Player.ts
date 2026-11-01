@@ -70,6 +70,8 @@ export class Player {
   xpTotal = 0;
   /** Seed for the Rune Table offers (changes after every inscription). */
   runeSeed = (Math.random() * 0x7fffffff) | 0;
+  /** 2.11.1: the name from a Name Tag used on yourself; floats over you in the third-person views. */
+  name = '';
   fallDistance = 0;
   invulnerable = 0;     // ticks of damage immunity
   /** 2.5: walking speed multiplier (the Swiftness effect sets 1.3). */
