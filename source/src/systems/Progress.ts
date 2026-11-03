@@ -90,6 +90,11 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   { id: 'note', title: 'First Note', description: 'Play a Note Block', icon: 'note_block' },
   { id: 'composer', title: 'Composer', description: 'Record your own tune on a disc', icon: 'music_disc', parent: 'note' },
   { id: 'jukebox', title: 'Disc Jockey', description: 'Play a disc in a Jukebox', icon: 'disc_jig', parent: 'note' },
+  // 2.13: water creatures
+  { id: 'axolotl', title: 'Pond Pal', description: 'Feed an Axolotl a raw fish', icon: 'raw_trout', parent: 'fish' },
+  { id: 'axolotl_ally', title: 'Fighting Fit', description: 'Let an Axolotl finish off a hostile creature for you', icon: 'raw_trout', parent: 'axolotl' },
+  { id: 'ink', title: 'Inky Fingers', description: 'Collect an Ink Sac from a Squid', icon: 'ink_sac', parent: 'fish' },
+  { id: 'guardian', title: 'Deep Sea Duty', description: 'Defeat a Guardian', icon: 'tide_shard', parent: 'kill' },
   { id: 'trader', title: 'Haggler', description: 'Trade with a Wandering Trader', icon: 'treasure_map', parent: 'trade' },
   // 2.8: Spore Isle and the Trident
   { id: 'spore_isle', title: 'Fungus Among Us', description: 'Set foot on Spore Isle', icon: 'spore_tuft', parent: 'boat' },
@@ -131,6 +136,8 @@ export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = 
   ['bounces', 'Spring Pad Bounces', 'count'],
   ['fireworks_launched', 'Fireworks Launched', 'count'],
   ['hootlets_tamed', 'Hootlets Tamed', 'count'],
+  ['guardians_defeated', 'Guardians Defeated', 'count'],
+  ['axolotls_fed', 'Axolotls Fed', 'count'],
   ['treasures_dug', 'Treasures Dug Up', 'count'],
   ['rod_strikes', 'Lightning Rod Strikes', 'count'],
   ['notes_played', 'Notes Played', 'count'],
