@@ -90,6 +90,7 @@ shapeless(['flower_yellow'], 'yellow_dye', 2);
 shapeless(['flower_blue'], 'blue_dye', 2);
 shapeless(['flower_white'], 'white_dye', 2);
 shapeless(['bone_meal'], 'white_dye');
+shapeless(['ink_sac'], 'black_dye');
 shapeless(['coal'], 'black_dye');
 shapeless(['dead_bush'], 'brown_dye');
 // (cactus smelts into green dye)
