@@ -40,6 +40,7 @@ import { Boat, BOAT_HEIGHT, BOAT_WIDTH, BOAT_DRAFT, waterSurfaceAt } from '../en
 import { Bobber, rollCatch } from '../entities/Fishing';
 import { WanderingTrader } from '../entities/WanderingTrader';
 import { Hootlet, HOOTLET_FOOD } from '../entities/Hootlet';
+import { Axolotl, Guardian, isFishItem } from '../entities/Aquatic';
 import { Fireworks } from './Fireworks';
 import { FISH } from '../inventory/fish';
 import { DYE_COLORS } from '../world/dyes';
@@ -335,11 +336,18 @@ export class Game implements EntityHost, PrecipSource {
   effect(kind: EffectKind, x: number, y: number, z: number, count: number): void {
     this.particles.effect(kind, x, y, z, count, UNLIT_EFFECT[kind] ? this.brightnessAt(x, y, z) : 1);
   }
+  /** 2.13: an Axolotl has finished off a hostile creature: a short Mending boost for the player. */
+  axolotlHelped(): void {
+    this.potions.add('mending', 300);
+    this.progress.grant('axolotl_ally');
+    pushChat('The Axolotl finished it off! Mending for 15 seconds.');
+  }
   giveItem(stack: ItemStack): number {
     const left = this.inventory.add(stack);
     const got = stack.count - left;
     if (got > 0) {
       if (stack.id === 'log') this.progress.grant('wood');
+      if (stack.id === 'ink_sac') this.progress.grant('ink');
     }
     return left;
   }
@@ -357,6 +365,7 @@ export class Game implements EntityHost, PrecipSource {
       if (mob) this.villages.onHostileKilled(mob.x, mob.z);   // defending a village earns standing there
     }
     if (type === 'hollowdrake') this.star?.victory();
+    if (mob instanceof Guardian) { this.progress.grant('guardian'); this.progress.add('guardians_defeated'); }
   }
   spawnItem(stack: ItemStack, x: number, y: number, z: number, vel?: [number, number, number]): void {
     this.entities.spawnItem(stack, x, y, z, vel);
@@ -1612,7 +1621,7 @@ export class Game implements EntityHost, PrecipSource {
       fall: 'You hit the ground too hard', mob: 'You were slain by a creature', arrow: 'You were shot by a Bone Archer',
       drown: 'You drowned', starve: 'You starved to death', void: 'You fell out of the world', cactus: 'You were pricked to death',
       lightning: 'You were struck by lightning', hound: 'You were mauled by a pack of Fellhounds',
-      blast: 'You were blown up by a Powderbug', lava: 'You sank into the lava', burn: 'You burned to death', ember: 'You were burned by a Smoulderer\'s ember',
+      beam: 'You were zapped by a Guardian', thorns: 'You were pricked by a Guardian\'s spines', blast: 'You were blown up by a Powderbug', lava: 'You sank into the lava', burn: 'You burned to death', ember: 'You were burned by a Smoulderer\'s ember',
     };
     const score = p.xpTotal;
     if (this.screen) this.closeScreen();
@@ -2394,6 +2403,17 @@ export class Game implements EntityHost, PrecipSource {
         m.toggleSit(this);
         pushChat(m.sitting ? `${who} stays here.` : `${who} flutters after you.`);
       }
+      return true;
+    }
+    if (m instanceof Axolotl) {
+      if (!isFishItem(id)) return false;
+      if (dry) return true;
+      const r = m.feed(this);
+      if (r === 'fed') {
+        if (!p.creative) this.consume(slot);
+        this.progress.grant('axolotl');
+        this.progress.add('axolotls_fed');
+      } else pushChat(`${who} is full.`);
       return true;
     }
     if (m instanceof SnowPal && !p.sneaking) {
