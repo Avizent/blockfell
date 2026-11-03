@@ -135,7 +135,7 @@ if (run('items')) {
     return { has: I.hasItem('spore_compass'), sprite: !!S.SPRITES.spore_compass, craft: (() => { const r = window.__bf.craft([n, 'iron_ingot', n, 'iron_ingot', 'sporecap', 'iron_ingot', n, 'iron_ingot', n]); return r && r.id; })(), i7: !!i7 && Number.isFinite(i7.x), i6: g6.nearestIsle(0, 0), ver: C.GAME_VERSION, stack: I.getItem('spore_compass').maxStack };
   });
   check('items: the Spore Compass exists with a drawn sprite, stacks to 1, and is made from four iron and a Sporecap', t.has && t.sprite && t.craft === 'spore_compass' && t.stack === 1, t);
-  check('compass: generator 7 always finds an isle within range for a normal seed; generator 6 (old worlds) finds none; version is 2.8.1', t.i7 && t.i6 === null && /^2\.(8\.1|9|1[0-2])/.test(t.ver), t);
+  check('compass: generator 7 always finds an isle within range for a normal seed; generator 6 (old worlds) finds none; version is 2.8.1', t.i7 && t.i6 === null && /^2\.(8\.1|9|1\d)/.test(t.ver), t);
 }
 if (run('compass')) {
   await newWorld('Compass Tests', 'ridepics27', true);

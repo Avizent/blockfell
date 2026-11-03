@@ -141,7 +141,7 @@ if (run('items')) {
     };
   });
   check('items: every new item exists; sprites and textures drawn; 3 built-in tunes are 32 steps', t.has && t.sprites && t.tex && t.builtin === 'disc_drift,disc_jig,disc_lullaby' && t.isTunes, t);
-  check('items: version is 2.11', /^2\.1[12]/.test(t.ver), t.ver);
+  check('items: version is 2.11', /^2\.1\d/.test(t.ver), t.ver);
 }
 
 if (run('treasure') || run('weather') || run('music') || run('trader')) {

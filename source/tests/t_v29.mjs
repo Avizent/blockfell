@@ -140,7 +140,7 @@ if (run('items')) {
     };
   });
   check('items: potato, baked potato, milk bucket, Blast Powder, Gloomdust and both spawn eggs exist with drawn sprites', t.has && t.sprites && t.milkStack === 1, t);
-  check('items: version is 2.9.0; a potato plants a 4-stage crop and smelts to a baked potato', /^2\.(9|1[0-2])/.test(t.ver) && t.smelt === 'baked_potato' && t.plant && t.stages === 4 && t.cs === 4, t);
+  check('items: version is 2.9.0; a potato plants a 4-stage crop and smelts to a baked potato', /^2\.(9|1\d)/.test(t.ver) && t.smelt === 'baked_potato' && t.plant && t.stages === 4 && t.cs === 4, t);
   check('items: Gloomdust brews Featherfall and Glowcap still brews Night Eyes; Blast Powder and string make Party Poppers', t.brew === 'potion_featherfall/potion_night_eyes/true' && t.popper === 'party_popperx2', t);
 }
 if (run('potato')) {
