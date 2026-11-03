@@ -120,6 +120,8 @@ const TRADER_RARE: O[] = [
   sell(5, 'raw_ruby_carp', 2, undefined, 2),
   sell(8, 'lantern', 2, undefined, 2),
   buy('raw_glowfin', 3, 3, 4),
+  buy('tide_shard', 2, 4, 3),
+  buy('ink_sac', 6, 2, 3),
 ];
 export function traderTrades(rng: () => number): Trade[] {
   const rare = [...TRADER_RARE].sort(() => rng() - 0.5).slice(0, 4);

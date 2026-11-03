@@ -81,6 +81,10 @@ export const MOB_SPECS: Record<MobType, MobSpec> = {
   trader: { name: 'Wandering Trader', hostile: false, health: 20, speed: 0.25, width: 0.6, height: 1.95, drops: [], xp: [0, 0], sound: 'villager', folk: 'villager' },
   hootlet: { name: 'Hootlet', hostile: false, health: 8, speed: 0.3, width: 0.4, height: 0.6, drops: [['feather', 0, 2]], xp: [1, 3], sound: 'hootlet' },
   gloommoth: { name: 'Gloommoth', hostile: true, health: 10, speed: 0.05, width: 0.8, height: 0.6, drops: [['gloomdust', 0, 2], ['moth_silk', 0, 2]], xp: [5, 5], attack: 3, sound: 'gloommoth', fireproof: false },
+  // 2.13: the water creatures
+  axolotl: { name: 'Axolotl', hostile: false, health: 14, speed: 0.06, width: 0.7, height: 0.5, drops: [], xp: [1, 3], sound: 'axolotl' },
+  squid: { name: 'Squid', hostile: false, health: 10, speed: 0.08, width: 0.9, height: 0.9, drops: [['ink_sac', 1, 3]], xp: [1, 3], sound: 'squid' },
+  guardian: { name: 'Guardian', hostile: true, health: 30, speed: 0.1, width: 0.9, height: 0.9, drops: [['tide_shard', 0, 2], ['raw_trout', 0, 1]], xp: [10, 10], attack: 5, sound: 'guardian' },
   snowpal: { name: NAMES.snowpal, hostile: false, health: 8, speed: 0.2, width: 0.7, height: 1.5, drops: [['snowball', 2, 6]], xp: [0, 0], sound: 'snowpal' },
 };
 

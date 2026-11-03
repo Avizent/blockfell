@@ -8,7 +8,7 @@ import { DYE_RGB, type DyeColor } from '../world/dyes';
  * feet centre is the origin and it faces +Z.
  */
 export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound'
-  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider' | 'sporecap' | 'powderbug' | 'gloommoth' | 'hootlet' | 'trader';
+  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider' | 'sporecap' | 'powderbug' | 'gloommoth' | 'hootlet' | 'trader' | 'axolotl' | 'squid' | 'guardian';
 export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker' | 'trader';
 
 const quad = (name: string, x: number, z: number, h: number, w: number, base: string, paint?: PartDef['paint']): PartDef => ({
@@ -887,6 +887,90 @@ function lavastrider(): PartDef[] {
   ];
 }
 
+
+/** 2.13: Axolotl colours (index saved with the creature). */
+export const AXOLOTL_COATS = ['pink', 'brown', 'gold', 'cyan', 'blue'] as const;
+export type AxolotlCoat = (typeof AXOLOTL_COATS)[number];
+const AX_COLORS: Record<AxolotlCoat, { body: string; belly: string; gill: string; spot: string }> = {
+  pink: { body: '#f4a9c6', belly: '#fbd3e0', gill: '#d8587f', spot: '#e88bb0' },
+  brown: { body: '#9a6a50', belly: '#c49a7d', gill: '#7a3e3a', spot: '#7e523c' },
+  gold: { body: '#f0cf6a', belly: '#fbe9a4', gill: '#e0953a', spot: '#d9b24c' },
+  cyan: { body: '#7cd8e4', belly: '#c4f0f4', gill: '#3c9ec0', spot: '#5cbfd0' },
+  blue: { body: '#5b78ee', belly: '#a7baff', gill: '#2f3fb0', spot: '#4660d0' },
+};
+
+/** 2.13: the Axolotl, a smiling pond salamander with frilly gills. ORIGINAL design. */
+function axolotl(coat: AxolotlCoat): PartDef[] {
+  const c = AX_COLORS[coat];
+  const gill = (name: string, side: number, y: number): PartDef => ({ name, size: [3, 1.6, 0.9], pivot: [0, 0, 0], from: [side > 0 ? 4 : -7, y, 1.8], base: c.gill, parent: 'head', noise: 0.1 });
+  const leg = (name: string, x: number, z: number): PartDef => ({ name, size: [2, 3, 2], pivot: [x, 3, z], from: [-1, -3, -1], base: c.body, noise: 0.08, paint: (p) => p.px('bottom', 0, 0, c.belly, 2, 2) });
+  return [
+    { name: 'body', size: [7, 4, 12], pivot: [0, 4, 0], from: [-3.5, -1, -6], base: c.body, noise: 0.1,
+      paint: (p) => { p.px('top', 1, 2, c.spot, 2, 2); p.px('top', 4, 5, c.spot, 2, 2); p.px('top', 2, 8, c.spot, 2, 1); p.px('bottom', 1, 1, c.belly, 5, 10); } },
+    { name: 'head', size: [8, 5, 5], pivot: [0, 4.5, 6], from: [-4, -1.5, 0], base: c.body, noise: 0.08,
+      paint: (p) => {
+        p.px('front', 1, 2, '#1a1418', 1, 1); p.px('front', 6, 2, '#1a1418', 1, 1);
+        p.px('front', 2, 4, '#b04868', 1, 1); p.px('front', 3, 4, '#b04868', 2, 1); p.px('front', 5, 4, '#b04868', 1, 1);
+        p.px('front', 0, 3, c.spot, 1, 1); p.px('front', 7, 3, c.spot, 1, 1);
+      } },
+    gill('gillL1', 1, 2.2), gill('gillL2', 1, 0.2), gill('gillL3', 1, -1.8),
+    gill('gillR1', -1, 2.2), gill('gillR2', -1, 0.2), gill('gillR3', -1, -1.8),
+    { name: 'tail', size: [1.4, 5, 9], pivot: [0, 4, -6], from: [-0.7, -2.5, -9], base: c.body, noise: 0.08, paint: (p) => p.fill('left', c.belly, 0, 2) },
+    { name: 'fin', size: [0.8, 2, 7], pivot: [0, 0, 0], from: [-0.4, 3, -5], base: c.gill, parent: 'body', noise: 0.1 },
+    leg('legFL', 3.5, 4), leg('legFR', -3.5, 4), leg('legBL', 3.5, -4), leg('legBR', -3.5, -4),
+  ];
+}
+const axCache = new Map<string, BuiltModel>();
+export function axolotlModel(coat: AxolotlCoat): BuiltModel {
+  let m = axCache.get(coat);
+  if (m) return m;
+  m = buildModel(axolotl(coat), 64, 64, 301 + AXOLOTL_COATS.indexOf(coat) * 17);
+  axCache.set(coat, m);
+  return m;
+}
+
+/** 2.13: the Squid, a slate-blue drifter with big eyes and eight trailing arms. ORIGINAL design. */
+function squid(): PartDef[] {
+  const skin = '#3e5a8a', pale = '#a8c2e8', dark = '#2c4268';
+  const arm = (i: number): PartDef => {
+    const a = (i / 8) * Math.PI * 2;
+    return { name: `ten${i}`, size: [1.4, 7, 1.4], pivot: [Math.cos(a) * 2.4, -4.5, Math.sin(a) * 2.4], from: [-0.7, -7, -0.7], base: i % 2 ? dark : skin, parent: 'body', noise: 0.1,
+      paint: (p) => { p.px('front', 0, 3, pale, 1, 1); p.px('front', 0, 6, pale, 1, 1); } };
+  };
+  return [
+    { name: 'body', size: [8, 9, 8], pivot: [0, 12, 0], from: [-4, -4.5, -4], base: skin, noise: 0.12,
+      paint: (p) => {
+        p.px('front', 1, 1, pale, 2, 1); p.px('front', 6, 2, pale, 2, 1); p.px('front', 3, 5, pale, 1, 1); p.px('front', 5, 7, pale, 2, 1);
+        p.px('right', 2, 2, pale, 2, 1); p.px('left', 4, 3, pale, 2, 1); p.px('back', 2, 3, pale, 2, 1); p.px('back', 6, 6, pale, 1, 1);
+        p.px('top', 2, 2, dark, 5, 5);
+      } },
+    { name: 'eyeL', size: [1.2, 3.4, 3.4], pivot: [0, 0, 0], from: [3.9, -1.5, -1.7], base: '#f2f4f8', parent: 'body', paint: (p) => p.px('right', 1, 1, '#14161c', 1, 2) },
+    { name: 'eyeR', size: [1.2, 3.4, 3.4], pivot: [0, 0, 0], from: [-5.1, -1.5, -1.7], base: '#f2f4f8', parent: 'body', paint: (p) => p.px('left', 1, 1, '#14161c', 1, 2) },
+    ...Array.from({ length: 8 }, (_, i) => arm(i)),
+  ];
+}
+
+/** 2.13: the Guardian, a barnacled shell-fish with a ring of coral spines and one amber eye. ORIGINAL design. */
+function guardian(): PartDef[] {
+  const shell = '#4f6a74', tile = '#3f5a66', barn = '#d8e4e0', coral = '#d4574a', amber = '#ffb43a';
+  const spine = (i: number, x: number, y: number, z: number, h = 3): PartDef => ({ name: `sp${i}`, size: [1.2, h, 1.2], pivot: [0, 0, 0], from: [x - 0.6, y, z - 0.6], base: coral, parent: 'shell', noise: 0.1 });
+  return [
+    { name: 'shell', size: [12, 10, 12], pivot: [0, 8, 0], from: [-6, -5, -6], base: shell, noise: 0.12,
+      paint: (p) => {
+        for (const f of ['left', 'right', 'back', 'top'] as const) { p.px(f, 1, 1, tile, 3, 3); p.px(f, 6, 2, tile, 4, 3); p.px(f, 2, 6, tile, 4, 3); p.px(f, 8, 7, barn, 1, 1); p.px(f, 3, 4, barn, 1, 1); p.px(f, 10, 3, barn, 1, 1); }
+        p.px('front', 0, 0, tile, 12, 2); p.px('front', 1, 9, barn, 1, 1); p.px('front', 10, 8, barn, 1, 1); p.px('front', 0, 8, tile, 3, 2); p.px('front', 9, 8, tile, 3, 2);
+        p.px('front', 3, 2, '#22323a', 6, 6); p.px('front', 4, 3, amber, 4, 4); p.px('front', 6, 3, '#2a1408', 1, 4);
+      } },
+    spine(0, -4, 5, -4), spine(1, 0, 5, -4), spine(2, 4, 5, -4), spine(3, -4, 5, 0), spine(4, 4, 5, 0), spine(5, -4, 5, 4), spine(6, 0, 5, 4, 4), spine(7, 4, 5, 4),
+    { name: 'sp8', size: [3, 1.2, 1.2], pivot: [0, 0, 0], from: [6, 0, -0.6], base: coral, parent: 'shell' },
+    { name: 'sp9', size: [3, 1.2, 1.2], pivot: [0, 0, 0], from: [-9, 0, -0.6], base: coral, parent: 'shell' },
+    { name: 'sp10', size: [1.2, 1.2, 3], pivot: [0, 0, 0], from: [-0.6, 0, -9], base: coral, parent: 'shell' },
+    { name: 'tail', size: [4, 4, 6], pivot: [0, 8, -6], from: [-2, -2, -6], base: tile, noise: 0.1, paint: (p) => p.px('top', 1, 1, barn, 1, 1) },
+    { name: 'finL', size: [1, 5, 6], pivot: [6, 8, 0], from: [0, -3, -3], base: '#2f8a8a', noise: 0.1 },
+    { name: 'finR', size: [1, 5, 6], pivot: [-6, 8, 0], from: [-1, -3, -3], base: '#2f8a8a', noise: 0.1 },
+  ];
+}
+
 const cache = new Map<string, BuiltModel>();
 
 export function mobModel(type: MobType): BuiltModel {
@@ -899,10 +983,12 @@ export function mobModel(type: MobType): BuiltModel {
   if (type === 'sheep') return sheepModel('white', false);
   if (type === 'fox') return foxModel('red', false);
   if (type === 'hootlet') return hootletModel(false);
-  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider, sporecap, powderbug, gloommoth }[type as Exclude<MobType, 'villager' | 'trader' | 'hound' | 'hollowdrake' | 'sheep' | 'fox' | 'hootlet'>]();
+  if (type === 'axolotl') return axolotlModel('pink');
+  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider, sporecap, powderbug, gloommoth, squid, guardian }[type as Exclude<MobType, 'villager' | 'trader' | 'hound' | 'hollowdrake' | 'sheep' | 'fox' | 'hootlet' | 'axolotl'>]();
   m = buildModel(parts, 64, 64, type.length * 13);
   if (type === 'ashboar' || type === 'lavastrider') glowSeams(m);
   if (type === 'gloommoth') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.25; }
+  if (type === 'guardian') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.2; }
   if (type === 'drifter') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.45; }
   cache.set(type, m);
   return m;

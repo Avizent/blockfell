@@ -102,6 +102,8 @@ export interface EntityHost {
   // ---- 2.3
   /** The id of the item in the player's hand (animals come to their food). */
   heldItem?(): string | null;
+  /** 2.13: an Axolotl has finished off a hostile creature: the player gets a short Mending boost. */
+  axolotlHelped?(): void;
   /** A snowball thrown by a creature (a Snow Pal). */
   spawnSnowball?(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob): void;
   /** A tamed Fox Cub brought the player a present. */

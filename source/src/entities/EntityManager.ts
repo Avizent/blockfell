@@ -15,6 +15,7 @@ import { StarBolt } from './StarBolt';
 import { Powderbug } from './Powderbug';
 import { Gloommoth } from './Gloommoth';
 import { Hootlet } from './Hootlet';
+import { Axolotl, Squid, Guardian } from './Aquatic';
 import { WanderingTrader } from './WanderingTrader';
 import { FarmAnimal, Sheep, Sporecap, FARM_TYPES, FARM_GROW_TICKS, naturalWool } from './FarmAnimal';
 import { Fox } from './Fox';
@@ -32,7 +33,7 @@ import type { Facing } from '../world/BlockRegistry';
 import type { MobType } from './mobModels';
 import type { ItemStack } from '../inventory/ItemStack';
 import { rayBox } from '../interaction/VoxelRaycaster';
-import { GRASS, IS_FLUID, IS_LAVA, IS_SOLID, AIR, SNOWY_GRASS, SAND, RED_SAND, STONE, SNOW, SPAWN_FLOOR, EMBER_LAMP, SPORELOAM } from '../world/BlockRegistry';
+import { IS_WATER, GRASS, IS_FLUID, IS_LAVA, IS_SOLID, AIR, SNOWY_GRASS, SAND, RED_SAND, STONE, SNOW, SPAWN_FLOOR, EMBER_LAMP, SPORELOAM } from '../world/BlockRegistry';
 import { BIOME_BADLANDS, BIOME_DESERT, BIOME_MOUNTAINS, BIOME_SNOWY, BIOME_TAIGA, BIOME_FOREST, BIOME_BIRCH, BIOME_SPORE } from '../world/BiomeSystem';
 import { UNLOADED } from '../world/World';
 import { WORLD_HEIGHT } from '../world/constants';
@@ -91,7 +92,7 @@ export class EntityManager implements EntityQueries {
 
   spawnMob(type: MobType, x: number, y: number, z: number, host: EntityHost): Mob {
     const m = type === 'villager' ? new Villager(host) : type === 'trader' ? new WanderingTrader(host) : type === 'sentinel' ? new Sentinel(host) : type === 'hound' ? new Hound(host)
-      : type === 'ashboar' ? new Ashboar(host) : type === 'hollowdrake' ? new Hollowdrake(host) : type === 'drifter' ? new Drifter(host) : type === 'powderbug' ? new Powderbug(host) : type === 'gloommoth' ? new Gloommoth(host) : type === 'hootlet' ? new Hootlet(host)
+      : type === 'ashboar' ? new Ashboar(host) : type === 'hollowdrake' ? new Hollowdrake(host) : type === 'drifter' ? new Drifter(host) : type === 'powderbug' ? new Powderbug(host) : type === 'gloommoth' ? new Gloommoth(host) : type === 'hootlet' ? new Hootlet(host) : type === 'axolotl' ? new Axolotl(host) : type === 'squid' ? new Squid(host) : type === 'guardian' ? new Guardian(host)
       : type === 'sheep' ? new Sheep(host) : type === 'sporecap' ? new Sporecap(host) : FARM_TYPES.includes(type) ? new FarmAnimal(type, host)
       : type === 'horse' ? new Horse(host) : type === 'fox' ? new Fox(host) : type === 'snowpal' ? new SnowPal(host) : new Mob(type, host);
     m.setPos(x, y, z);
@@ -357,6 +358,7 @@ export class EntityManager implements EntityQueries {
         break;
       }
     }
+    if (host.world.dim === 'overworld') this.trySpawnWater(host, cap);
     // 2.9: Gloommoths flutter out of the night sky, a couple at a time
     if (cap > 0 && !host.isDay() && host.world.dim === 'overworld' && Math.random() < 0.12) {
       let moths = 0;
@@ -368,6 +370,53 @@ export class EntityManager implements EntityQueries {
         if (host.world.isLoaded(x, z) && host.world.highestSolid(x, z) < y - 2 && host.world.getBlock(x, y, z) === AIR
           && host.world.generator.column(x, z).biome !== BIOME_SPORE) this.spawnMob('gloommoth', x + 0.5, y, z + 0.5, host);
       }
+    }
+  }
+
+  /** A spot in the water 14 to 44 blocks from the player: x, z, the floor, and how deep the water is there. */
+  private findWater(host: EntityHost, minDepth: number): { x: number; z: number; floor: number; depth: number } | null {
+    const p = host.player, a = Math.random() * Math.PI * 2, r = 14 + Math.random() * 30;
+    const x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+    if (!host.world.isLoaded(x, z)) return null;
+    const floor = host.world.highestSolid(x, z);
+    let y = floor + 1, n = 0;
+    while (y < 120 && IS_WATER[host.world.getBlock(x, y, z)] === 1) { y++; n++; }
+    return n >= minDepth && host.world.getBlock(x, y, z) === AIR ? { x, z, floor, depth: n } : null;
+  }
+
+  /** 2.13: Squid in open water, Axolotls in the shallows and lakes, Guardians in the deep sea. */
+  private trySpawnWater(host: EntityHost, hostileCap: number): void {
+    const p = host.player;
+    let squid = 0, axo = 0, guard = 0;
+    for (const e of this.list) {
+      if (!(e instanceof Mob) || Math.hypot(e.x - p.x, e.z - p.z) > 80) continue;
+      if (e instanceof Squid) squid++; else if (e instanceof Axolotl) axo++; else if (e instanceof Guardian) guard++;
+    }
+    const r = Math.random();
+    if (r < 0.22 && squid < 5) {
+      const w = this.findWater(host, 3);
+      if (w) {
+        const n = 1 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < n; i++) this.spawnMob('squid', w.x + 0.5 + (Math.random() - 0.5) * 2, w.floor + 1.5 + Math.random() * Math.max(0.5, w.depth - 2.5), w.z + 0.5 + (Math.random() - 0.5) * 2, host);
+      }
+    } else if (r < 0.34 && axo < 3) {
+      const w = this.findWater(host, 1);
+      if (w && w.depth <= 8) {
+        const c = Math.random() * 100;
+        const m = this.spawnMob('axolotl', w.x + 0.5, w.floor + 1.05, w.z + 0.5, host) as Axolotl;
+        m.setCoat(c < 30 ? 'pink' : c < 60 ? 'brown' : c < 85 ? 'gold' : c < 99 ? 'cyan' : 'blue');
+      }
+    } else if (r < 0.4 && hostileCap > 0 && guard < (host.difficulty === 'hard' ? 3 : 2)) {
+      const w = this.findWater(host, 7);
+      // Spore Isle is a peaceful place: no Guardians in the sea around it (checked in a ring round the spot and round the player)
+      const sporey = (cx: number, cz: number): boolean => {
+        for (const rr of [0, 20, 40]) for (let k = 0; k < (rr ? 8 : 1); k++) {
+          const a2 = (k / 8) * Math.PI * 2;
+          if (host.world.generator.column(Math.floor(cx + Math.cos(a2) * rr), Math.floor(cz + Math.sin(a2) * rr)).biome === BIOME_SPORE) return true;
+        }
+        return false;
+      };
+      if (w && !sporey(w.x, w.z) && !sporey(p.x, p.z)) this.spawnMob('guardian', w.x + 0.5, w.floor + 2 + Math.random() * Math.max(0.5, w.depth - 5), w.z + 0.5, host);
     }
   }
 
@@ -549,6 +598,8 @@ export class EntityManager implements EntityQueries {
         // 2.3
         if (m instanceof FarmAnimal && d.f && typeof d.f === 'object') m.restore(d.f as Record<string, unknown>);
         if (m instanceof Fox && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);
+        if (m instanceof Hootlet && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);   // (2.13: tamed Hootlets were not being restored)
+        if (m instanceof Axolotl && typeof d.ax === 'number') m.setCoat(d.ax);
         if (m instanceof SnowPal && d.sp && typeof d.sp === 'object') m.restore(d.sp as Record<string, unknown>);
         if (d.sd === 1) { m.saddled = true; m.persistent = true; }
         if (m instanceof Horse && typeof d.cv === 'number') m.setCoat(d.cv);
