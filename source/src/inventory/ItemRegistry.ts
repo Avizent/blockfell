@@ -330,7 +330,7 @@ const MOBS: [string, string][] = [
   ['villager', 'Villager'], ['sentinel', 'Sentinel'], ['hound', 'Fellhound'],
   ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'], ['ashboar', 'Ashboar'], ['drifter', 'Drifter'],
   ['fox', NAMES.fox], ['snowpal', NAMES.snowpal], ['horse', 'Horse'], ['lavastrider', 'Lavastrider'], ['sporecap', 'Sporecap'],
-  ['powderbug', 'Powderbug'], ['gloommoth', 'Gloommoth'], ['hootlet', 'Hootlet'],
+  ['powderbug', 'Powderbug'], ['gloommoth', 'Gloommoth'], ['hootlet', 'Hootlet'], ['axolotl', 'Axolotl'], ['squid', 'Squid'], ['guardian', 'Guardian'],
 ];
 for (const [mob, name] of MOBS) {
   add({ id: `spawn_${mob}`, name: `${name} Spawn Egg`, kind: 'spawn', category: 'spawn', spawn: mob });
@@ -340,6 +340,10 @@ for (const [mob, name] of MOBS) {
 add({ id: 'milk_bucket', name: 'Milk Bucket', kind: 'item', maxStack: 1, category: 'tools' });
 add({ id: 'blast_powder', name: 'Blast Powder', category: 'ingredients' });
 add({ id: 'gloomdust', name: 'Gloomdust', category: 'ingredients' });
+
+// ---- 2.13: water creatures (appended last)
+add({ id: 'ink_sac', name: 'Ink Sac', category: 'ingredients' });
+add({ id: 'tide_shard', name: 'Tide Shard', category: 'ingredients' });
 
 export const ITEMS: ReadonlyArray<ItemDef> = items;
 

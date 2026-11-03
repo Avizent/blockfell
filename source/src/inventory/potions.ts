@@ -31,7 +31,7 @@ export const EFFECTS: EffectDef[] = [
   { id: 'might', name: 'Might', potion: 'Potion of Might', splash: 'Splash Potion of Might', rgb: [210, 70, 60], duration: 3600, ingredient: 'bone', blurb: 'Your blows hit 1.5 hearts harder.' },
   { id: 'mending', name: 'Mending', potion: 'Potion of Mending', splash: 'Splash Potion of Mending', rgb: [255, 120, 170], duration: 900, ingredient: 'starbloom', blurb: 'Heal half a heart every two seconds.' },
   { id: 'night_eyes', name: 'Night Eyes', potion: 'Potion of Night Eyes', splash: 'Splash Potion of Night Eyes', rgb: [150, 110, 230], duration: 4800, ingredient: 'glowcap', blurb: 'See in the dark.' },
-  { id: 'deep_breath', name: 'Deep Breath', potion: 'Potion of Deep Breath', splash: 'Splash Potion of Deep Breath', rgb: [60, 130, 240], duration: 4800, ingredient: 'drift_silk', blurb: 'Breathe under water without running out of air.' },
+  { id: 'deep_breath', name: 'Deep Breath', potion: 'Potion of Deep Breath', splash: 'Splash Potion of Deep Breath', rgb: [60, 130, 240], duration: 4800, ingredient: 'drift_silk', alt: 'tide_shard', blurb: 'Breathe under water without running out of air.' },
   { id: 'emberward', name: 'Emberward', potion: 'Potion of Emberward', splash: 'Splash Potion of Emberward', rgb: [255, 150, 40], duration: 4800, ingredient: 'ember', blurb: 'Fire and lava cannot hurt you.' },
   { id: 'featherfall', name: 'Featherfall', potion: 'Potion of Featherfall', splash: 'Splash Potion of Featherfall', rgb: [205, 232, 255], duration: 4800, ingredient: 'gloomdust', blurb: 'Fall from any height without being hurt.' },
 ];
