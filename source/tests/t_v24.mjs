@@ -80,6 +80,7 @@ const pad = (r = 7, floor = 'grass') => ev(([r, floor]) => {
   return { x, y, z };
 }, [r, floor]);
 const spawn = (t, x, y, z) => ev(([t, x, y, z]) => { const g = window.__bf.game; return g.entities.spawnMob(t, x, y, z, g).id; }, [t, x, y, z]);
+const spawnFrozen = (t, x, y, z) => ev(([t, x, y, z]) => { const g = window.__bf.game; const m = g.entities.spawnMob(t, x, y, z, g); m.tick = () => {}; return m.id; }, [t, x, y, z]);   // frozen in the same breath, so a shy Fox Cub cannot bolt first
 const mob = (id) => ev((id) => {
   const m = window.__bf.game.entities.list.find((e) => e.id === id);
   if (!m) return null;
@@ -358,8 +359,7 @@ if (run('gift')) {
   await ev((id) => { window.__bf.game.entities.list.find((e) => e.id === id).removed = true; }, v);
   await ev(() => window.__bf.ui.set({ chat: [] }));
   await withRandom(0.1);
-  const fx = await spawn('fox', P.x + 0.5, P.y, P.z - 2.5);
-  await freeze(fx);
+  const fx = await spawnFrozen('fox', P.x + 0.5, P.y, P.z - 2.5);
   await fillBag([{ id: 'raw_trout', count: 2 }, { id: 'apple', count: 1 }]);
   await aim(P.x + 0.5, P.y + 0.5, P.z - 2.5); await rclick();
   const f = await mob(fx);
@@ -367,8 +367,7 @@ if (run('gift')) {
   check('gift: a Fox Cub eats the fish from the bag (and is tamed), the bag stays with you holding what it did not want',
     f.tamed === true && Array.isArray(bagLeft) && bagLeft.includes('applex1') && !bagLeft.includes('raw_troutx2'), { f, bagLeft });
   // hound
-  const hd = await spawn('hound', P.x + 1.5, P.y, P.z - 1.5);
-  await freeze(hd);
+  const hd = await spawnFrozen('hound', P.x + 1.5, P.y, P.z - 1.5);
   await fillBag([{ id: 'raw_beef', count: 2 }]);
   await aim(P.x + 1.5, P.y + 0.5, P.z - 1.5); await rclick();
   const h = await mob(hd);
