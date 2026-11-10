@@ -408,6 +408,8 @@ blockItem('lightning_rod', 'functional');
 blockItem('tune_box', 'functional');
 blockItem('jukebox', 'functional');
 blockItem('note_block', 'functional');
+// ---- 2.14
+blockItem('powder_snow', 'natural');
 add({ id: 'weather_glass', name: 'Weather Glass', maxStack: 1, category: 'tools' });
 add({ id: 'blank_disc', name: 'Blank Disc', maxStack: 16, category: 'tools' });
 add({ id: 'music_disc', name: 'Music Disc', maxStack: 1, category: 'tools' });
