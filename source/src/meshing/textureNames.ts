@@ -63,6 +63,8 @@ const base = [
   'rod_side', 'rod_tip', 'tunebox_top', 'tunebox_side', 'jukebox_top', 'jukebox_side', 'note_block',
   // 2.14: Powder Snow (added last)
   'powder_snow',
+  // 2.15: Cobweb (added last)
+  'cobweb',
 ];
 
 export const TEXTURE_NAMES: string[] = [

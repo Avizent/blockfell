@@ -713,6 +713,19 @@ function snow(rng: () => number): PixelTex {
   return t;
 }
 
+/** 2.15: Cobweb: fine pale threads across the tile, diagonals and a few rings, mostly see-through. */
+function cobweb(rng: () => number): PixelTex {
+  const t = clear(new PixelTex());
+  const thread = (x: number, y: number) => { const v = 214 + Math.floor(rng() * 30); t.set(x, y, [v, v, v + 4], 235); };
+  for (let i = 0; i < 16; i++) { thread(i, i); thread(15 - i, i); thread(i, 7); thread(8, i); }
+  for (const r of [3, 6]) for (let a = 0; a < 40; a++) {
+    const ang = (a / 40) * Math.PI * 2;
+    const x = Math.round(7.5 + Math.cos(ang) * r), y = Math.round(7.5 + Math.sin(ang) * r);
+    if (rng() < 0.8) thread(x, y);
+  }
+  return t;
+}
+
 /** 2.14: Powder Snow: fluffier and a touch bluer than a Snow Block, with soft pale dimples, so a sharp eye can spot a pit. */
 function powderSnow(rng: () => number): PixelTex {
   const t = noisy([226, 236, 250], rng, 0.03, 4, 0.07);
@@ -1530,6 +1543,7 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   m.set('sandstone_bottom', sandstone(R('ss_b'), 'bottom'));
   m.set('snow', snow(R('snow')));
   m.set('powder_snow', powderSnow(R('powder_snow')));
+  m.set('cobweb', cobweb(R('cobweb')));
   m.set('furnace_front', furnaceFront(R('ff'), false));
   m.set('furnace_front_lit', furnaceFront(R('ff'), true));
   m.set('furnace_side', smoothStone(R('fs'), true));
