@@ -167,7 +167,7 @@ if (run('treasure')) {
     const t = g.villages.findMapTarget('treasure', g.player.x, g.player.z, null);
     return { t, ver: g.world.genVersion };
   });
-  check('treasure: a new world is version 8 and has buried treasure nearby', tg.ver === 8 && !!tg.t && tg.t.kind === 'treasure', tg);
+  check('treasure: a new world is version 8 or newer and has buried treasure nearby', tg.ver >= 8 && !!tg.t && tg.t.kind === 'treasure', tg);
   // go there
   await ev((t) => { const g = window.__bf.game; g.player.flying = true; g.teleport(t.x + 0.5, t.y + 8, t.z + 0.5); }, tg.t);
   await settle();

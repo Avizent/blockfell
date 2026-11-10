@@ -172,7 +172,7 @@ if (run('items')) {
       alt: Pt.EFFECTS.find((e) => e.id === 'deep_breath').alt,
     };
   });
-  check('items: version 2.13.0, Ink Sac, Tide Shard, three spawn eggs, sprites, specs', t.ver === '2.13.0' && t.has && t.sprites && t.specs && t.hostile, t);
+  check('items: version 2.13.0, Ink Sac, Tide Shard, three spawn eggs, sprites, specs', /^2\.1[34]\.0$/.test(t.ver) && t.has && t.sprites && t.specs && t.hostile, t);
   check('items: Squid drops Ink Sacs, Guardian drops Tide Shards, four advancements, Tide Shard brews Deep Breath', /ink_sac/.test(t.drops) && /tide_shard/.test(t.drops) && t.adv && t.alt === 'tide_shard', t);
 }
 
