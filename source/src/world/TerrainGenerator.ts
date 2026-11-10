@@ -4,6 +4,7 @@ import { CHUNK_SIZE, CHUNK_VOLUME, SEA_LEVEL, WORLD_HEIGHT, localIndex } from '.
 import * as B from './BlockRegistry';
 import { VillagePlanner } from './Villages';
 import { placeDungeon, placeLavaLake } from './Dungeons';
+import { placeMine } from './Mines';
 import type { DimensionGenerator } from './generators';
 import {
   BIOMES, BIOME_BADLANDS, BIOME_BEACH, BIOME_BIRCH, BIOME_DESERT, BIOME_FOREST, BIOME_MOUNTAINS, BIOME_OCEAN, BIOME_PLAINS,
@@ -12,7 +13,7 @@ import {
 
 /** Newest terrain version. Worlds remember theirs so saved landscapes never change. */
 /** (5 = 1.7 lava and dungeons; 6 = 1.8 a Village Bell on the well and a Mapmaker in new villages.) */
-export const GEN_VERSION = 9;   // 9 = 2.14 Powder Snow pits; 8 = 2.11 buried treasure
+export const GEN_VERSION = 10;   // 10 = 2.15 mineshafts; 9 = 2.14 Powder Snow pits; 8 = 2.11 buried treasure
 
 export interface GenOptions {
   structures: boolean;
@@ -33,7 +34,7 @@ export interface ColumnInfo {
 /** A generated structure that owns a container (chest) whose loot is created lazily. */
 export interface GeneratedContainer {
   x: number; y: number; z: number;
-  loot: 'ruin' | 'village' | 'dungeon' | 'shrine' | 'starfall' | 'treasure';
+  loot: 'ruin' | 'village' | 'dungeon' | 'shrine' | 'starfall' | 'treasure' | 'mine';
 }
 
 /** A Monster Cage placed by generation and the creature it makes. */
@@ -609,6 +610,7 @@ export class TerrainGenerator implements DimensionGenerator {
       for (const c of cols) minSurface = Math.min(minSurface, c.height);
       placeLavaLake(this.seed, cx, cz, blocks, minSurface);
       if (this.opts.structures) placeDungeon(this.seed, cx, cz, blocks, minSurface, containers, spawners);
+      if (this.opts.structures && this.version >= 10) placeMine(this.seed, cx, cz, blocks, minSurface, containers, spawners);
     }
     this.placeTrees(cx, cz, blocks);
     this.placePlants(cx, cz, blocks, cols);

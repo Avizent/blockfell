@@ -965,6 +965,12 @@ export const POWDER_SNOW = reg('powder_snow', 'Powder Snow', {
   tex: 'powder_snow', opaque: false, solid: false, cutout: true, cullSame: true, lightOpacity: 2, hardness: 0.25, tool: 'shovel', sound: 'snow',
 }).id;
 /** Blocks a Deepgate's ring may be made of. */
+/** Cobweb (2.15): a sticky mesh found in old mines. Walk into it and you crawl; cut it with a sword or shears for String. */
+export const COBWEB = reg('cobweb', 'Cobweb', {
+  render: RENDER_CROSS, tex: 'cobweb', opaque: false, solid: false, cutout: true, lightOpacity: 0, hardness: 0.6,
+  tool: 'sword', sound: 'wool', drops: [{ item: 'string', min: 1, max: 1 }], item: 'cobweb',
+  selection: [0, 0, 0, 1, 1, 1],
+}).id;
 export const GATE_RING = [CINDERSTONE, CINDERSTONE_BRICKS];
 /** 2.2: a Stargate's ring is eight Glimmerstone. */
 export const STAR_RING = [GLIMMERSTONE];
