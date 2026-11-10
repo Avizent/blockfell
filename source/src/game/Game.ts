@@ -188,6 +188,8 @@ export class Game implements EntityHost, PrecipSource {
   private hudCache = '';
   private lastSelected = -1;
   private lastSelectedId = '';
+  /** 2.14: ticks spent inside Powder Snow this time (0 = not in it). */
+  private powderEntered = 0;
   private fovCurrent = 1;
   private hurtTilt = 0;
   private wasNight = false;
@@ -461,7 +463,7 @@ export class Game implements EntityHost, PrecipSource {
     if (p.creative || p.dead || p.invulnerable > 0 || amount <= 0) return;
     if ((source.kind === 'lava' || source.kind === 'burn' || source.kind === 'ember') && this.potions.has('emberward')) return;
     let dmg = amount;
-    if (source.kind !== 'fall' && source.kind !== 'drown' && source.kind !== 'starve' && source.kind !== 'burn') {
+    if (source.kind !== 'fall' && source.kind !== 'drown' && source.kind !== 'starve' && source.kind !== 'burn' && source.kind !== 'freeze') {
       const armor = this.inventory.armorPoints();
       dmg *= 1 - Math.min(20, armor) / 25;
       if (armor > 0) for (let i = 0; i < 4; i++) {
@@ -1541,6 +1543,7 @@ export class Game implements EntityHost, PrecipSource {
     const p = this.player;
     if (p.creative) { p.air = 300; p.fireTicks = 0; return; }
     this.tickFire();
+    this.tickFreeze();
     // cactus spines
     if (this.tickCount % 10 === 0) {
       const b = p.box, e = 0.02;
@@ -1610,6 +1613,46 @@ export class Game implements EntityHost, PrecipSource {
     }
   }
 
+  /** 2.14: are Leather Boots worn (and not worn out)? They let you walk on Powder Snow. */
+  wearingLeatherBoots(): boolean {
+    const b = this.inventory.get(ARMOR_START + 3);
+    return !!b && b.id === 'leather_boots' && (b.damage ?? 0) < (getItem(b.id).durability ?? 1) - 1;
+  }
+
+  /** 2.14: any worn leather piece keeps the cold out. */
+  wearingLeather(): boolean {
+    for (let i = 0; i < 4; i++) {
+      const s = this.inventory.get(ARMOR_START + i);
+      if (s && s.id.startsWith('leather_')) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Powder Snow: standing in it freezes you, 140 ticks to frozen solid, then half a heart every two
+   * seconds (armour doesn't help). Any leather armour piece keeps you warm. You thaw twice as fast as you freeze.
+   */
+  private tickFreeze(): void {
+    const p = this.player;
+    p.powderWalker = this.wearingLeatherBoots() && !this.riding;
+    const inside = (p.inPowder || p.eyeInPowder) && !this.riding;
+    if (inside) {
+      if (this.powderEntered === 0) this.progress.grant('powder');
+      this.powderEntered++;
+      if (this.powderEntered % 20 === 0) this.progress.add('powder_seconds');
+    } else this.powderEntered = 0;
+    // standing on it in Leather Boots
+    if (!inside && p.powderWalker && p.onGround && this.tickCount % 10 === 0) {
+      const w = this.world;
+      if (w.getBlock(Math.floor(p.x), Math.floor(p.y + 0.05) - 1, Math.floor(p.z)) === B.POWDER_SNOW) this.progress.grant('powder_boots');
+    }
+    if (inside && !this.wearingLeather()) {
+      if (p.freeze < 140) p.freeze++;
+      if (p.freeze === 140) this.progress.grant('frozen');
+      if (p.freeze >= 140 && this.tickCount % 40 === 0) this.damagePlayer(1, { x: p.x, y: p.y, z: p.z, kind: 'freeze' });
+    } else if (p.freeze > 0) p.freeze = Math.max(0, p.freeze - 2);
+  }
+
   private die(kind: string): void {
     const p = this.player;
     p.dead = true;
@@ -1621,7 +1664,7 @@ export class Game implements EntityHost, PrecipSource {
       fall: 'You hit the ground too hard', mob: 'You were slain by a creature', arrow: 'You were shot by a Bone Archer',
       drown: 'You drowned', starve: 'You starved to death', void: 'You fell out of the world', cactus: 'You were pricked to death',
       lightning: 'You were struck by lightning', hound: 'You were mauled by a pack of Fellhounds',
-      beam: 'You were zapped by a Guardian', thorns: 'You were pricked by a Guardian\'s spines', blast: 'You were blown up by a Powderbug', lava: 'You sank into the lava', burn: 'You burned to death', ember: 'You were burned by a Smoulderer\'s ember',
+      freeze: 'You froze to death in Powder Snow', beam: 'You were zapped by a Guardian', thorns: 'You were pricked by a Guardian\'s spines', blast: 'You were blown up by a Powderbug', lava: 'You sank into the lava', burn: 'You burned to death', ember: 'You were burned by a Smoulderer\'s ember',
     };
     const score = p.xpTotal;
     if (this.screen) this.closeScreen();
@@ -4401,6 +4444,7 @@ export class Game implements EntityHost, PrecipSource {
       air: p.air, selected: this.inventory.selected, creative: p.creative,
       hurtTick: p.invulnerable > 0 && p.hurtTime > 0 ? p.hurtTime : 0,
       regenTick: 0, underwater: p.eyeInWater, offhand: !!this.inventory.get(OFFHAND),
+      freeze: Math.round(p.freeze / 140 * 20) / 20, inPowderEye: p.eyeInPowder,
       inLava: p.eyeInLava, burning: p.fireTicks > 0 && !p.creative && !p.dead,
       gate: this.gateTicks > 0 ? Math.round(Math.min(1, this.gateTicks / this.gateTime()) * 20) / 20 : 0,
       gateStar: this.gateStar,
