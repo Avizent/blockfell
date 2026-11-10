@@ -10,7 +10,7 @@ import { mulberry32 } from '../core/rng';
  * generated from a per-player "rune seed", so looking at the same item again
  * shows the same offers; the seed changes after every inscription.
  */
-export type RuneId = 'swift' | 'sturdy' | 'keen' | 'warding' | 'soft_landing' | 'bounty' | 'might' | 'plunder';
+export type RuneId = 'swift' | 'sturdy' | 'keen' | 'warding' | 'soft_landing' | 'bounty' | 'might' | 'plunder' | 'flame' | 'thorns' | 'lure';
 
 export interface RuneDef {
   id: RuneId;
@@ -28,6 +28,9 @@ export const RUNES: Record<RuneId, RuneDef> = {
   bounty: { id: 'bounty', name: 'Bounty', max: 3, describe: (l) => `Ores may drop up to ${l + 1}x as much` },
   might: { id: 'might', name: 'Might', max: 3, describe: (l) => `+${25 * (l + 1)}% arrow damage` },
   plunder: { id: 'plunder', name: 'Plunder', max: 3, describe: (l) => `Creatures drop up to ${l} extra` },
+  flame: { id: 'flame', name: 'Flame Edge', max: 2, describe: (l) => `Sets creatures alight for ${l * 3} seconds` },
+  thorns: { id: 'thorns', name: 'Thorns', max: 3, describe: (l) => `${l * 15}% chance to hurt whatever hits you` },
+  lure: { id: 'lure', name: 'Lure', max: 3, describe: (l) => `Fish bite ${l * 20}% sooner` },
 };
 
 const NUMERALS = ['', 'I', 'II', 'III'];
@@ -41,15 +44,19 @@ export function runesFor(itemId: string): RuneId[] {
   if (d.tool) {
     switch (d.tool.type) {
       case 'pickaxe': return ['swift', 'sturdy', 'bounty'];
-      case 'axe': return ['swift', 'sturdy', 'keen'];
+      case 'axe': return ['swift', 'sturdy', 'keen', 'flame'];
       case 'shovel': return ['swift', 'sturdy'];
       case 'hoe': return ['sturdy'];
-      case 'sword': case 'spear': return ['keen', 'sturdy', 'plunder'];
+      case 'sword': case 'spear': return ['keen', 'sturdy', 'plunder', 'flame'];
     }
   }
   if (d.kind === 'bow' || d.kind === 'crossbow') return ['might', 'sturdy'];
-  if (d.kind === 'rod') return ['sturdy'];
-  if (d.armor) return d.armor.slot === 3 ? ['warding', 'sturdy', 'soft_landing'] : ['warding', 'sturdy'];
+  if (d.kind === 'rod') return ['sturdy', 'lure'];
+  if (d.armor) {
+    if (d.armor.slot === 3) return ['warding', 'sturdy', 'soft_landing'];
+    if (d.armor.slot === 1 || d.armor.slot === 2) return ['warding', 'sturdy', 'thorns'];
+    return ['warding', 'sturdy'];
+  }
   return [];
 }
 
