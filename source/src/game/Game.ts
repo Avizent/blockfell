@@ -476,6 +476,14 @@ export class Game implements EntityHost, PrecipSource {
     }
     if (source.kind !== 'starve' && source.kind !== 'void') dmg *= 1 - this.protection(source.kind) * 0.04;
     if ((source.kind === 'lava' || source.kind === 'burn' || source.kind === 'ember') && this.hasCharm()) dmg *= 0.5;
+    if (source.kind === 'mob' && source.mob && !source.mob.removed) {
+      let th = 0;
+      for (let i = 0; i < 4; i++) th += runeLevel(this.inventory.get(ARMOR_START + i), 'thorns');
+      if (th > 0 && Math.random() < Math.min(0.9, th * 0.15)) {
+        source.mob.hurt(1 + Math.floor(Math.random() * 3), this, 0, 0, true);
+        this.progress.grant('thorned');
+      }
+    }
     p.health = Math.max(0, p.health - dmg);
     p.invulnerable = 10;
     p.hurtTime = 10;
@@ -731,6 +739,7 @@ export class Game implements EntityHost, PrecipSource {
       if (be.loot) {
         if (be.loot === 'dungeon') this.progress.grant('dungeon');
         if (be.loot === 'shrine') this.progress.grant('shrine');
+        if (be.loot === 'mine') this.progress.grant('mine');
         if (be.loot === 'treasure') { this.progress.grant('treasure'); this.progress.add('treasures_dug'); pushChat('You dug up buried treasure!'); }
         this.fillLoot(be, x, y, z);
         delete be.loot;
@@ -986,6 +995,7 @@ export class Game implements EntityHost, PrecipSource {
     if (be.loot === 'shrine') { this.fillShrineLoot(be, rng); return; }
     if (be.loot === 'starfall') { this.fillStarfallLoot(be, rng); return; }
     if (be.loot === 'treasure') { this.fillTreasureLoot(be, rng); return; }
+    if (be.loot === 'mine') { this.fillMineLoot(be, rng); return; }
     const table: [string, number, number, number][] = be.loot === 'village' ? [
       ['bread', 1, 4, 0.7], ['wheat', 2, 8, 0.5], ['wheat_seeds', 2, 6, 0.5], ['carrot', 1, 5, 0.5], ['apple', 1, 3, 0.4],
       ['amber', 1, 3, 0.45], ['torch', 2, 6, 0.4], ['iron_ingot', 1, 2, 0.2], ['stone_hoe', 1, 1, 0.15], ['bone_meal', 2, 6, 0.3],
@@ -1026,6 +1036,31 @@ export class Game implements EntityHost, PrecipSource {
     else if (r < 0.75) put({ ...makeStack('bow'), ench: { might: 1 + Math.floor(rng() * 2) } });
     if (rng() < 0.2) put(makeStack('treasure_map'));
     if (rng() < 0.12) put(makeStack('moth_wings'));
+  }
+
+  /** 2.15 mineshaft chests: what miners left behind - rails, a cart, tools, torches, and now and then a rune-carved find. */
+  private fillMineLoot(be: ChestEntity, rng: () => number): void {
+    const put = (st: ItemStack) => {
+      for (let tries = 0; tries < 10; tries++) {
+        const slot = Math.floor(rng() * 27);
+        if (be.items[slot]) continue;
+        be.items[slot] = st;
+        return;
+      }
+    };
+    const table: [string, number, number, number][] = [
+      ['rail', 4, 12, 0.7], ['boost_rail', 2, 5, 0.3], ['station_rail', 1, 2, 0.2], ['coal', 3, 9, 0.7], ['torch', 4, 10, 0.6],
+      ['raw_iron', 2, 6, 0.5], ['iron_ingot', 1, 4, 0.4], ['bread', 1, 4, 0.4], ['string', 2, 6, 0.4], ['bone_meal', 2, 6, 0.3],
+      ['rune_shard', 1, 3, 0.4], ['amber', 2, 7, 0.4], ['minecart', 1, 1, 0.3], ['stone_pickaxe', 1, 1, 0.2], ['lumen', 1, 2, 0.15],
+    ];
+    for (const [id, a, b, chance] of table) if (rng() <= chance) put(makeStack(id, a + Math.floor(rng() * (b - a + 1))));
+    const r = rng();
+    const lvl = 1 + Math.floor(rng() * 2);
+    if (r < 0.12) put({ ...makeStack('iron_pickaxe'), ench: { [rng() < 0.5 ? 'swift' : 'bounty']: lvl } });
+    else if (r < 0.22) put({ ...makeStack('iron_sword'), ench: { flame: Math.min(2, lvl) } });
+    else if (r < 0.30) put({ ...makeStack('iron_chestplate'), ench: { thorns: lvl } });
+    else if (r < 0.36) put({ ...makeStack('fishing_rod'), ench: { lure: lvl } });
+    if (!be.items.some((s) => s)) put(makeStack('coal', 4));
   }
 
   /** Dungeon chests: food, bones and string from the creatures, iron, a little treasure. */
@@ -1635,6 +1670,7 @@ export class Game implements EntityHost, PrecipSource {
   private tickFreeze(): void {
     const p = this.player;
     p.powderWalker = this.wearingLeatherBoots() && !this.riding;
+    if (p.inWeb) this.progress.grant('web');
     const inside = (p.inPowder || p.eyeInPowder) && !this.riding;
     if (inside) {
       if (this.powderEntered === 0) this.progress.grant('powder');
@@ -2172,6 +2208,12 @@ export class Game implements EntityHost, PrecipSource {
 
     // ---- boats: hit to break, right-click to climb in
     const tb = this.targetBoat;
+    if (tb instanceof Minecart && tb.passenger && rmbPress && p.sneaking && !this.riding) {   // sneak + use: let the passenger out
+      this.hand.swing();
+      tb.eject(this);
+      this.useDelay = 4;
+      return;
+    }
     if (tb && (lmbPress || (rmbPress && !p.sneaking))) {
       this.hand.swing();
       if (this.breaking) this.breaking = null;
@@ -2550,6 +2592,11 @@ export class Game implements EntityHost, PrecipSource {
     const [dx, , dz] = this.lookDir();
     mob.hurt(dmg, this, dx * (p.sprinting ? 1.6 : 1), dz * (p.sprinting ? 1.6 : 1), true);
     this.progress.add('damage_dealt', dmg);
+    const flame = runeLevel(held, 'flame');
+    if (flame && !mob.spec.fireproof && !mob.petOfPlayer) {
+      mob.fireTicks = Math.max(mob.fireTicks, flame * 60);
+      this.progress.grant('flame_edge');
+    }
     p.addExhaustion(0.1);
     this.sound('hit', mob.x, mob.y + 1, mob.z, 0.6, 1);
     if (held && def?.tool && !p.creative) {
@@ -2612,6 +2659,7 @@ export class Game implements EntityHost, PrecipSource {
     }
     this.world.setBlock(x, y, z, B.AIR, byPlayer ? 'player' : 'physics');
     this.particles.blockBreak(x, y, z, this.models.particleColors(id), light);
+    if (byPlayer && id === B.COBWEB) this.progress.add('cobwebs_cut');
     // two-block structures (doors, beds) go together and drop one item
     let dropDef = def;
     const partner = partnerOf(id, x, y, z);
@@ -3130,6 +3178,7 @@ export class Game implements EntityHost, PrecipSource {
     } else if (b instanceof Minecart) {
       if (d > 0.001) this.progress.add('cart', d * 100);
       if (d > 0.01) this.progress.grant('cart');
+      if (b.passenger && !b.passenger.removed) this.progress.grant('passenger');
       if (d > 0.4 && b.onBoostRail) this.progress.grant('express');
     } else if (b instanceof Sledge) {
       if (d > 0.001 && !b.afloat) this.progress.add('sledge', d * 100);
@@ -3376,6 +3425,8 @@ export class Game implements EntityHost, PrecipSource {
     const v = 0.9;
     this.bobber = this.entities.spawnBobber(ex + dx * 0.4 + rx, ey + dy * 0.4 - 0.15, ez + dz * 0.4 + rz, dx * v, dy * v + 0.15, dz * v);
     this.sound('cast', p.x, p.eyeY, p.z, 0.5, 0.9 + Math.random() * 0.2);
+    const lure = runeLevel(this.inventory.get(slot), 'lure');
+    if (lure && this.bobber) this.bobber.wait = Math.max(20, Math.round(this.bobber.wait * (1 - 0.2 * lure)));
   }
 
   /** Reels in: a fish (or something else) if one is biting right now. */
