@@ -12,7 +12,7 @@ import {
 
 /** Newest terrain version. Worlds remember theirs so saved landscapes never change. */
 /** (5 = 1.7 lava and dungeons; 6 = 1.8 a Village Bell on the well and a Mapmaker in new villages.) */
-export const GEN_VERSION = 8;   // 8 = 2.11 buried treasure
+export const GEN_VERSION = 9;   // 9 = 2.14 Powder Snow pits; 8 = 2.11 buried treasure
 
 export interface GenOptions {
   structures: boolean;
@@ -319,6 +319,22 @@ export class TerrainGenerator implements DimensionGenerator {
     }
   }
 
+  /**
+   * 2.14 (version 9+): Powder Snow pits in the snowy highlands. About 3 cells in 10 (14 blocks wide) hold a
+   * rough round pit 2.4 to 3.9 blocks across; returns how many blocks of the surface it replaces (2-4), or 0.
+   */
+  powderDepth(wx: number, wz: number): number {
+    const cell = 14;
+    const cx = Math.floor(wx / cell), cz = Math.floor(wz / cell);
+    const hh = hash4(this.seed, cx, cz, 0x90d3);
+    if ((hh & 0xff) / 256 >= 0.3) return 0;
+    const ox = cx * cell + 4 + ((hh >>> 8) % 6), oz = cz * cell + 4 + ((hh >>> 14) % 6);
+    const r = 2.4 + ((hh >>> 20) % 4) * 0.5;
+    const d = Math.hypot(wx - ox, wz - oz) + (hash4(this.seed, wx, wz, 0x90d4) & 7) * 0.06;
+    if (d >= r) return 0;
+    return 2 + Math.floor((1 - d / r) * 2.99);
+  }
+
   private steepAt(wx: number, wz: number, h: number, tmp: ColumnInfo): boolean {
     let m = 0;
     m = Math.max(m, Math.abs(this.column(wx + 1, wz, tmp).height - h));
@@ -522,6 +538,7 @@ export class TerrainGenerator implements DimensionGenerator {
         let filler: number = B.DIRT;
         let deep: number = B.STONE;
         const badlands = col.biome === BIOME_BADLANDS;
+        const pit = this.version >= 9 && col.biome === BIOME_SNOWY && !steep && h > SEA_LEVEL + 1 && !(this.villages && this.villages.inVillage(wx, wz, 8)) ? this.powderDepth(wx, wz) : 0;
         if (top === B.SAND) { filler = B.SAND; deep = col.biome === BIOME_DESERT || col.biome === BIOME_BEACH ? B.SANDSTONE : B.STONE; }
         else if (badlands) filler = B.RED_SAND;
         else if (top === B.GRAVEL) filler = B.GRAVEL;
@@ -532,6 +549,7 @@ export class TerrainGenerator implements DimensionGenerator {
           let b: number;
           if (y === 0) b = B.BEDROCK;
           else if (y < 4 && hashFloat(this.seed, wx, y, wz) < 0.8 - y * 0.25) b = B.BEDROCK;
+          else if (pit > 0 && y > h - pit) b = B.POWDER_SNOW;
           else if (y === h) b = top;
           else if (badlands && (top !== B.RED_SAND || y <= h - soilDepth) && y > h - 22) b = this.clayBand(y);
           else if (y > h - soilDepth) b = filler;

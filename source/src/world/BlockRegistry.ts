@@ -956,6 +956,14 @@ export const JUKEBOX = reg('jukebox', 'Jukebox', {
 export const NOTE_BLOCK = reg('note_block', 'Note Block', {
   tex: 'note_block', hardness: 0.8, tool: 'axe', sound: 'wood', interact: 'note',
 }).id;
+/**
+ * 2.14 Powder Snow: you can walk into it and sink. Slow, you climb out by holding jump, and
+ * staying in it freezes you (unless you wear leather). Leather Boots let you walk on top;
+ * sneak to drop in. Mining it gives the block back.
+ */
+export const POWDER_SNOW = reg('powder_snow', 'Powder Snow', {
+  tex: 'powder_snow', opaque: false, solid: false, cutout: true, cullSame: true, lightOpacity: 2, hardness: 0.25, tool: 'shovel', sound: 'snow',
+}).id;
 /** Blocks a Deepgate's ring may be made of. */
 export const GATE_RING = [CINDERSTONE, CINDERSTONE_BRICKS];
 /** 2.2: a Stargate's ring is eight Glimmerstone. */
