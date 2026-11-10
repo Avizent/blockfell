@@ -315,6 +315,9 @@ body {
 .debug.right div { margin-left: auto; }
 .center-msg { position: absolute; left: 0; right: 0; top: 50%; text-align: center; }
 .underwater { position: absolute; inset: 0; background: rgba(20, 50, 140, 0.18); }
+.in-powder { position: absolute; inset: 0; background: rgba(236, 244, 255, 0.92); }
+.frostbite { position: absolute; inset: 0; pointer-events: none; transition: opacity 0.2s;
+  background: radial-gradient(ellipse at center, rgba(160, 205, 255, 0) 35%, rgba(150, 200, 255, 0.35) 75%, rgba(220, 238, 255, 0.75) 100%); }
 .in-lava { position: absolute; inset: 0; background: rgba(230, 90, 10, 0.55); }
 /* 2.0: standing in a Deepgate - the glow closes in before you are carried away */
 .deepgate-glow { position: absolute; inset: 0; pointer-events: none; transition: opacity 0.15s;

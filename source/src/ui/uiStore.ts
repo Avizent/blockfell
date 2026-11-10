@@ -28,6 +28,9 @@ export interface HudState {
   /** Eyes in lava / on fire (screen overlays). */
   inLava?: boolean;
   burning?: boolean;
+  /** 2.14 Powder Snow: how frozen you are (0..1) and whether your eyes are inside it. */
+  freeze?: number;
+  inPowderEye?: boolean;
   /** 2.0: 0..1 while standing in a Deepgate (the glow that builds before you are carried away). */
   gate?: number;
   offhand: boolean;

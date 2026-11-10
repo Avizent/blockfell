@@ -207,6 +207,8 @@ export function HUD() {
   const under = useStore(ui, (s) => s.hud.underwater);
   const inLava = useStore(ui, (s) => !!s.hud.inLava);
   const burning = useStore(ui, (s) => !!s.hud.burning);
+  const freeze = useStore(ui, (s) => s.hud.freeze ?? 0);
+  const powderEye = useStore(ui, (s) => !!s.hud.inPowderEye);
   const gate = useStore(ui, (s) => s.hud.gate ?? 0);
   const gateStar = useStore(ui, (s) => !!s.hud.gateStar);
   const hurt = useStore(ui, (s) => s.hud.hurtTick);
@@ -215,6 +217,8 @@ export function HUD() {
       {under && <div className="underwater" />}
       {inLava && <div className="in-lava" data-testid="in-lava" />}
       {burning && <div className="on-fire" data-testid="on-fire" />}
+      {powderEye && <div className="in-powder" data-testid="in-powder" />}
+      {freeze > 0 && <div className="frostbite" data-testid="frostbite" style={{ opacity: Math.min(1, freeze) }} />}
       {gate > 0 && <div className={gateStar ? 'deepgate-glow stargate-glow' : 'deepgate-glow'} data-testid="gate-glow" style={{ opacity: gate }} />}
       {hurt > 0 && <div className="hurt-vignette" style={{ opacity: hurt / 10 }} />}
       {!hide && (
