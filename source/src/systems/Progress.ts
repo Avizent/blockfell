@@ -98,6 +98,11 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   // 2.14: Powder Snow
   { id: 'powder', title: 'Sinking Feeling', description: 'Fall into Powder Snow', icon: 'powder_snow', parent: 'snowball' },
   { id: 'powder_boots', title: 'Light on Your Feet', description: 'Walk across Powder Snow in Leather Boots', icon: 'leather_boots', parent: 'powder' },
+  { id: 'mine', title: 'Down the Shaft', description: 'Open a chest in an old mineshaft', icon: 'rail', parent: 'deep' },
+  { id: 'web', title: 'Caught in the Web', description: 'Stumble into a Cobweb', icon: 'cobweb', parent: 'mine' },
+  { id: 'passenger', title: 'Two in a Cart', description: 'Ride a Minecart with a creature as your passenger', icon: 'minecart', parent: 'cart' },
+  { id: 'flame_edge', title: 'Hot Blade', description: 'Set a creature alight with a Flame Edge rune', icon: 'iron_sword', parent: 'mine' },
+  { id: 'thorned', title: 'Prickly Customer', description: 'Hurt a creature that hit you, using a Thorns rune', icon: 'iron_chestplate', parent: 'mine' },
   { id: 'frozen', title: 'Brrr!', description: 'Get frozen solid in Powder Snow', icon: 'powder_snow', parent: 'powder' },
   { id: 'trader', title: 'Haggler', description: 'Trade with a Wandering Trader', icon: 'treasure_map', parent: 'trade' },
   // 2.8: Spore Isle and the Trident
@@ -141,6 +146,7 @@ export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = 
   ['fireworks_launched', 'Fireworks Launched', 'count'],
   ['hootlets_tamed', 'Hootlets Tamed', 'count'],
   ['guardians_defeated', 'Guardians Defeated', 'count'],
+  ['cobwebs_cut', 'Cobwebs cut', 'count'],
   ['powder_seconds', 'Seconds in Powder Snow', 'count'],
   ['axolotls_fed', 'Axolotls Fed', 'count'],
   ['treasures_dug', 'Treasures Dug Up', 'count'],
