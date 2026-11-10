@@ -1,7 +1,7 @@
 import { Mob } from './Mob';
 import type { EntityHost } from './Entity';
 import type { MobType } from './mobModels';
-import { sheepModel } from './mobModels';
+import { sheepModel, sporecapModel, SPORECAP_VARIANT_COUNT } from './mobModels';
 import { IS_WATER, GRASS, DIRT } from '../world/BlockRegistry';
 import { DYE_COLORS, DYE_MIXES, type DyeColor } from '../world/dyes';
 
@@ -353,13 +353,40 @@ export class Sheep extends FarmAnimal {
   }
 }
 
-/** 2.8: a Sporecap: shear its cap for Sporecaps; the cap grows back in a few minutes. */
+/** 2.9: how common each Sporecap colour is in the wild (Violet, Crimson, Pale). */
+const SPORECAP_WEIGHTS = [70, 22, 8];
+/** Chance that a young Sporecap takes a colour neither parent has. */
+const SPORECAP_MUTATION = 0.08;
+export function rollSporecapVariant(): number {
+  let r = Math.random() * 100;
+  for (let i = 0; i < SPORECAP_WEIGHTS.length; i++) { r -= SPORECAP_WEIGHTS[i]; if (r < 0) return i; }
+  return 0;
+}
+
+/**
+ * 2.8: a Sporecap: shear its cap for Sporecaps; the cap grows back in a few minutes.
+ * 2.9: three colours with their own traits. Violet is the usual one. Crimson is rarer: it
+ * yields 2-4 Sporecaps and regrows faster. Pale glows softly in the dark and sometimes
+ * gives a Glowcap. A young one takes after one of its parents, with a small chance of a
+ * different colour.
+ */
 export class Sporecap extends FarmAnimal {
   sheared = false;
+  variant = rollSporecapVariant();
   private regrow = 0;
+  private shownKey = '';
 
   constructor(host?: EntityHost) {
     super('sporecap', host);
+  }
+
+  setVariant(v: number): void {
+    this.variant = ((v % SPORECAP_VARIANT_COUNT) + SPORECAP_VARIANT_COUNT) % SPORECAP_VARIANT_COUNT;
+  }
+
+  protected inherit(baby: FarmAnimal, other: FarmAnimal): void {
+    if (!(baby instanceof Sporecap) || !(other instanceof Sporecap)) return;
+    baby.setVariant(Math.random() < SPORECAP_MUTATION ? Math.floor(Math.random() * SPORECAP_VARIANT_COUNT) : Math.random() < 0.5 ? this.variant : other.variant);
   }
 
   shear(host: EntityHost): SheepUse {
@@ -367,8 +394,11 @@ export class Sporecap extends FarmAnimal {
     if (this.isBaby) return 'young';
     if (this.sheared) return 'bare';
     this.sheared = true;
-    this.regrow = 3600;
-    host.spawnItem({ id: 'sporecap', count: 1 + Math.floor(Math.random() * 3) }, this.x, this.y + 0.8, this.z);
+    const crimson = this.variant === 1, pale = this.variant === 2;
+    this.regrow = crimson ? 2400 : 3600;
+    const n = crimson ? 2 + Math.floor(Math.random() * 3) : pale ? 1 + Math.floor(Math.random() * 2) : 1 + Math.floor(Math.random() * 3);
+    host.spawnItem({ id: 'sporecap', count: n }, this.x, this.y + 0.8, this.z);
+    if (pale && Math.random() < 0.5) host.spawnItem({ id: 'glowcap', count: 1 }, this.x, this.y + 0.8, this.z);
     host.sound('shear', this.x, this.y + 0.7, this.z, 0.8, 1.1);
     return 'sheared';
   }
@@ -381,13 +411,24 @@ export class Sporecap extends FarmAnimal {
     }
   }
 
+  render(alpha: number, host: EntityHost): void {
+    const key = `sporecap:${this.variant}`;
+    if (key !== this.shownKey) { this.shownKey = key; this.setModel(sporecapModel(this.variant)); }
+    super.render(alpha, host);
+    const cap = this.parts.get('cap'), top = this.parts.get('capTop');
+    if (cap) cap.visible = !this.sheared;
+    if (top) top.visible = !this.sheared;
+  }
+
   protected saveData(): Record<string, unknown> {
-    return { ...super.saveData(), sheared: this.sheared, regrow: this.regrow };
+    return { ...super.saveData(), sheared: this.sheared, regrow: this.regrow, variant: this.variant };
   }
 
   restore(d: Record<string, unknown>): void {
     super.restore(d);
     this.sheared = d.sheared === true;
     this.regrow = typeof d.regrow === 'number' ? d.regrow : 0;
+    if (typeof d.variant === 'number') this.setVariant(d.variant);
+    else this.variant = 0;   // (Sporecaps saved before 2.9 were all Violet)
   }
 }
