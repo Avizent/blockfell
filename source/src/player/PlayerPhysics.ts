@@ -1,4 +1,4 @@
-import { COLLISION, CONNECT, CONNECT_COLLIDE, IS_SOLID, connectMask } from '../world/BlockRegistry';
+import { COLLISION, CONNECT, CONNECT_COLLIDE, IS_SOLID, POWDER_SNOW, connectMask } from '../world/BlockRegistry';
 import type { World } from '../world/World';
 
 /** Axis-aligned box in world space. */
@@ -41,6 +41,13 @@ export class AABB {
 
 const EPS = 1e-7;
 
+/**
+ * 2.14: while a player in Leather Boots (not sneaking) is being moved, Powder Snow cells below this
+ * y are firm underfoot, so they walk on top of it. null = Powder Snow has no collision (the default).
+ */
+let powderFloor: number | null = null;
+export function setPowderFloor(y: number | null): void { powderFloor = y; }
+
 /** Collision boxes of a solid block; fences and panes depend on their neighbours. */
 function collisionOf(world: World, id: number, x: number, y: number, z: number): Float32Array | null {
   const k = CONNECT[id];
@@ -56,7 +63,10 @@ function gather(world: World, x0: number, y0: number, z0: number, x1: number, y1
     for (let z = z0; z <= z1; z++) {
       for (let x = x0; x <= x1; x++) {
         const id = world.getBlock(x, y, z);
-        if (!IS_SOLID[id]) continue;
+        if (!IS_SOLID[id]) {
+          if (powderFloor !== null && id === POWDER_SNOW && y < powderFloor) boxes.push(x, y, z, x + 1, y + 1, z + 1);
+          continue;
+        }
         const c = collisionOf(world, id, x, y, z);
         if (!c) { boxes.push(x, y, z, x + 1, y + 1, z + 1); continue; }
         for (let i = 0; i < c.length; i += 6) boxes.push(x + c[i], y + c[i + 1], z + c[i + 2], x + c[i + 3], y + c[i + 4], z + c[i + 5]);

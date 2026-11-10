@@ -1,6 +1,6 @@
-import { AABB, boxCollides, boxTouches, moveBox } from './PlayerPhysics';
+import { AABB, boxCollides, boxTouches, moveBox, setPowderFloor } from './PlayerPhysics';
 import { World, UNLOADED } from '../world/World';
-import { CLIMBABLE, IS_LAVA, IS_WATER } from '../world/BlockRegistry';
+import { CLIMBABLE, IS_LAVA, IS_WATER, POWDER_SNOW } from '../world/BlockRegistry';
 
 export type GameMode = 'survival' | 'creative';
 export type Difficulty = 'peaceful' | 'easy' | 'normal' | 'hard';
@@ -47,6 +47,11 @@ export class Player {
   touchingLava = false;
   /** Ticks left of being on fire. */
   fireTicks = 0;
+  /** 2.14 Powder Snow: body in it / eyes in it, how frozen (0..140 ticks), and whether Leather Boots let you walk on top. */
+  inPowder = false;
+  eyeInPowder = false;
+  freeze = 0;
+  powderWalker = false;
   collidedH = false;
   /** Standing in a ladder cell (climb by walking into it or holding jump). */
   onLadder = false;
@@ -266,10 +271,13 @@ export class Player {
     this.inWater = boxTouches(world, feet, (b) => IS_WATER[b] === 1);
     const eyeBlock = world.getBlock(Math.floor(this.x), Math.floor(this.y + this.eyeHeight - 0.08), Math.floor(this.z));
     this.eyeInWater = IS_WATER[eyeBlock] === 1;
+    this.inPowder = boxTouches(world, this.box, (b) => b === POWDER_SNOW);
+    this.eyeInPowder = eyeBlock === POWDER_SNOW;
     this.inLava = boxTouches(world, feet, (b) => IS_LAVA[b] === 1);
     this.eyeInLava = IS_LAVA[eyeBlock] === 1;
     this.touchingLava = this.inLava || boxTouches(world, this.box, (b) => IS_LAVA[b] === 1);
-    if (this.inWater || this.inLava || this.flying) this.fallDistance = 0;
+    if (this.inWater || this.inLava || this.flying || this.inPowder) this.fallDistance = 0;
+    setPowderFloor(this.powderWalker && !input.sneak && !this.flying ? Math.floor(this.y + 0.05) : null);
 
     this.sneaking = input.sneak && !this.flying;
     const targetEye = this.sneaking ? EYE_SNEAKING : EYE_STANDING;
@@ -316,7 +324,9 @@ export class Player {
         if (!boxCollides(world, test)) this.vy = 0.3;
       }
     } else {
-      if (input.jump && this.onGround) {
+      if (this.inPowder && input.jump) {
+        this.vy = 0.1;   // wade up and out of the drift
+      } else if (input.jump && this.onGround) {
         this.vy = 0.42;
         this.statJumps++;
         if (this.sprinting) {
@@ -327,7 +337,7 @@ export class Player {
       }
       const speed = (this.onGround ? (this.sprinting ? 0.13 : 0.1) : (this.sprinting ? 0.026 : 0.02)) * this.speedMul;
       const friction = this.onGround ? 0.546 : 0.91;
-      this.moveRelative(fwd, str, speed);
+      this.moveRelative(fwd, str, this.inPowder ? Math.min(speed, 0.04) : speed);
       this.onLadder = CLIMBABLE[world.getBlock(Math.floor(this.x), Math.floor(this.y), Math.floor(this.z))] === 1;
       if (this.onLadder) {
         // ladders: slow sideways drift, a gentle slide down, and sneaking holds on
@@ -343,10 +353,16 @@ export class Player {
       this.vy = (this.vy - 0.08) * 0.98;
       this.vx *= friction;
       this.vz *= friction;
+      if (this.inPowder) {
+        // sinking in powder: slow, soft, and you can't fall fast
+        if (this.vy < -0.06) this.vy = -0.06;
+        this.vx *= 0.7; this.vz *= 0.7;
+      }
     }
     // view bobbing amount follows horizontal speed on the ground
     const hs = Math.min(0.1, Math.hypot(this.x - this.prevX, this.z - this.prevZ));
     this.bob += ((this.onGround && !this.flying ? hs : 0) - this.bob) * 0.4;
     if (this.y < -64) this.y = -64;
+    setPowderFloor(null);
   }
 }
