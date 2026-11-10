@@ -15,7 +15,7 @@ export function isFishItem(id: string | null | undefined): boolean {
   return !!id && FISH.some((f) => id === `raw_${f.key}`);
 }
 
-abstract class Swimmer extends Mob {
+export abstract class Swimmer extends Mob {
   protected tx = 0;
   protected ty = 0;
   protected tz = 0;

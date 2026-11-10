@@ -166,6 +166,9 @@ export class Mob extends Entity implements Hurtable {
   /** Set when a neutral creature is attacked: it fights back regardless of light. */
   protected provoked = false;
   persistent = false;
+  /** 2.15: the Minecart this creature is sitting in (the cart places it each tick; its own AI is off), and a rest before it may board again. */
+  cartSeat: Entity | null = null;
+  cartCooldown = 0;
   /** A tamed companion of the player (its kills count as the player's). */
   petOfPlayer = false;
   /** Current non-player target (villager, Sentinel...) while chasing; null = the player. */
@@ -372,6 +375,7 @@ export class Mob extends Entity implements Hurtable {
     if (this.invulnerable > 0) this.invulnerable--;
     if (this.attackAnim > 0) this.attackAnim--;
     if (this.glowTicks > 0) this.glowTicks--;
+    if (this.cartCooldown > 0) this.cartCooldown--;
     if (this.deathTime === 0) this.tickFire(host);
     if (this.deathTime > 0) {
       this.deathTime++;
@@ -382,6 +386,10 @@ export class Mob extends Entity implements Hurtable {
         host.effect('poof', this.x, this.y + this.height / 2, this.z, 12);
       }
       return false;
+    }
+    if (this.cartSeat) {
+      if (this.cartSeat.removed) { this.cartSeat = null; this.vy = 0.2; this.cartCooldown = 60; }   // the cart was broken: hop out
+      else { this.vx = 0; this.vy = 0; this.vz = 0; this.onGround = true; return false; }
     }
     return true;
   }

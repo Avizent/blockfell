@@ -274,7 +274,7 @@ export class EntityManager implements EntityQueries {
   rayHitMob(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number, except?: Mob | null): { mob: Mob & Hurtable; t: number } | null {
     let best: { mob: Mob; t: number } | null = null;
     for (const e of this.list) {
-      if (!(e instanceof Mob) || !e.alive || e === except) continue;
+      if (!(e instanceof Mob) || !e.alive || e === except || e.cartSeat) continue;   // (a passenger sits behind its cart: you click the cart)
       if (Math.abs(e.x - ox) > max + 3 || Math.abs(e.z - oz) > max + 3) continue;
       const b = e.box;
       const r = rayBox(ox, oy, oz, dx, dy, dz, b.minX - 0.05, b.minY, b.minZ - 0.05, b.maxX + 0.05, b.maxY + 0.05, b.maxZ + 0.05);

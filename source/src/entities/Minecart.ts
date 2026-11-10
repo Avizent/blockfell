@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import { Entity, EntityHost } from './Entity';
 import { Boat, board } from './Boat';
-import { IS_LAVA, IS_RAIL } from '../world/BlockRegistry';
+import { IS_LAVA, IS_RAIL, IS_SOLID } from '../world/BlockRegistry';
 import { UNLOADED } from '../world/World';
 import type { World } from '../world/World';
 import { DIR_X, DIR_Z, opposite, railShape } from '../world/rails';
 import { boxTouches, moveBox } from '../player/PlayerPhysics';
 import type { ItemModels } from '../render/ItemModels';
+import type { Mob } from './Mob';
+import { Swimmer } from './Aquatic';
 
 export const CART_WIDTH = 0.9;
 export const CART_HEIGHT = 0.62;
@@ -73,6 +75,9 @@ export class Minecart extends Boat {
   private trim: THREE.MeshLambertMaterial | null = null;
   private wheels: THREE.Object3D[] = [];
   private spin = 0;
+  /** 2.15: a creature riding along (not the player). */
+  passenger: Mob | null = null;
+  private stillTicks = 0;
 
   constructor() {
     super();
@@ -192,6 +197,7 @@ export class Minecart extends Boat {
     if (this.onRail) this.tickRail(host);
     this.syncBox();
     this.lastSpeed = this.speed;
+    this.tickPassenger(host);
 
     if (!this.rider) { this.control.forward = 0; this.control.turn = 0; }
     // wheels turn with the distance rolled
@@ -205,6 +211,55 @@ export class Minecart extends Boat {
     if (this.onRail && Math.abs(this.v) > 0.06 && this.age % Math.max(3, Math.round(2.2 / (Math.abs(this.v) * 10 + 1) * 4)) === 0) {
       host.sound('rail', this.x, this.y, this.z, Math.min(0.5, 0.12 + Math.abs(this.v)), 0.8 + Math.abs(this.v) * 1.2);
     }
+  }
+
+  /** 2.15: a creature that can sit in a cart: small, calm, on land. */
+  private static canCarry(m: Mob): boolean {
+    return m.alive && !m.removed && !m.spec.hostile && !m.rider && !m.cartSeat && m.cartCooldown <= 0 &&
+      m.width <= 0.95 && m.height <= 1.6 && !(m instanceof Swimmer);
+  }
+
+  /** Picks up a calm creature that wanders or is lured into the cart, carries it, and lets it hop out when the cart has stood still a while. */
+  private tickPassenger(host: EntityHost): void {
+    const m = this.passenger;
+    if (m && (m.removed || !m.alive || m.cartSeat !== this)) { this.passenger = null; }
+    if (this.passenger) {
+      const p = this.passenger;
+      const back = this.rider ? -0.28 : 0;
+      p.setPos(this.x + -Math.sin(this.yaw) * back, this.y + 0.12, this.z + -Math.cos(this.yaw) * back);
+      p.vx = p.vy = p.vz = 0;
+      p.yaw = this.yaw + Math.PI;
+      if (!this.rider && this.speed < 0.01) this.stillTicks++; else this.stillTicks = 0;
+      if (this.stillTicks > 100) this.eject(host);
+      return;
+    }
+    this.stillTicks = 0;
+    if (this.speed > 0.2 || this.removed) return;
+    for (const c of host.entities.mobsNear(this.x, this.y, this.z, 0.9)) {
+      if (!Minecart.canCarry(c)) continue;
+      if (Math.abs(c.y - this.y) > 1.0) continue;
+      this.passenger = c;
+      c.cartSeat = this;
+      host.sound('click', this.x, this.y, this.z, 0.4, 1.3);
+      return;
+    }
+  }
+
+  /** The passenger hops out beside the cart. */
+  eject(host: EntityHost): void {
+    const p = this.passenger;
+    if (!p) return;
+    this.passenger = null;
+    p.cartSeat = null;
+    p.cartCooldown = 240;
+    const sx = Math.cos(this.yaw), sz = -Math.sin(this.yaw);
+    for (const side of [1, -1]) {
+      const nx = this.x + sx * 1.3 * side, nz = this.z + sz * 1.3 * side;
+      const below = host.world.getBlock(Math.floor(nx), Math.floor(this.y), Math.floor(nz));
+      const here = host.world.getBlock(Math.floor(nx), Math.floor(this.y + 0.5), Math.floor(nz));
+      if (IS_RAIL[here] || !IS_SOLID[here]) { void below; p.setPos(nx, this.y + 0.2, nz); p.vy = 0.25; return; }
+    }
+    p.setPos(this.x, this.y + 0.6, this.z); p.vy = 0.3;
   }
 
   /** Off the rails: fall and slide until we land on one. */
