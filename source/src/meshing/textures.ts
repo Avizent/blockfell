@@ -713,6 +713,18 @@ function snow(rng: () => number): PixelTex {
   return t;
 }
 
+/** 2.14: Powder Snow: fluffier and a touch bluer than a Snow Block, with soft pale dimples, so a sharp eye can spot a pit. */
+function powderSnow(rng: () => number): PixelTex {
+  const t = noisy([226, 236, 250], rng, 0.03, 4, 0.07);
+  speckle(t, rng, 26, [200, 216, 240], 0.04);
+  speckle(t, rng, 10, [250, 252, 255], 0.02);
+  for (let i = 0; i < 6; i++) {
+    const x = 1 + Math.floor(rng() * 13), y = 1 + Math.floor(rng() * 13);
+    t.set(x, y, [190, 208, 236]); t.set(x + 1, y, [206, 220, 242]);
+  }
+  return t;
+}
+
 function smoothStone(rng: () => number, border: boolean): PixelTex {
   const t = noisy([132, 132, 132], rng, 0.025, 4, 0.05);
   if (border) for (let i = 0; i < 16; i++) {
@@ -1517,6 +1529,7 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   m.set('sandstone_top', sandstone(R('ss_t'), 'top'));
   m.set('sandstone_bottom', sandstone(R('ss_b'), 'bottom'));
   m.set('snow', snow(R('snow')));
+  m.set('powder_snow', powderSnow(R('powder_snow')));
   m.set('furnace_front', furnaceFront(R('ff'), false));
   m.set('furnace_front_lit', furnaceFront(R('ff'), true));
   m.set('furnace_side', smoothStone(R('fs'), true));
