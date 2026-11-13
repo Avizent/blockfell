@@ -297,6 +297,9 @@ export class AudioManager {
       case 'shambler': this.tone(dest, t, 0.8, 95 * p, 70 * p, 'sawtooth', 0.16, 0.1); this.noiseBurst(dest, t, 0.6, 300, 1, 'lowpass', 0.2); break;
       case 'skeleton': for (let i = 0; i < 6; i++) this.noiseBurst(dest, t + i * 0.04, 0.03, 2500 * p, 3, 'bandpass', 0.4); break;
       case 'powderbug': for (let i = 0; i < 3; i++) this.noiseBurst(dest, t + i * 0.05, 0.06, 2200 * p, 2, 'bandpass', 0.3); this.tone(dest, t, 0.2, 240 * p, 180 * p, 'square', 0.06); break;
+      case 'emberling': this.tone(dest, t, 0.12, 700 * pitch, 1100 * pitch, 'triangle', 0.1, 0.02); this.noiseBurst(dest, t, 0.08, 3000 * pitch, 1.5, 'highpass', 0.12); break;
+      case 'mossback': this.tone(dest, t, 0.3, 140 * pitch, 110 * pitch, 'sine', 0.14, 0.04); break;
+      case 'stormkit': for (let i = 0; i < 3; i++) this.tone(dest, t + i * 0.05, 0.05, 1800 * pitch, 900 * pitch, 'square', 0.05); this.noiseBurst(dest, t, 0.1, 5000 * pitch, 1, 'bandpass', 0.15); break;
       case 'axolotl': this.tone(dest, t, hurt ? 0.1 : 0.14, (hurt ? 1500 : 1000) * pitch, (hurt ? 900 : 1500) * pitch, 'sine', 0.1, 0.02); if (!hurt && !death) this.tone(dest, t + 0.12, 0.12, 1250 * pitch, 1700 * pitch, 'sine', 0.08, 0.02); break;
       case 'squid': this.tone(dest, t, 0.25, (hurt ? 260 : 180) * pitch, 110 * pitch, 'sine', 0.14, 0.05); this.noiseBurst(dest, t, 0.2, 700, 1, 'lowpass', 0.18); break;
       case 'guardian': this.tone(dest, t, 0.5, (hurt ? 260 : death ? 140 : 190) * pitch, (hurt ? 200 : 150) * pitch, 'triangle', 0.13, 0.1); this.noiseBurst(dest, t, 0.4, 600, 2, 'bandpass', 0.15); break;

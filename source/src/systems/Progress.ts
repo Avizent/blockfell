@@ -104,6 +104,10 @@ export const ADVANCEMENTS: AdvancementDef[] = [
   { id: 'flame_edge', title: 'Hot Blade', description: 'Set a creature alight with a Flame Edge rune', icon: 'iron_sword', parent: 'mine' },
   { id: 'thorned', title: 'Prickly Customer', description: 'Hurt a creature that hit you, using a Thorns rune', icon: 'iron_chestplate', parent: 'mine' },
   { id: 'frozen', title: 'Brrr!', description: 'Get frozen solid in Powder Snow', icon: 'powder_snow', parent: 'powder' },
+  // 2.17: Wildlings
+  { id: 'catch', title: 'Caught One!', description: 'Catch a Wildling with a Capture Orb', icon: 'capture_orb' },
+  { id: 'ledger_seen', title: 'Field Naturalist', description: 'See all three Wildlings: Emberling, Mossback and Stormkit', icon: 'creature_ledger', parent: 'catch' },
+  { id: 'ledger_full', title: 'A Full Ledger', description: 'Catch all three Wildlings', icon: 'capture_orb', parent: 'ledger_seen' },
   { id: 'trader', title: 'Haggler', description: 'Trade with a Wandering Trader', icon: 'treasure_map', parent: 'trade' },
   // 2.8: Spore Isle and the Trident
   { id: 'spore_isle', title: 'Fungus Among Us', description: 'Set foot on Spore Isle', icon: 'spore_tuft', parent: 'boat' },
@@ -175,6 +179,8 @@ export const STAT_LABELS: [string, string, 'count' | 'cm' | 'ticks' | 'hp'][] = 
   ['names_given', 'Creatures Named', 'count'],
   ['cart', 'Distance by Minecart', 'cm'],
   ['bags_given', 'Party Bags Given', 'count'],
+  ['orbs_thrown', 'Capture Orbs Thrown', 'count'],
+  ['wildlings_caught', 'Wildlings Caught', 'count'],
   ['cake_eaten', 'Slices of Cake Eaten', 'count'],
 ];
 
