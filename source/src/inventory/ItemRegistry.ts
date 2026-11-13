@@ -330,7 +330,7 @@ const MOBS: [string, string][] = [
   ['villager', 'Villager'], ['sentinel', 'Sentinel'], ['hound', 'Fellhound'],
   ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'], ['ashboar', 'Ashboar'], ['drifter', 'Drifter'],
   ['fox', NAMES.fox], ['snowpal', NAMES.snowpal], ['horse', 'Horse'], ['lavastrider', 'Lavastrider'], ['sporecap', 'Sporecap'],
-  ['powderbug', 'Powderbug'], ['gloommoth', 'Gloommoth'], ['hootlet', 'Hootlet'], ['axolotl', 'Axolotl'], ['squid', 'Squid'], ['guardian', 'Guardian'],
+  ['emberling', 'Emberling'], ['mossback', 'Mossback'], ['stormkit', 'Stormkit'], ['powderbug', 'Powderbug'], ['gloommoth', 'Gloommoth'], ['hootlet', 'Hootlet'], ['axolotl', 'Axolotl'], ['squid', 'Squid'], ['guardian', 'Guardian'],
 ];
 for (const [mob, name] of MOBS) {
   add({ id: `spawn_${mob}`, name: `${name} Spawn Egg`, kind: 'spawn', category: 'spawn', spawn: mob });
@@ -422,3 +422,7 @@ add({ id: 'disc_drift', name: 'Disc: Starhollow Drift', maxStack: 1, category: '
 // ---- 2.16: Carpets and Banners (appended last)
 for (const c of DYE_COLORS) blockItem(`carpet_${c}`, 'decoration');
 for (const c of DYE_COLORS) familyItem(`banner_${c}`, B.BANNERS[`banner_${c}`].ew, 'decoration', false);
+
+// ---- 2.17: catching creatures
+add({ id: 'capture_orb', name: 'Capture Orb', category: 'tools' });
+add({ id: 'creature_ledger', name: 'Creature Ledger', category: 'tools', maxStack: 1 });
