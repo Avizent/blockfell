@@ -418,3 +418,7 @@ add({ id: 'music_disc', name: 'Music Disc', maxStack: 1, category: 'tools' });
 add({ id: 'disc_jig', name: 'Disc: Fellfire Jig', maxStack: 1, category: 'tools' });
 add({ id: 'disc_lullaby', name: 'Disc: Moss Lullaby', maxStack: 1, category: 'tools' });
 add({ id: 'disc_drift', name: 'Disc: Starhollow Drift', maxStack: 1, category: 'tools' });
+
+// ---- 2.16: Carpets and Banners (appended last)
+for (const c of DYE_COLORS) blockItem(`carpet_${c}`, 'decoration');
+for (const c of DYE_COLORS) familyItem(`banner_${c}`, B.BANNERS[`banner_${c}`].ew, 'decoration', false);
