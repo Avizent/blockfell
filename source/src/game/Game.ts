@@ -40,6 +40,7 @@ import { Boat, BOAT_HEIGHT, BOAT_WIDTH, BOAT_DRAFT, waterSurfaceAt } from '../en
 import { Bobber, rollCatch } from '../entities/Fishing';
 import { WanderingTrader } from '../entities/WanderingTrader';
 import { Hootlet, HOOTLET_FOOD } from '../entities/Hootlet';
+import { Wildling, WILD_FOOD, WILD_INFO, WILD_KINDS, type WildKind } from '../entities/Wildling';
 import { Axolotl, Guardian, isFishItem } from '../entities/Aquatic';
 import { Fireworks } from './Fireworks';
 import { FISH } from '../inventory/fish';
@@ -444,6 +445,43 @@ export class Game implements EntityHost, PrecipSource {
 
   spawnSnowball(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob): void {
     this.entities.spawnSnowball(x, y, z, vx, vy, vz, shooter);
+  }
+
+  // ---- 2.17: Wildlings and the Creature Ledger
+  wildSeen(kind: string): void {
+    const info = WILD_INFO[kind as WildKind];
+    if (!info) return;
+    const first = !this.progress.stats[`seen_${kind}`];
+    this.progress.add(`seen_${kind}`);
+    if (first) pushChat(`Creature Ledger: you have spotted a ${info.name}! ${info.hint}`);
+    if (WILD_KINDS.every((k) => (this.progress.stats[`seen_${k}`] ?? 0) > 0)) this.progress.grant('ledger_seen');
+  }
+
+  orbCaught(m: Mob): void {
+    const k = m.mobType;
+    this.progress.add(`caught_${k}`);
+    this.progress.add('wildlings_caught');
+    this.progress.grant('catch');
+    if ((this.progress.stats[`seen_${k}`] ?? 0) === 0) this.progress.add(`seen_${k}`);
+    pushChat(`Caught! The ${m.spec.name} is your companion now. ${WILD_INFO[k as WildKind].power}. Right-click it to make it stay or follow; an apple or carrot mends it.`);
+    if (WILD_KINDS.every((q) => (this.progress.stats[`caught_${q}`] ?? 0) > 0)) this.progress.grant('ledger_full');
+  }
+
+  orbFailed(m: Mob): void {
+    pushChat(`The ${m.spec.name} wriggled free of the orb! It works better on a creature that is hurt, or one you creep up on.`);
+  }
+
+  /** Throws a Capture Orb where the player is looking. */
+  private throwOrb(slot: number): void {
+    const p = this.player;
+    const [ex, ey, ez] = this.eye();
+    const [dx, dy, dz] = this.lookDir();
+    const speed = 1.4;
+    this.entities.spawnOrb(ex + dx * 0.4, ey - 0.1 + dy * 0.4, ez + dz * 0.4, dx * speed + p.vx, dy * speed + (p.onGround ? 0 : p.vy * 0.5), dz * speed + p.vz, p.sneaking);
+    this.sound('throw', p.x, p.eyeY, p.z, 0.5, 1.1);
+    if (!p.creative) this.consume(slot);
+    this.progress.add('orbs_thrown');
+    this.useDelay = 12;
   }
 
   hootletWarn(owl: Mob, danger: Mob): void {
@@ -2473,6 +2511,19 @@ export class Game implements EntityHost, PrecipSource {
       }
       return true;
     }
+    if (m instanceof Wildling) {
+      if (!m.caught) return false;
+      const food = id && WILD_FOOD[id] ? id : null;
+      if (!food && p.sneaking) return false;
+      if (dry) return true;
+      const r = food ? m.feed(this, food) : 'no';
+      if (r === 'healed' && !p.creative) this.consume(slot);
+      if (r === 'no' || r === 'full') {
+        m.toggleSit(this);
+        pushChat(m.sitting ? `${who} stays here.` : `${who} follows you.`);
+      }
+      return true;
+    }
     if (m instanceof Hootlet) {
       const food = id && HOOTLET_FOOD.includes(id) ? id : null;
       if (!m.tamed && !food) return false;
@@ -2745,6 +2796,8 @@ export class Game implements EntityHost, PrecipSource {
         return;
       }
       // 2.3: throw a snowball (holding the button keeps throwing); Coal on two stacked Snow Blocks makes a Snow Pal
+      if (held.id === 'capture_orb' && slotIndex !== OFFHAND) { this.throwOrb(slotIndex); this.hand.swing(); return; }
+      if (held.id === 'creature_ledger' && pressed) { this.engine.openOverlay('ledger'); return; }
       if (held.id === 'snowball' && slotIndex !== OFFHAND) { this.throwSnowball(slotIndex); this.hand.swing(); return; }
       if (held.id === 'glass_bottle' && pressed && slotIndex !== OFFHAND) {
         if (this.fillBottle(slotIndex)) { this.hand.swing(); this.useDelay = 6; return; }
