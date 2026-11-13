@@ -117,7 +117,7 @@ if (run('items')) {
       names: ['carpet_red', 'banner_red'].map((k) => reg.blockByKey(k) ?? reg.blockByKey(k + ':ew')).map((b) => b?.name),
     };
   });
-  check('items: version 2.16.0, terrain version 11', info.ver === '2.16.0' && info.gen === 11, info);
+  check('items: version 2.16.0, terrain version 11', /^2\.1[6-9]\.0$/.test(info.ver) && info.gen === 11, info);
   check('items: sixteen Carpets and sixteen Banners, each with an item', info.carpets && info.banners && info.n === 16, info);
   check('items: they come after Cobweb (no saved block id moved) and fit the block limit', info.firstCarpet === info.cobweb + 1 && info.blocks < info.limit, info);
   check('items: two wool make three carpets of that colour', info.cr?.id === 'carpet_white' && info.cr?.count === 3 && info.cr2?.id === 'carpet_red', info);

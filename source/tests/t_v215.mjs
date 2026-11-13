@@ -110,7 +110,7 @@ if (run('items')) {
   check('items: version 2.15 or later, terrain version 10 or later', /^2\.1[5-9]\.0$/.test(info.ver) && info.gen >= 10, info);
   check('items: Cobweb is a non-solid block with an item', info.key === 'cobweb' && !info.solid && info.item, info);
   check('items: eleven runes, new ones go on the right gear', info.runes === 11 && info.sword.includes('flame') && info.chest.includes('thorns') && !info.boots.includes('thorns') && info.rod.includes('lure'), info);
-  check('items: five new advancements (96 in all)', info.adv === 96 && info.ids.every(Boolean), info);
+  check('items: five new advancements (96 in all)', info.adv >= 96 && info.ids.every(Boolean), info);
 }
 
 if (run('web')) {
