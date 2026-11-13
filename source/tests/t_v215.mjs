@@ -11,7 +11,7 @@ const run = (n) => only.includes(n);
 const results = [];
 const check = (name, ok, info = '') => { const s = typeof info === 'string' ? info : JSON.stringify(info); results.push([ok ? 'PASS' : 'FAIL', name, s]); console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : s.slice(0, 700)); };
 const b = await chromium.launch({
-  executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome',
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--mute-audio'],
 });
 const VW = 1280, VH = 720, CX = VW / 2, CY = VH / 2;
@@ -107,7 +107,7 @@ if (run('items')) {
       runes: Object.keys(E.RUNES).length, sword: E.runesFor('iron_sword'), chest: E.runesFor('iron_chestplate'), boots: E.runesFor('iron_boots'), rod: E.runesFor('fishing_rod'),
       adv: P.ADVANCEMENTS.length, ids: ['mine', 'web', 'passenger', 'flame_edge', 'thorned'].map((id) => !!P.ADVANCEMENTS.find((a) => a.id === id)) };
   });
-  check('items: version 2.15.0, terrain version 10', info.ver === '2.15.0' && info.gen === 10, info);
+  check('items: version 2.15 or later, terrain version 10 or later', /^2\.1[5-9]\.0$/.test(info.ver) && info.gen >= 10, info);
   check('items: Cobweb is a non-solid block with an item', info.key === 'cobweb' && !info.solid && info.item, info);
   check('items: eleven runes, new ones go on the right gear', info.runes === 11 && info.sword.includes('flame') && info.chest.includes('thorns') && !info.boots.includes('thorns') && info.rod.includes('lure'), info);
   check('items: five new advancements (96 in all)', info.adv === 96 && info.ids.every(Boolean), info);
@@ -340,7 +340,7 @@ if (run('save')) {
   await set(P.x + 1, P.y, P.z + 1, 'cobweb');
   const id = await ev(() => window.__bf.game.record.id);
   await reopen(id);
-  check('save: a Cobweb survives save and reload, and the world is terrain version 10', (await key(P.x + 1, P.y, P.z + 1)) === 'cobweb' && (await ev(() => window.__bf.game.world.genVersion)) === 10, { v: await ev(() => window.__bf.game.world.genVersion) });
+  check('save: a Cobweb survives save and reload, and the world is terrain version 10 or later', (await key(P.x + 1, P.y, P.z + 1)) === 'cobweb' && (await ev(() => window.__bf.game.world.genVersion)) >= 10, { v: await ev(() => window.__bf.game.world.genVersion) });
 }
 
 await b.close();
