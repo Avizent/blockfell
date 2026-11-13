@@ -8,7 +8,7 @@ import { DYE_RGB, type DyeColor } from '../world/dyes';
  * feet centre is the origin and it faces +Z.
  */
 export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound'
-  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider' | 'sporecap' | 'powderbug' | 'gloommoth' | 'hootlet' | 'trader' | 'axolotl' | 'squid' | 'guardian';
+  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider' | 'sporecap' | 'powderbug' | 'gloommoth' | 'hootlet' | 'trader' | 'axolotl' | 'squid' | 'guardian' | 'emberling' | 'mossback' | 'stormkit';
 export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker' | 'trader';
 
 const quad = (name: string, x: number, z: number, h: number, w: number, base: string, paint?: PartDef['paint']): PartDef => ({
@@ -821,6 +821,52 @@ function gloommoth(): PartDef[] {
   ];
 }
 
+/** 2.17: Emberling, a small salamander with a glowing ember spine. ORIGINAL design. */
+function emberling(): PartDef[] {
+  const skin = '#c9582a', dark = '#6e2a18', belly = '#ffc766', ember = '#ffb23a', hot = '#fff0a0';
+  return [
+    { name: 'body', size: [6, 4, 11], pivot: [0, 2, 0], from: [-3, 0, -5.5], base: skin, noise: 0.1,
+      paint: (p) => { p.fill('bottom', belly, 0.04, 3); for (let i = 0; i < 4; i++) p.px('top', 2, 1 + i * 3, ember, 2, 1); p.px('top', 1, 2, dark, 1, 1); p.px('top', 4, 6, dark, 1, 1); } },
+    { name: 'head', size: [5, 4, 5], pivot: [0, 3, 5.5], from: [-2.5, -1, 0], base: '#d6643a',
+      paint: (p) => { p.px('front', 0, 1, '#ffe27a', 1, 1); p.px('front', 4, 1, '#ffe27a', 1, 1); p.px('front', 1, 3, dark, 3, 1); p.px('top', 2, 1, ember, 1, 2); } },
+    { name: 'tail', size: [3, 3, 8], pivot: [0, 0, 0], from: [-1.5, 0, -13], base: skin, parent: 'body', noise: 0.08, paint: (p) => { p.px('top', 1, 5, ember, 1, 1); p.px('back', 1, 1, hot, 1, 1); } },
+    quad('legFL', 3.2, 3.5, 2, 2, dark), quad('legFR', -3.2, 3.5, 2, 2, dark), quad('legBL', 3.2, -3.5, 2, 2, dark), quad('legBR', -3.2, -3.5, 2, 2, dark),
+  ];
+}
+
+/** 2.17: Mossback, a slow tortoise with a garden growing on its shell. ORIGINAL design. */
+function mossback(): PartDef[] {
+  const shell = '#6d5a3c', moss = '#4e8a3a', mossLt = '#79b04a', skin = '#8a8f5a', flower = '#f3d34a';
+  return [
+    { name: 'body', size: [11, 5, 13], pivot: [0, 4, 0], from: [-5.5, 0, -6.5], base: shell, noise: 0.1,
+      paint: (p) => { p.fill('bottom', '#cdbf94', 0.04, 3); p.px('left', 1, 1, '#4e3e28', 9, 1); p.px('right', 1, 1, '#4e3e28', 9, 1); } },
+    { name: 'dome', size: [9, 3, 10], pivot: [0, 0, 0], from: [-4.5, 5, -5], base: moss, parent: 'body', noise: 0.18,
+      paint: (p) => { p.px('top', 1, 1, mossLt, 3, 2); p.px('top', 5, 5, mossLt, 3, 3); p.px('top', 2, 7, mossLt, 2, 2); p.px('top', 6, 2, flower, 1, 1); p.px('top', 3, 4, flower, 1, 1); } },
+    { name: 'head', size: [4, 4, 5], pivot: [0, 4, 6.5], from: [-2, -2, 0], base: skin,
+      paint: (p) => { p.px('front', 0, 1, '#161616', 1, 1); p.px('front', 3, 1, '#161616', 1, 1); p.px('front', 1, 3, '#5d6038', 2, 1); } },
+    quad('legFL', 4.5, 4.5, 3, 3, '#7a7f4c'), quad('legFR', -4.5, 4.5, 3, 3, '#7a7f4c'), quad('legBL', 4.5, -4.5, 3, 3, '#7a7f4c'), quad('legBR', -4.5, -4.5, 3, 3, '#7a7f4c'),
+  ];
+}
+
+/** 2.17: Stormkit, a small hopping creature with static-bristled fur and a zigzag tail. ORIGINAL design. */
+function stormkit(): PartDef[] {
+  const fur = '#5b6f9c', lt = '#8fa4d4', spark = '#ffe24a', dark = '#34415f';
+  return [
+    { name: 'body', size: [5, 5, 7], pivot: [0, 2, 0], from: [-2.5, 0, -3.5], base: fur, noise: 0.1,
+      paint: (p) => { p.fill('bottom', lt, 0.05, 3); p.px('top', 1, 1, spark, 1, 1); p.px('top', 3, 3, spark, 1, 1); p.px('top', 2, 5, spark, 1, 1); } },
+    { name: 'head', size: [4, 4, 4], pivot: [0, 6, 3], from: [-2, -1, 0], base: '#6a7fae',
+      paint: (p) => { p.px('front', 0, 1, spark, 1, 1); p.px('front', 3, 1, spark, 1, 1); p.px('front', 1, 3, dark, 2, 1); } },
+    { name: 'earL', size: [1, 4, 1], pivot: [0, 0, 0], from: [1, 3, 1.5], base: spark, parent: 'head' },
+    { name: 'earR', size: [1, 4, 1], pivot: [0, 0, 0], from: [-2, 3, 1.5], base: spark, parent: 'head' },
+    { name: 'tail1', size: [1, 3, 1], pivot: [0, 0, 0], from: [-0.5, 3, -4.5], base: spark, parent: 'body' },
+    { name: 'tail2', size: [1, 1, 3], pivot: [0, 0, 0], from: [-0.5, 5, -6.5], base: spark, parent: 'body' },
+    { name: 'legFL', size: [1, 2, 1], pivot: [1.5, 2, 3], from: [-0.5, -2, -0.5], base: dark },
+    { name: 'legFR', size: [1, 2, 1], pivot: [-1.5, 2, 3], from: [-0.5, -2, -0.5], base: dark },
+    { name: 'legBL', size: [2, 2, 4], pivot: [2, 2, -1.5], from: [-1, -2, -2], base: dark },
+    { name: 'legBR', size: [2, 2, 4], pivot: [-2, 2, -1.5], from: [-1, -2, -2], base: dark },
+  ];
+}
+
 /** 2.10: the Hootlet, a small ORIGINAL owl; a tamed one wears a red ribbon. */
 function hootlet(tamed: boolean): PartDef[] {
   const feather = '#8a6a48', dark = '#5e4630', belly = '#eadcc0', disc = '#f2e8d2', gold = '#ffd23a', beak = '#e8902c';
@@ -984,10 +1030,11 @@ export function mobModel(type: MobType): BuiltModel {
   if (type === 'fox') return foxModel('red', false);
   if (type === 'hootlet') return hootletModel(false);
   if (type === 'axolotl') return axolotlModel('pink');
-  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider, sporecap, powderbug, gloommoth, squid, guardian }[type as Exclude<MobType, 'villager' | 'trader' | 'hound' | 'hollowdrake' | 'sheep' | 'fox' | 'hootlet' | 'axolotl'>]();
+  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider, sporecap, powderbug, gloommoth, squid, guardian, emberling, mossback, stormkit }[type as Exclude<MobType, 'villager' | 'trader' | 'hound' | 'hollowdrake' | 'sheep' | 'fox' | 'hootlet' | 'axolotl'>]();
   m = buildModel(parts, 64, 64, type.length * 13);
   if (type === 'ashboar' || type === 'lavastrider') glowSeams(m);
   if (type === 'gloommoth') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.25; }
+  if (type === 'emberling' || type === 'stormkit') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.3; }
   if (type === 'guardian') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.2; }
   if (type === 'drifter') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.45; }
   cache.set(type, m);

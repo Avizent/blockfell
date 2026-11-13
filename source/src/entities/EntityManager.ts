@@ -21,6 +21,8 @@ import { FarmAnimal, Sheep, Sporecap, FARM_TYPES, FARM_GROW_TICKS, naturalWool }
 import { Fox } from './Fox';
 import { SnowPal } from './SnowPal';
 import { Snowball } from './Snowball';
+import { OrbShot } from './OrbShot';
+import { Wildling, isWildKind } from './Wildling';
 import { SplashPotion } from './SplashPotion';
 import { Sledge } from './Sledge';
 import { Horse } from './Horse';
@@ -50,15 +52,18 @@ function pick<T>(table: [T, number][]): T {
 /** Which animal a biome favours (desert rabbits, mountain goats...). */
 function passiveFor(biome: number, ground: number): MobType | null {
   if (biome === BIOME_SPORE) return ground === SPORELOAM ? 'sporecap' : null;
-  if (biome === BIOME_DESERT || biome === BIOME_BADLANDS) return ground === SAND || ground === RED_SAND ? 'rabbit' : null;
-  if (biome === BIOME_SNOWY) return pick<MobType>([['goat', 42], ['rabbit', 14], ['sheep', 14], ['hound', 16], ['fox', 14]]);
-  if (biome === BIOME_MOUNTAINS) return pick<MobType>([['goat', 65], ['rabbit', 15], ['sheep', 20]]);
+  if (biome === BIOME_DESERT || biome === BIOME_BADLANDS) return ground === SAND || ground === RED_SAND ? (Math.random() < 0.18 ? 'emberling' : 'rabbit') : null;
+  if (biome === BIOME_SNOWY) return pick<MobType>([['goat', 42], ['rabbit', 14], ['sheep', 14], ['hound', 16], ['fox', 14], ['stormkit', 9]]);
+  if (biome === BIOME_MOUNTAINS) return pick<MobType>([['goat', 65], ['rabbit', 15], ['sheep', 20], ['stormkit', 12]]);
   if (ground === STONE || ground === SNOW) return null;
   if (biome === BIOME_TAIGA) return pick<MobType>([['rabbit', 24], ['sheep', 20], ['pig', 12], ['cow', 12], ['goat', 9], ['hound', 13], ['fox', 10], ['hootlet', 6]]);
   if (biome === BIOME_FOREST && Math.random() < 0.08) return 'hound';
+  if ((biome === BIOME_FOREST || biome === BIOME_BIRCH) && Math.random() < 0.08) return 'mossback';
   if ((biome === BIOME_FOREST || biome === BIOME_BIRCH || biome === BIOME_TAIGA) && ground !== STONE && Math.random() < 0.07) return 'hootlet';
   if (biome === BIOME_BIRCH && Math.random() < 0.05) return 'hound';
   const r = Math.random();
+  if (r < 0.03) return 'mossback';
+  if (r > 0.985) return 'stormkit';
   return r < 0.1 ? 'rabbit' : r < 0.17 ? 'horse' : PASSIVE[Math.floor(Math.random() * PASSIVE.length)];
 }
 
@@ -94,7 +99,7 @@ export class EntityManager implements EntityQueries {
     const m = type === 'villager' ? new Villager(host) : type === 'trader' ? new WanderingTrader(host) : type === 'sentinel' ? new Sentinel(host) : type === 'hound' ? new Hound(host)
       : type === 'ashboar' ? new Ashboar(host) : type === 'hollowdrake' ? new Hollowdrake(host) : type === 'drifter' ? new Drifter(host) : type === 'powderbug' ? new Powderbug(host) : type === 'gloommoth' ? new Gloommoth(host) : type === 'hootlet' ? new Hootlet(host) : type === 'axolotl' ? new Axolotl(host) : type === 'squid' ? new Squid(host) : type === 'guardian' ? new Guardian(host)
       : type === 'sheep' ? new Sheep(host) : type === 'sporecap' ? new Sporecap(host) : FARM_TYPES.includes(type) ? new FarmAnimal(type, host)
-      : type === 'horse' ? new Horse(host) : type === 'fox' ? new Fox(host) : type === 'snowpal' ? new SnowPal(host) : new Mob(type, host);
+      : type === 'horse' ? new Horse(host) : type === 'fox' ? new Fox(host) : type === 'snowpal' ? new SnowPal(host) : isWildKind(type) ? new Wildling(type, host) : new Mob(type, host);
     m.setPos(x, y, z);
     // 2.3: snowy-white foxes in the snowy lands
     if (m instanceof Fox && host.world.dim === 'overworld') {
@@ -201,6 +206,15 @@ export class EntityManager implements EntityQueries {
     s.setPos(x, y, z);
     s.vx = vx; s.vy = vy; s.vz = vz;
     return this.add(s);
+  }
+
+  /** 2.17: a thrown Capture Orb. */
+  spawnOrb(x: number, y: number, z: number, vx: number, vy: number, vz: number, sneaking: boolean): OrbShot {
+    const o = new OrbShot();
+    o.sneaking = sneaking;
+    o.setPos(x, y, z);
+    o.vx = vx; o.vy = vy; o.vz = vz;
+    return this.add(o);
   }
 
   /** 2.5: a thrown splash potion. */
@@ -331,7 +345,7 @@ export class EntityManager implements EntityQueries {
       const spot = this.findSpawnSpot(host, 20, 56, false);
       const type = spot ? passiveFor(host.world.generator.column(Math.floor(spot.x), Math.floor(spot.z)).biome, spot.ground) : null;
       if (spot && type) {
-        const herd = type === 'fox' || type === 'horse' || type === 'hootlet' ? 1 + Math.floor(Math.random() * 2) : type === 'chicken' || type === 'rabbit' || type === 'goat' ? 1 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 3);
+        const herd = type === 'fox' || type === 'horse' || type === 'hootlet' || isWildKind(type) ? 1 + Math.floor(Math.random() * 2) : type === 'chicken' || type === 'rabbit' || type === 'goat' ? 1 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 3);
         for (let i = 0; i < herd; i++) {
           const ox = spot.x + (Math.random() - 0.5) * 3, oz = spot.z + (Math.random() - 0.5) * 3;
           const y = this.groundAt(host, Math.floor(ox), Math.floor(oz), spot.y + 3);
@@ -598,7 +612,8 @@ export class EntityManager implements EntityQueries {
         // 2.3
         if (m instanceof FarmAnimal && d.f && typeof d.f === 'object') m.restore(d.f as Record<string, unknown>);
         if (m instanceof Fox && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);
-        if (m instanceof Hootlet && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);   // (2.13: tamed Hootlets were not being restored)
+        if (m instanceof Hootlet && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);
+        if (m instanceof Wildling && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);   // (2.13: tamed Hootlets were not being restored)
         if (m instanceof Axolotl && typeof d.ax === 'number') m.setCoat(d.ax);
         if (m instanceof SnowPal && d.sp && typeof d.sp === 'object') m.restore(d.sp as Record<string, unknown>);
         if (d.sd === 1) { m.saddled = true; m.persistent = true; }

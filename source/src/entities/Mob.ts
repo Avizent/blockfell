@@ -85,6 +85,10 @@ export const MOB_SPECS: Record<MobType, MobSpec> = {
   axolotl: { name: 'Axolotl', hostile: false, health: 14, speed: 0.06, width: 0.7, height: 0.5, drops: [], xp: [1, 3], sound: 'axolotl' },
   squid: { name: 'Squid', hostile: false, health: 10, speed: 0.08, width: 0.9, height: 0.9, drops: [['ink_sac', 1, 3]], xp: [1, 3], sound: 'squid' },
   guardian: { name: 'Guardian', hostile: true, health: 30, speed: 0.1, width: 0.9, height: 0.9, drops: [['tide_shard', 0, 2], ['raw_trout', 0, 1]], xp: [10, 10], attack: 5, sound: 'guardian' },
+  // 2.17: Wildlings (catch them with Capture Orbs)
+  emberling: { name: 'Emberling', hostile: false, health: 10, speed: 0.26, width: 0.55, height: 0.4, drops: [], xp: [1, 3], sound: 'emberling', fireproof: true, glows: true },
+  mossback: { name: 'Mossback', hostile: false, health: 20, speed: 0.14, width: 0.8, height: 0.6, drops: [], xp: [1, 3], sound: 'mossback' },
+  stormkit: { name: 'Stormkit', hostile: false, health: 8, speed: 0.3, width: 0.45, height: 0.5, drops: [], xp: [1, 3], sound: 'stormkit', hops: true },
   snowpal: { name: NAMES.snowpal, hostile: false, health: 8, speed: 0.2, width: 0.7, height: 1.5, drops: [['snowball', 2, 6]], xp: [0, 0], sound: 'snowpal' },
 };
 

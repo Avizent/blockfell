@@ -110,6 +110,10 @@ export interface EntityHost {
   foxGift?(fox: Mob, item: string): void;
   /** 2.10: a tamed Hootlet spotted a hostile creature near the player. */
   hootletWarn?(owl: Mob, danger: Mob): void;
+  /** 2.17: a wild Wildling has been properly seen / caught / got away from a Capture Orb. */
+  wildSeen?(kind: string): void;
+  orbCaught?(m: Mob): void;
+  orbFailed?(m: Mob): void;
 }
 
 let nextId = 1;
