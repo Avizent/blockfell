@@ -238,6 +238,10 @@ shaped(['PPP', 'PSP', 'PPP'], { P: 'planks', S: 'string' }, 'note_block');
 shaped([' C ', 'CAC', ' C '], { C: 'coal', A: 'amber' }, 'blank_disc', 2);
 shaped(['G', 'A', 'I'], { G: 'glass', A: 'amber', I: 'iron_ingot' }, 'weather_glass');
 
+// ---- 2.17: Capture Orbs and the Creature Ledger
+shaped([' A ', 'ATA', ' A '], { A: 'amber', T: 'tide_shard' }, 'capture_orb', 3);
+shapeless(['leather', 'feather', 'amber'], 'creature_ledger');
+
 // ---- 2.16: Carpets (two wool make three) and Banners (six wool and a stick)
 for (const c of DYE_COLORS) {
   shaped(['WW'], { W: woolKey(c) }, `carpet_${c}`, 3);
