@@ -10,6 +10,7 @@ import type { Difficulty } from '../player/Player';
 import type { WeatherKind } from '../systems/WeatherSystem';
 import { mapImage, MAP_PX, MAP_SCALE, compassName } from '../render/mapImage';
 import { NAME_TAG_MAX } from '../entities/Mob';
+import { WILD_INFO, WILD_KINDS } from '../entities/Wildling';
 
 const WEATHER_NAMES: Record<WeatherKind, string> = { clear: 'Clear', rain: 'Rain', thunder: 'Thunderstorm' };
 
@@ -137,6 +138,7 @@ export function PauseMenu() {
           <Button size="half" onClick={() => ui.set({ overlay: 'advancements' })}>Advancements</Button>
           <Button size="half" onClick={() => ui.set({ overlay: 'stats' })}>Statistics</Button>
         </div>
+        <Button size="wide" testId="btn-ledger" onClick={() => ui.set({ overlay: 'ledger' })}>Creature Ledger</Button>
         <div className="row">
           <Button size="half" onClick={() => ui.set({ overlay: 'options', optionsReturn: 'pause' })}>Options...</Button>
           <SoundButton />
@@ -332,6 +334,39 @@ export function AdvancementsScreen() {
       </div>
       <div style={{ flex: 1 }} />
       <div className="menu-footer" style={{ position: 'relative' }}><Button onClick={() => ui.set({ overlay: 'pause' })}>Done</Button></div>
+    </div>
+  );
+}
+
+export function LedgerScreen() {
+  const g = engine.game;
+  if (g) g.snapshot();
+  const stats = g ? g.progress.stats : {};
+  const caughtN = WILD_KINDS.filter((k) => (stats[`caught_${k}`] ?? 0) > 0).length;
+  const seenN = WILD_KINDS.filter((k) => (stats[`seen_${k}`] ?? 0) > 0 || (stats[`caught_${k}`] ?? 0) > 0).length;
+  return (
+    <div className="screen" data-testid="ledger">
+      <div className="overlay-dim" />
+      <div className="menu-header" style={{ position: 'relative' }}><Title>Creature Ledger</Title></div>
+      <div className="col" style={{ position: 'relative', gap: 8, overflowY: 'auto', padding: '0 12px' }}>
+        <div className="shadow" data-testid="ledger-count" style={{ textAlign: 'center' }}>Seen {seenN} of {WILD_KINDS.length} · Caught {caughtN} of {WILD_KINDS.length}</div>
+        {WILD_KINDS.map((k) => {
+          const caught = stats[`caught_${k}`] ?? 0;
+          const seen = (stats[`seen_${k}`] ?? 0) > 0 || caught > 0;
+          const info = WILD_INFO[k];
+          return (
+            <div key={k} className="stat-row" data-testid={`ledger-${k}`} style={{ display: 'block', padding: '8px 10px', background: 'rgba(0,0,0,0.35)' }}>
+              <div className="shadow" style={{ fontSize: 22 }}>{seen ? info.name : '???'} {caught > 0 ? `(caught ×${caught})` : seen ? '(seen)' : '(not yet seen)'}</div>
+              {seen && <div className="shadow">{info.hint}</div>}
+              {seen && <div className="shadow">Lives in: {info.habitat}</div>}
+              {caught > 0 && <div className="shadow">Companion power: {info.power}</div>}
+            </div>
+          );
+        })}
+        <div className="shadow" style={{ textAlign: 'center', fontSize: 16 }}>Craft Capture Orbs from Amber and a Tide Shard. Throw one at a Wildling: it works best on a creature that is hurt, or one you creep up on.</div>
+      </div>
+      <div style={{ flex: 1 }} />
+      <div className="menu-footer" style={{ position: 'relative' }}><Button onClick={() => engine.closeOverlay()}>Done</Button></div>
     </div>
   );
 }
