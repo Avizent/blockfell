@@ -7,6 +7,7 @@ import { potatoes } from './spudTextures';
 import { springPadTop, springPadSide, jarTex, jarLid } from './jarTextures';
 import { rodSide, rodTip, tuneBoxTop, tuneBoxSide, jukeboxTop, jukeboxSide, noteBlockTex } from './musicTextures';
 import { FISH } from '../inventory/fish';
+import { richerBlockTextures } from './textures2';
 import { sporeloamTop, sporeloamSide, sporeStem, sporeStemTop, capTex, capGills, sporeTuft, sporeLamp } from './sporeTextures';
 
 /**
@@ -15,7 +16,7 @@ import { sporeloamTop, sporeloamSide, sporeStem, sporeStemTop, capTex, capGills,
  * same on every run and need no external image files.
  */
 export const TEX = 16;
-type RGB = [number, number, number];
+export type RGB = [number, number, number];
 
 export class PixelTex {
   d = new Uint8ClampedArray(TEX * TEX * 4);
@@ -35,16 +36,16 @@ export class PixelTex {
 
 const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
 export const shade = (c: RGB, f: number): RGB => [clamp(c[0] * f), clamp(c[1] * f), clamp(c[2] * f)];
-const mix = (a: RGB, b: RGB, t: number): RGB => [clamp(a[0] + (b[0] - a[0]) * t), clamp(a[1] + (b[1] - a[1]) * t), clamp(a[2] + (b[2] - a[2]) * t)];
+export const mix = (a: RGB, b: RGB, t: number): RGB => [clamp(a[0] + (b[0] - a[0]) * t), clamp(a[1] + (b[1] - a[1]) * t), clamp(a[2] + (b[2] - a[2]) * t)];
 
-function seedOf(name: string): number {
+export function seedOf(name: string): number {
   let h = 2166136261;
   for (let i = 0; i < name.length; i++) { h ^= name.charCodeAt(i); h = Math.imul(h, 16777619); }
   return h >>> 0;
 }
 
 /** Tileable value noise over the 16x16 tile (cell = grid spacing in pixels). */
-function tileNoise(rng: () => number, cell: number): Float32Array {
+export function tileNoise(rng: () => number, cell: number): Float32Array {
   const n = TEX / cell;
   const g = Float32Array.from({ length: n * n }, () => rng());
   const out = new Float32Array(TEX * TEX);
@@ -61,7 +62,7 @@ function tileNoise(rng: () => number, cell: number): Float32Array {
   return out;
 }
 
-function noisy(base: RGB, rng: () => number, amount: number, cell = 4, cellAmt = 0.12): PixelTex {
+export function noisy(base: RGB, rng: () => number, amount: number, cell = 4, cellAmt = 0.12): PixelTex {
   const t = new PixelTex();
   const n = tileNoise(rng, cell);
   for (let y = 0; y < TEX; y++) for (let x = 0; x < TEX; x++) {
@@ -71,7 +72,7 @@ function noisy(base: RGB, rng: () => number, amount: number, cell = 4, cellAmt =
   return t;
 }
 
-function speckle(t: PixelTex, rng: () => number, count: number, c: RGB, jitter = 0.06): void {
+export function speckle(t: PixelTex, rng: () => number, count: number, c: RGB, jitter = 0.06): void {
   for (let i = 0; i < count; i++) t.set(Math.floor(rng() * TEX), Math.floor(rng() * TEX), shade(c, 1 + (rng() - 0.5) * jitter * 2));
 }
 
@@ -1680,6 +1681,8 @@ export function generateBlockTextures(): Map<string, PixelTex> {
   m.set('map_table_top', mapTable(R('map_t'), true));
   m.set('map_table_side', mapTable(R('map_s'), false));
   destroyStages().forEach((t, i) => m.set(`destroy_${i}`, t));
+  // 2.16: stage 2 of the texture update: richer blocks and scenery (replaces the plainer painters above)
+  richerBlockTextures(m);
   for (const n of TEXTURE_NAMES) if (!m.has(n)) m.set(n, missing());
   return m;
 }
