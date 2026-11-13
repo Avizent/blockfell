@@ -237,3 +237,9 @@ shaped(['PPP', 'PIP', 'PPP'], { P: 'planks', I: 'iron_ingot' }, 'jukebox');
 shaped(['PPP', 'PSP', 'PPP'], { P: 'planks', S: 'string' }, 'note_block');
 shaped([' C ', 'CAC', ' C '], { C: 'coal', A: 'amber' }, 'blank_disc', 2);
 shaped(['G', 'A', 'I'], { G: 'glass', A: 'amber', I: 'iron_ingot' }, 'weather_glass');
+
+// ---- 2.16: Carpets (two wool make three) and Banners (six wool and a stick)
+for (const c of DYE_COLORS) {
+  shaped(['WW'], { W: woolKey(c) }, `carpet_${c}`, 3);
+  shaped(['WWW', 'WWW', ' S '], { W: woolKey(c), S: 'stick' }, `banner_${c}`);
+}
