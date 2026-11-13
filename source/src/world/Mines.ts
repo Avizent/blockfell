@@ -125,3 +125,51 @@ export function placeMine(seed: number, cx: number, cz: number, blocks: Uint16Ar
   }
   return true;
 }
+
+/**
+ * 2.16 (terrain version 11): a way in. Each mine has one pit-head on its long gallery: a
+ * ladder shaft from the gallery floor up to the surface, under a little timber headframe.
+ * The shaft stands in the chunk's cell column x=12, z=6 (just north of the gallery), the
+ * ladder against the north wall, so you climb in from the gallery's north lane. The chunk
+ * that gets the pit-head is a pure function of (seed, region); it is skipped on steep,
+ * wet or thin ground, and the mine is then reached by digging as before.
+ */
+export function entranceChunkX(seed: number, cx: number, cz: number): number {
+  const rr = mulberry32(hash4(seed, cx >> 2, cz >> 2, 0x31b0));
+  return [0, 1, 3][Math.floor(rr() * 3)];
+}
+
+export function placeMineEntrance(seed: number, cx: number, cz: number, blocks: Uint16Array,
+  heightAt: (lx: number, lz: number) => number, seaLevel: number): boolean {
+  const fy = mineFloor(seed, cx, cz);
+  if (fy < 0) return false;
+  if (!mineArms(cx, cz).ew || (cx & 3) !== entranceChunkX(seed, cx, cz)) return false;
+  // the gallery must really have been cut in this chunk
+  if (get(blocks, 12, fy + 1, 8) !== B.RAIL && get(blocks, 12, fy + 1, 8) !== B.BOOST_RAIL) return false;
+  const h = heightAt(12, 6);
+  if (h <= seaLevel + 1 || h + 5 >= WORLD_HEIGHT) return false;
+  // flat ground only under the headframe, and no water
+  for (let z = 5; z <= 7; z++) for (let x = 11; x <= 13; x++) {
+    const hh = heightAt(x, z);
+    if (Math.abs(hh - h) > 1 || hh <= seaLevel) return false;
+  }
+  for (let y = fy + 1; y <= h + 1; y++) if (B.IS_FLUID[get(blocks, 12, y, 6)] || B.IS_FLUID[get(blocks, 12, y, 5)]) return false;
+
+  // clear the air above the headframe (trees, plants), then dig the shaft
+  for (let z = 5; z <= 7; z++) for (let x = 11; x <= 13; x++) for (let y = h + 1; y <= h + 4; y++) put(blocks, x, y, z, B.AIR);
+  for (let y = fy + 1; y <= h; y++) {
+    put(blocks, 12, y, 6, B.AIR);
+    if (!B.IS_SOLID[get(blocks, 12, y, 5)]) put(blocks, 12, y, 5, B.COBBLESTONE);
+  }
+  // the ladder: climb side faces the gallery (south), wall to the north
+  for (let y = fy + 1; y <= h + 2; y++) put(blocks, 12, y, 6, B.LADDERS.s);
+  // the wall behind the ladder above ground, fences all round, a plank roof
+  put(blocks, 12, h + 1, 5, B.PLANKS); put(blocks, 12, h + 2, 5, B.PLANKS);
+  for (const [x, z] of [[11, 5], [13, 5], [11, 6], [13, 6], [11, 7], [13, 7]]) {
+    for (let y = heightAt(x, z) + 1; y <= h + 2; y++) put(blocks, x, y, z, B.OAK_FENCE);
+  }
+  for (let z = 5; z <= 7; z++) for (let x = 11; x <= 13; x++) put(blocks, x, h + 3, z, B.PLANKS);
+  // a torch on the porch post
+  put(blocks, 11, h + 3, 7, B.TORCH);
+  return true;
+}

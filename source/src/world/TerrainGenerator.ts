@@ -4,7 +4,7 @@ import { CHUNK_SIZE, CHUNK_VOLUME, SEA_LEVEL, WORLD_HEIGHT, localIndex } from '.
 import * as B from './BlockRegistry';
 import { VillagePlanner } from './Villages';
 import { placeDungeon, placeLavaLake } from './Dungeons';
-import { placeMine } from './Mines';
+import { placeMine, placeMineEntrance } from './Mines';
 import type { DimensionGenerator } from './generators';
 import {
   BIOMES, BIOME_BADLANDS, BIOME_BEACH, BIOME_BIRCH, BIOME_DESERT, BIOME_FOREST, BIOME_MOUNTAINS, BIOME_OCEAN, BIOME_PLAINS,
@@ -13,7 +13,7 @@ import {
 
 /** Newest terrain version. Worlds remember theirs so saved landscapes never change. */
 /** (5 = 1.7 lava and dungeons; 6 = 1.8 a Village Bell on the well and a Mapmaker in new villages.) */
-export const GEN_VERSION = 10;   // 10 = 2.15 mineshafts; 9 = 2.14 Powder Snow pits; 8 = 2.11 buried treasure
+export const GEN_VERSION = 11;   // 11 = 2.16 mine pit-heads (ladder shafts to the surface); 10 = 2.15 mineshafts; 9 = 2.14 Powder Snow pits; 8 = 2.11 buried treasure
 
 export interface GenOptions {
   structures: boolean;
@@ -602,6 +602,7 @@ export class TerrainGenerator implements DimensionGenerator {
       }
     }
 
+    let minePlaced = false;
     this.placeOres(blocks, rng);
     this.placeRuneOre(cx, cz, blocks);
     if (this.version >= 5) {
@@ -610,10 +611,11 @@ export class TerrainGenerator implements DimensionGenerator {
       for (const c of cols) minSurface = Math.min(minSurface, c.height);
       placeLavaLake(this.seed, cx, cz, blocks, minSurface);
       if (this.opts.structures) placeDungeon(this.seed, cx, cz, blocks, minSurface, containers, spawners);
-      if (this.opts.structures && this.version >= 10) placeMine(this.seed, cx, cz, blocks, minSurface, containers, spawners);
+      if (this.opts.structures && this.version >= 10) minePlaced = placeMine(this.seed, cx, cz, blocks, minSurface, containers, spawners);
     }
     this.placeTrees(cx, cz, blocks);
     this.placePlants(cx, cz, blocks, cols);
+    if (minePlaced && this.version >= 11) placeMineEntrance(this.seed, cx, cz, blocks, (lx, lz) => cols[lx | (lz << 4)].height, SEA_LEVEL);
     if (this.villages) this.villages.stampChunk(cx, cz, blocks, containers);
     if (this.opts.structures && !this.villages?.inVillage(cx * 16 + 8, cz * 16 + 8, 24)) this.placeRuin(cx, cz, blocks, cols, containers);
     const tr = this.treasureAt(cx, cz);

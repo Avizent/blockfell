@@ -23,7 +23,7 @@ export type SoundType = 'stone' | 'wood' | 'grass' | 'gravel' | 'sand' | 'glass'
 export type Facing = 'n' | 'e' | 's' | 'w';
 export type Interaction = 'crafting' | 'furnace' | 'chest' | 'runes' | 'door' | 'bed' | 'gate' | 'trapdoor' | 'sign' | 'pot' | 'bell' | 'storm_bell' | 'cake' | 'brewing' | 'tunebox' | 'jukebox' | 'note' | null;
 export type Shape = 'slab' | 'stairs' | 'door' | 'bed' | 'wall_torch'
-  | 'fence' | 'pane' | 'gate' | 'ladder' | 'trapdoor' | 'sign' | 'wall_sign' | 'lantern' | 'pot' | 'rail' | 'bunting' | 'cake' | null;
+  | 'fence' | 'pane' | 'gate' | 'ladder' | 'trapdoor' | 'sign' | 'wall_sign' | 'lantern' | 'pot' | 'rail' | 'bunting' | 'cake' | 'carpet' | 'banner' | null;
 
 /** Face index (E, W, U, D, S, N) that points in a facing direction. */
 export const FACE_OF: Record<Facing, number> = { e: 0, w: 1, s: 4, n: 5 };
@@ -971,6 +971,37 @@ export const COBWEB = reg('cobweb', 'Cobweb', {
   tool: 'sword', sound: 'wool', drops: [{ item: 'string', min: 1, max: 1 }], item: 'cobweb',
   selection: [0, 0, 0, 1, 1, 1],
 }).id;
+
+/**
+ * 2.16: Carpets and Banners (registered after Cobweb, so no saved block id moves).
+ * A Carpet is a one-sixteenth-high mat in any of the sixteen wool colours that you walk over; it
+ * needs a solid floor. A Banner is a coloured cloth hung from a crossbar on a pole, with a pale
+ * hem stripe; it stands on solid ground and is placed across your view (like Bunting).
+ */
+const woolTex = (c: DyeColor): string => (c === 'white' ? 'wool' : `wool_${c}`);
+export const CARPETS: Record<string, number> = {};
+for (const c of DYE_COLORS) {
+  CARPETS[c] = reg(`carpet_${c}`, `${DYE_NAMES[c]} Carpet`, {
+    tex: woolTex(c), render: RENDER_MODEL, opaque: false, lightOpacity: 0, hardness: 0.1, sound: 'wool',
+    shape: 'carpet', model: [0, 0, 0, 16, 1, 16], collision: [0, 0, 0, 16, 1, 16],
+  }).id;
+}
+const BANNER_BOXES = [7, 0, 7, 9, 16, 9, 3, 14, 7, 13, 16, 9, 4, 2, 9, 12, 14, 10, 4, 2, 9, 12, 5, 10];
+export const BANNERS: Record<string, { ew: number; ns: number }> = {};
+for (const c of DYE_COLORS) {
+  const cloth = Array(6).fill(woolTex(c));
+  const hem = Array(6).fill(c === 'white' ? 'wool_light_gray' : 'wool');
+  const key = `banner_${c}`;
+  BANNERS[key] = { ew: 0, ns: 0 };
+  for (const o of ['ew', 'ns'] as const) {
+    BANNERS[key][o] = reg(`${key}:${o}`, `${DYE_NAMES[c]} Banner`, {
+      tex: 'planks', render: RENDER_MODEL, opaque: false, solid: false, lightOpacity: 0, hardness: 0.3, tool: 'axe', sound: 'wool',
+      shape: 'banner', variantOf: key, item: key, drops: [{ item: key, min: 1, max: 1 }],
+      model: o === 'ew' ? BANNER_BOXES : rotateBoxes(BANNER_BOXES, 'e'), collision: null,
+      modelFaces: [null, null, cloth, hem],
+    }).id;
+  }
+}
 export const GATE_RING = [CINDERSTONE, CINDERSTONE_BRICKS];
 /** 2.2: a Stargate's ring is eight Glimmerstone. */
 export const STAR_RING = [GLIMMERSTONE];
