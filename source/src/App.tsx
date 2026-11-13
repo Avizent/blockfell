@@ -4,7 +4,7 @@ import { ui } from './ui/uiStore';
 import { TitleScreen, WorldSelect, CreateWorld, EditWorld, LoadingScreen, QuitScreen, ImportWorld, CloudScreen } from './ui/Menus';
 import { TheEnd } from './ui/TheEnd';
 import { TuneEditor } from './ui/TuneEditor';
-import { OptionsScreen, PauseMenu, DeathScreen, AdvancementsScreen, StatsScreen, SleepScreen, SignEditor, MapScreen, NameTagScreen } from './ui/GameMenus';
+import { OptionsScreen, PauseMenu, DeathScreen, AdvancementsScreen, StatsScreen, LedgerScreen, SleepScreen, SignEditor, MapScreen, NameTagScreen } from './ui/GameMenus';
 import { HUD, Toasts } from './ui/HUD';
 import { SurvivalInventory, CraftingTableScreen, ChestScreen, BagScreen, FurnaceScreen, BrewingScreen, CreativeScreen, RuneTableScreen, TradeScreen } from './ui/InventoryUI';
 import { engine } from './engine/Engine';
@@ -41,6 +41,7 @@ export function App() {
           {overlay === 'options' && <OptionsScreen />}
           {overlay === 'advancements' && <AdvancementsScreen />}
           {overlay === 'stats' && <StatsScreen />}
+          {overlay === 'ledger' && <LedgerScreen />}
           {overlay === 'death' && <DeathScreen />}
           {overlay === 'theend' && <TheEnd onDone={() => engine.finishTheEnd()} />}
           {overlay === 'inventory' && <SurvivalInventory />}
