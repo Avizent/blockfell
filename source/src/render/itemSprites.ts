@@ -845,6 +845,9 @@ export const EGG_COLORS: Record<string, [RGBA, RGBA]> = {
   axolotl: [[244, 169, 198], [216, 88, 127]],
   squid: [[62, 90, 138], [168, 194, 232]],
   guardian: [[79, 106, 116], [212, 87, 74]],
+  emberling: [[201, 88, 42], [255, 178, 58]],
+  mossback: [[109, 90, 60], [78, 138, 58]],
+  stormkit: [[91, 111, 156], [255, 226, 74]],
 };
 for (const [mob, [a, s]] of Object.entries(EGG_COLORS)) {
   const L: RGBA = [Math.min(255, a[0] + 30), Math.min(255, a[1] + 30), Math.min(255, a[2] + 30)];
@@ -1303,4 +1306,22 @@ SPRITES.weather_glass = {
     '.......ss.......', '......sooS......', '................', '................',
   ],
   pal: { o: [40, 44, 56], G: [190, 214, 226], B: [150, 180, 206], W: [244, 248, 252], R: [214, 78, 70], s: [150, 110, 60], S: [120, 84, 44] },
+};
+
+// ---- 2.17: catching creatures
+SPRITES.capture_orb = {
+  map: [
+    '................', '................', '.....oooooo.....', '....oTTWWTTo....', '...oTTWWTTTTo...', '..oTTWTTTTTDDo..',
+    '..oTTTTTTTTDDo..', '..oBBBBBBBBBBo..', '..oBYYBBBBYYBo..', '..oTTTTTTTTDDo..', '..oTTTTTTTDDDo..', '...oTTTTTDDDo...',
+    '....oDDDDDDo....', '.....oooooo.....', '................', '................',
+  ],
+  pal: { o: [16, 56, 64], T: [94, 224, 208], W: [226, 255, 250], D: [40, 150, 150], B: [255, 210, 58], Y: [255, 245, 170] },
+};
+SPRITES.creature_ledger = {
+  map: [
+    '................', '..oooooooooo....', '.oGGGGGGGGGGo...', '.oGLLLLLLLLGo...', '.oGLPPPPPPLGo...', '.oGLPpppPPLGo...',
+    '.oGLPPPPPPLGo...', '.oGLLLLLLLLGo...', '.oGLwwwwwwLGo...', '.oGLLLLLLLLGo...', '.oGLwwwwLLLGo...', '.oGLLLLLLLLGo...',
+    '.oGGGGGGGGGGo...', '..oooooooooo....', '................', '................',
+  ],
+  pal: { o: [24, 46, 28], G: [54, 110, 62], L: [214, 196, 150], P: [242, 232, 206], p: [201, 88, 42], w: [120, 100, 70] },
 };
