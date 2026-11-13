@@ -32,7 +32,7 @@ export function needsSupport(id: number): boolean {
   if (id === B.CACTUS) return true;
   const d = B.getBlock(id);
   return d.shape === 'door' || d.shape === 'bed' || d.shape === 'ladder' || d.shape === 'sign' || d.shape === 'wall_sign' || d.shape === 'lantern'
-    || d.shape === 'rail' || d.shape === 'bunting' || d.shape === 'cake' || id === B.BALLOONS;
+    || d.shape === 'rail' || d.shape === 'bunting' || d.shape === 'cake' || d.shape === 'carpet' || d.shape === 'banner' || id === B.BALLOONS;
 }
 
 /** Facing that points out of a clicked side face (east, west, south, north), or null for top/bottom. */
@@ -58,6 +58,8 @@ export function supportOk(world: World, id: number, x: number, y: number, z: num
   if (B.CROP_STAGE[id] >= 0) return B.IS_FARMLAND(below);
   if (id === B.GLOWCAP || id === B.STARBLOOM || id === B.BALLOONS) return solidTop(below);   // 2.0/2.2/2.4: any solid floor
   if (d.shape === 'bunting') return B.IS_SOLID[world.getBlock(x, y + 1, z)] === 1;   // hangs from the block above
+  if (d.shape === 'carpet') return solidTop(below);
+  if (d.shape === 'banner') return B.IS_SOLID[below] === 1;
   if (B.RENDER[id] === B.RENDER_CROSS) return below === B.GRASS || below === B.DIRT || below === B.SNOWY_GRASS;
   if (id === B.CACTUS) return below === B.CACTUS || SAND_LIKE.has(below);
   if ((d.shape === 'wall_torch' || d.shape === 'ladder') && d.facing) {
@@ -184,6 +186,9 @@ export function resolvePlacement(world: World, hit: RayHit, itemBlock: number, p
     }
     case 'bunting':
       block = look === 'n' || look === 's' ? B.BUNTING.ew : B.BUNTING.ns;   // strung across your view
+      break;
+    case 'banner':
+      block = B.BANNERS[itemDef.variantOf!][look === 'n' || look === 's' ? 'ew' : 'ns'];   // cloth faces you
       break;
     case 'lantern': {
       const hang = hit.face === 3 || (!B.IS_SOLID[world.getBlock(x, y - 1, z)] && B.IS_SOLID[world.getBlock(x, y + 1, z)] === 1);
