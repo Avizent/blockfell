@@ -400,6 +400,10 @@ export class Engine implements EngineServices {
     ui.set({ screen: 'loading', overlay: null, loading: { title: 'Saving world', stage: 'Saving chunks', progress: -1, detail: g.record.name } });
     this.input.exitLock();
     writeResume(null);   // quit on purpose: the next start shows the title screen
+    if (g.record.name !== BENCH_WORLD && !g.player.dead) {
+      const t = this.renderer.snapshot();
+      if (t) g.record.thumb = t;
+    }
     await g.save();
     if (this.cloud.active && g.record.name !== BENCH_WORLD) {
       ui.set((s) => ({ loading: { ...s.loading, stage: 'Saving to Dropbox' } }));
@@ -435,6 +439,24 @@ export class Engine implements EngineServices {
     ui.set((s) => ({ screen: 'title', overlay: null, worldsVersion: s.worldsVersion + 1 }));
     this.updateFocus();
     void this.cloud.refreshUi();
+  }
+
+  /** 2.18: save this world, then show the world list so another can be picked. */
+  async switchWorld(): Promise<void> {
+    await this.saveAndQuit();
+    ui.set({ screen: 'worlds', selectedWorld: null });
+  }
+
+  /** The most recently played worlds (not the benchmark world), newest first. */
+  async recentWorlds(n = 4): Promise<WorldRecord[]> {
+    return (await this.saves.listWorlds()).filter((w) => w.name !== BENCH_WORLD).slice(0, n);
+  }
+
+  /** 2.18: the title screen switch for "open straight back into the world that was open". */
+  setReopenLast(on: boolean): void {
+    this.options.reopenLastWorld = on;
+    saveOptions(this.options);
+    ui.set((s) => ({ optionsVersion: s.optionsVersion + 1 }));
   }
 
   /** Deletes a world here, or here and in Dropbox (`everywhere`; throws if Dropbox can't be reached). */

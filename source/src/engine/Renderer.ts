@@ -84,6 +84,25 @@ export class Renderer {
     this.lastTriangles = gl.info.render.triangles;
   }
 
+  /** 2.18: a small JPEG of what the player sees right now (no hand), for the world cards. Null if it cannot be read. */
+  snapshot(w = 192, h = 108): string | null {
+    try {
+      this.render(false);
+      const cw = this.canvas.width, ch = this.canvas.height;
+      if (!cw || !ch) return null;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      if (!ctx) return null;
+      // cover-crop the centre of the view to 16:9
+      let sw = cw, sh = Math.round(cw * h / w);
+      if (sh > ch) { sh = ch; sw = Math.round(ch * w / h); }
+      ctx.drawImage(this.canvas, Math.floor((cw - sw) / 2), Math.floor((ch - sh) / 2), sw, sh, 0, 0, w, h);
+      const url = c.toDataURL('image/jpeg', 0.6);
+      return url.length > 20 && url.length < 40000 ? url : null;
+    } catch { return null; }
+  }
+
   dispose(): void {
     window.removeEventListener('resize', this.resize);
     this.sky.dispose();
