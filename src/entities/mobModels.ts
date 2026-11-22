@@ -1,0 +1,1118 @@
+import * as THREE from 'three';
+import { BuiltModel, PartDef, buildModel } from './BoxModel';
+import { drakeModel } from './drakeModel';
+import { DYE_RGB, type DyeColor } from '../world/dyes';
+
+/**
+ * ORIGINAL cuboid creature designs. Coordinates are in model pixels; the model's
+ * feet centre is the origin and it faces +Z.
+ */
+export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound'
+  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider' | 'sporecap' | 'powderbug' | 'gloommoth' | 'hootlet' | 'trader' | 'axolotl' | 'squid' | 'guardian' | 'emberling' | 'mossback' | 'stormkit' | 'shellsnap' | 'pinecub' | 'lanternling';
+export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker' | 'trader';
+
+const quad = (name: string, x: number, z: number, h: number, w: number, base: string, paint?: PartDef['paint']): PartDef => ({
+  name, size: [w, h, w], pivot: [x, h, z], from: [-w / 2, -h, -w / 2], base, paint,
+});
+
+function pig(): PartDef[] {
+  return [
+    { name: 'body', size: [10, 8, 14], pivot: [0, 6, 0], from: [-5, 0, -7], base: '#e9a3a3',
+      paint: (p) => { p.px('top', 2, 3, '#d98e90', 3, 2); p.px('left', 5, 2, '#d98e90', 3, 3); p.px('right', 8, 3, '#d98e90', 2, 2); } },
+    { name: 'head', size: [8, 8, 8], pivot: [0, 10, 7], from: [-4, -4, 0], base: '#eeaaaa',
+      paint: (p) => {
+        p.px('front', 1, 2, '#ffffff', 2, 2); p.px('front', 5, 2, '#ffffff', 2, 2);
+        p.px('front', 2, 3, '#2a1a1a'); p.px('front', 5, 3, '#2a1a1a');
+        p.px('front', 1, 7, '#d98e90', 6, 1);
+      } },
+    { name: 'snout', size: [4, 3, 1], pivot: [0, 0, 0], from: [-2, -4, 8], base: '#f4b8bc', parent: 'head',
+      paint: (p) => { p.px('front', 0, 1, '#9e5a5e'); p.px('front', 3, 1, '#9e5a5e'); } },
+    { name: 'earL', size: [2, 2, 1], pivot: [0, 0, 0], from: [2, 4, 3], base: '#d98e90', parent: 'head' },
+    { name: 'earR', size: [2, 2, 1], pivot: [0, 0, 0], from: [-4, 4, 3], base: '#d98e90', parent: 'head' },
+    quad('legFL', 3, 5, 6, 4, '#e39c9c'),
+    quad('legFR', -3, 5, 6, 4, '#e39c9c'),
+    quad('legBL', 3, -5, 6, 4, '#e39c9c'),
+    quad('legBR', -3, -5, 6, 4, '#e39c9c'),
+    saddlePart(8, 5.5, 5),
+  ];
+}
+
+function cow(): PartDef[] {
+  const spots = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => {
+    p.px('top', 1, 2, '#efe8dc', 5, 4); p.px('top', 7, 10, '#efe8dc', 4, 5);
+    p.px('left', 3, 2, '#efe8dc', 6, 4); p.px('right', 10, 3, '#efe8dc', 5, 5); p.px('back', 3, 2, '#efe8dc', 4, 4);
+  };
+  return [
+    { name: 'body', size: [12, 10, 18], pivot: [0, 12, 0], from: [-6, 0, -9], base: '#5d4330', paint: spots },
+    { name: 'head', size: [8, 8, 6], pivot: [0, 18, 9], from: [-4, -4, 0], base: '#5a4130',
+      paint: (p) => {
+        p.px('front', 1, 2, '#1a1410', 2, 1); p.px('front', 5, 2, '#1a1410', 2, 1);
+        p.px('front', 3, 0, '#efe8dc', 2, 3);
+      } },
+    { name: 'muzzle', size: [6, 3, 1], pivot: [0, 0, 0], from: [-3, -4, 6], base: '#e7d8c6',
+      parent: 'head', paint: (p) => { p.px('front', 1, 1, '#6b4d40'); p.px('front', 4, 1, '#6b4d40'); } },
+    { name: 'hornL', size: [1, 3, 1], pivot: [0, 0, 0], from: [4, 2, 2], base: '#ddd3bd', parent: 'head' },
+    { name: 'hornR', size: [1, 3, 1], pivot: [0, 0, 0], from: [-5, 2, 2], base: '#ddd3bd', parent: 'head' },
+    quad('legFL', 4, 6, 12, 4, '#553d2c'),
+    quad('legFR', -4, 6, 12, 4, '#553d2c'),
+    quad('legBL', 4, -6, 12, 4, '#553d2c'),
+    quad('legBR', -4, -6, 12, 4, '#553d2c'),
+  ];
+}
+
+/**
+ * SHEEP. 2.3: its wool can be any of the sixteen dye colours, and once sheared it
+ * is a slimmer pinkish-tan animal until the wool grows back.
+ */
+function sheep(color: DyeColor = 'white', sheared = false): PartDef[] {
+  const [r, g, b] = DYE_RGB[color];
+  const hex = (k: number) => '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v * k))).toString(16).padStart(2, '0')).join('');
+  const wool = hex(1), woolHi = hex(1.08), skin = '#d8c0a2', face = '#cbb89f';
+  const woolLeg = (p: FacePainterLike) => { for (const f of ['front', 'left', 'right', 'back'] as const) p.px(f, 0, 0, wool, 4, 4); };
+  const parts: PartDef[] = [
+    sheared
+      ? { name: 'body', size: [10, 8, 14], pivot: [0, 12, 0], from: [-5, 1, -7], base: skin, noise: 0.05,
+        paint: (p) => { p.fill('top', '#cfb595', 0.06, 4); } }
+      : { name: 'body', size: [12, 10, 16], pivot: [0, 12, 0], from: [-6, 0, -8], base: wool, noise: 0.08,
+        paint: (p) => { p.fill('top', woolHi, 0.1, 5); } },
+    { name: 'head', size: [6, 6, 7], pivot: [0, 18, 8], from: [-3, -3, 0], base: face,
+      paint: (p) => {
+        if (!sheared) { p.fill('top', wool, 0.08, 3); p.px('front', 0, 0, wool, 6, 1); }
+        p.px('front', 1, 2, '#2a2420'); p.px('front', 4, 2, '#2a2420');
+        p.px('front', 2, 4, '#a58f78', 2, 1);
+      } },
+    { name: 'earL', size: [2, 1, 2], pivot: [0, 0, 0], from: [3, 1, 3], base: '#bba58c', parent: 'head' },
+    { name: 'earR', size: [2, 1, 2], pivot: [0, 0, 0], from: [-5, 1, 3], base: '#bba58c', parent: 'head' },
+    quad('legFL', 4, 5, 12, 4, face, sheared ? undefined : woolLeg),
+    quad('legFR', -4, 5, 12, 4, face, sheared ? undefined : woolLeg),
+    quad('legBL', 4, -5, 12, 4, face, sheared ? undefined : woolLeg),
+    quad('legBR', -4, -5, 12, 4, face, sheared ? undefined : woolLeg),
+  ];
+  return parts;
+}
+
+/** 2.3: a sheep's model for a wool colour (and sheared or not). */
+export function sheepModel(color: DyeColor, sheared: boolean): BuiltModel {
+  const key = `sheep:${color}:${sheared ? 1 : 0}`;
+  let m = cache.get(key);
+  if (m) return m;
+  m = buildModel(sheep(color, sheared), 64, 64, 65);
+  cache.set(key, m);
+  return m;
+}
+
+function chicken(): PartDef[] {
+  return [
+    { name: 'body', size: [6, 6, 8], pivot: [0, 5, 0], from: [-3, 0, -4], base: '#f2f2ee' },
+    { name: 'head', size: [4, 6, 3], pivot: [0, 9, 3], from: [-2, 0, 0], base: '#f4f4f0',
+      paint: (p) => { p.px('front', 0, 2, '#1c1c1c'); p.px('front', 3, 2, '#1c1c1c'); } },
+    { name: 'beak', size: [4, 2, 2], pivot: [0, 0, 0], from: [-2, 2, 3], base: '#f0a430', parent: 'head' },
+    { name: 'wattle', size: [2, 2, 1], pivot: [0, 0, 0], from: [-1, 0, 3], base: '#d63a30', parent: 'head' },
+    { name: 'wingL', size: [1, 4, 6], pivot: [3, 9, 0], from: [0, -4, -3], base: '#e6e6e0' },
+    { name: 'wingR', size: [1, 4, 6], pivot: [-3, 9, 0], from: [-1, -4, -3], base: '#e6e6e0' },
+    { name: 'legL', size: [1, 5, 1], pivot: [1.5, 5, 0], from: [-0.5, -5, -0.5], base: '#e89a2a' },
+    { name: 'legR', size: [1, 5, 1], pivot: [-1.5, 5, 0], from: [-0.5, -5, -0.5], base: '#e89a2a' },
+  ];
+}
+
+function humanoid(opts: {
+  skin: string; shirt: string; pants: string; shoes: string; hair?: string; face: PartDef['paint'];
+  armW?: number; legW?: number; extra?: PartDef[]; torso?: PartDef['paint'];
+}): PartDef[] {
+  const aw = opts.armW ?? 4, lw = opts.legW ?? 4;
+  const sides = ['front', 'back', 'left', 'right'] as const;
+  // 2.12: sleeves with a darker cuff and a pale seam; legs with a knee crease, a turned-up hem and shoes with a toecap and sole
+  const arm = (p: FacePainterLike) => {
+    for (const f of sides) { p.px(f, 0, 0, opts.shirt, aw, 4); p.px(f, 0, 3, shadeHex(opts.shirt, 0.78), aw, 1); }
+    for (const f of sides) p.px(f, 0, 11, shadeHex(opts.skin, 0.88), aw, 1);   // wrist
+  };
+  const leg = (p: FacePainterLike) => {
+    for (const f of sides) {
+      p.px(f, 0, 5, shadeHex(opts.pants, 0.84), lw, 1);                       // knee crease
+      p.px(f, 0, 9, shadeHex(opts.pants, 1.12), lw, 1);                       // hem
+      p.px(f, 0, 10, opts.shoes, lw, 2);
+      p.px(f, 0, 11, shadeHex(opts.shoes, 0.6), lw, 1);                       // sole
+    }
+    p.px('front', 1, 10, shadeHex(opts.shoes, 1.3), Math.max(1, lw - 2), 1);   // toecap shine
+    p.fill('bottom', opts.shoes, 0.05, 2);
+  };
+  return [
+    { name: 'body', size: [8, 12, 4], pivot: [0, 12, 0], from: [-4, 0, -2], base: opts.shirt, paint: opts.torso },
+    { name: 'head', size: [8, 8, 8], pivot: [0, 24, 0], from: [-4, 0, -4], base: opts.skin, paint: opts.face },
+    { name: 'armL', size: [aw, 12, aw], pivot: [4 + aw / 2, 22, 0], from: [-aw / 2, -10, -aw / 2], base: opts.skin, paint: arm },
+    { name: 'armR', size: [aw, 12, aw], pivot: [-4 - aw / 2, 22, 0], from: [-aw / 2, -10, -aw / 2], base: opts.skin, paint: arm },
+    { name: 'legL', size: [lw, 12, lw], pivot: [2, 12, 0], from: [-lw / 2, -12, -lw / 2], base: opts.pants, paint: leg },
+    { name: 'legR', size: [lw, 12, lw], pivot: [-2, 12, 0], from: [-lw / 2, -12, -lw / 2], base: opts.pants, paint: leg },
+    ...(opts.extra ?? []),
+  ];
+}
+
+
+/** 2.12: ears, under-eye shadow, a nose-bridge highlight and a shaded jaw, so faces read as faces. */
+function faceExtras(p: FacePainterLike, skin: string, jaw = true): void {
+  const dk = shadeHex(skin, 0.8), dk2 = shadeHex(skin, 0.68);
+  for (const f of ['left', 'right'] as const) { p.px(f, 3, 3, dk, 2, 2); p.px(f, 3, 4, dk2, 1, 1); }   // ears
+  p.px('front', 1, 4, shadeHex(skin, 0.9), 2, 1); p.px('front', 5, 4, shadeHex(skin, 0.9), 2, 1);  // under the eyes
+  p.px('front', 4, 4, shadeHex(skin, 1.1), 1, 1);                                                   // bridge of the nose
+  if (jaw) p.px('front', 0, 7, shadeHex(skin, 0.86), 8, 1);
+}
+
+function shambler(): PartDef[] {
+  return humanoid({
+    skin: '#6f8a66', shirt: '#86704f', pants: '#3b3d4a', shoes: '#2b2a2a',
+    face: (p) => {
+      p.fill('top', '#56704e', 0.1, 9);
+      p.px('front', 1, 3, '#1b2418', 2, 2); p.px('front', 5, 3, '#1b2418', 2, 2);
+      p.px('front', 2, 3, '#c8d86a'); p.px('front', 5, 3, '#c8d86a');
+      p.px('front', 2, 6, '#3a4a34', 4, 1);
+      p.px('front', 0, 0, '#56704e', 8, 1);
+    },
+    torso: (p) => {
+      p.px('front', 0, 9, '#6f8a66', 3, 3); p.px('front', 6, 8, '#6f8a66', 2, 4);
+      p.px('front', 3, 2, '#5e4a33', 1, 8);
+    },
+  });
+}
+
+function skeleton(): PartDef[] {
+  return humanoid({
+    skin: '#d8d5c8', shirt: '#d8d5c8', pants: '#d8d5c8', shoes: '#bcb8aa', armW: 2, legW: 2,
+    face: (p) => {
+      p.fill('top', '#3a3346', 0.08, 5);
+      p.fill('back', '#3a3346', 0.08, 6);
+      p.px('left', 0, 0, '#3a3346', 8, 3); p.px('right', 0, 0, '#3a3346', 8, 3);
+      p.px('front', 0, 0, '#3a3346', 8, 2);
+      p.px('front', 1, 3, '#15121a', 2, 2); p.px('front', 5, 3, '#15121a', 2, 2);
+      p.px('front', 3, 5, '#15121a', 2, 1);
+      p.px('front', 2, 7, '#8f8b7e', 4, 1);
+    },
+    torso: (p) => {
+      for (let y = 1; y < 9; y += 2) p.px('front', 1, y, '#8f8b7e', 6, 1);
+      p.px('front', 3, 0, '#8f8b7e', 2, 12);
+      p.px('back', 3, 0, '#8f8b7e', 2, 12);
+    },
+  });
+}
+
+function goat(): PartDef[] {
+  const shag = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => {
+    for (const f of ['left', 'right', 'back'] as const) p.fill(f, '#d8d0bb', 0.1, 17);
+    p.px('left', 0, 6, '#c2b99f', 14, 3); p.px('right', 0, 6, '#c2b99f', 14, 3);
+  };
+  return [
+    { name: 'body', size: [8, 9, 14], pivot: [0, 11, 0], from: [-4, 0, -7], base: '#ddd6c2', noise: 0.08, paint: shag },
+    { name: 'head', size: [6, 6, 7], pivot: [0, 17, 7], from: [-3, -2, 0], base: '#d6cfba',
+      paint: (p) => {
+        p.px('front', 0, 1, '#c79a2e', 2, 1); p.px('front', 4, 1, '#c79a2e', 2, 1);
+        p.px('front', 1, 1, '#1e1a14'); p.px('front', 4, 1, '#1e1a14');
+        p.px('front', 2, 4, '#8f866f', 2, 1);
+      } },
+    { name: 'beard', size: [2, 4, 1], pivot: [0, 0, 0], from: [-1, -5, 5], base: '#bdb296', parent: 'head' },
+    { name: 'hornL', size: [1, 4, 2], pivot: [0, 0, 0], from: [1.5, 4, 1], base: '#7c7462', parent: 'head' },
+    { name: 'hornR', size: [1, 4, 2], pivot: [0, 0, 0], from: [-2.5, 4, 1], base: '#7c7462', parent: 'head' },
+    { name: 'earL', size: [3, 1, 2], pivot: [0, 0, 0], from: [3, 2, 2], base: '#c8bfa7', parent: 'head' },
+    { name: 'earR', size: [3, 1, 2], pivot: [0, 0, 0], from: [-6, 2, 2], base: '#c8bfa7', parent: 'head' },
+    quad('legFL', 2.5, 5, 11, 3, '#c9c1aa', (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 9, '#4a4032', 3, 2); }),
+    quad('legFR', -2.5, 5, 11, 3, '#c9c1aa', (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 9, '#4a4032', 3, 2); }),
+    quad('legBL', 2.5, -5, 11, 3, '#c9c1aa', (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 9, '#4a4032', 3, 2); }),
+    quad('legBR', -2.5, -5, 11, 3, '#c9c1aa', (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 9, '#4a4032', 3, 2); }),
+  ];
+}
+
+function rabbit(): PartDef[] {
+  return [
+    { name: 'body', size: [5, 5, 7], pivot: [0, 2, 0], from: [-2.5, 0, -3.5], base: '#9b7552', noise: 0.08,
+      paint: (p) => { p.fill('bottom', '#e7dccb', 0.05, 3); p.px('front', 1, 2, '#e7dccb', 3, 3); } },
+    { name: 'head', size: [4, 4, 4], pivot: [0, 6, 3], from: [-2, -1, 0], base: '#a27b57',
+      paint: (p) => {
+        p.px('front', 0, 1, '#1a120c'); p.px('front', 3, 1, '#1a120c');
+        p.px('front', 1, 2, '#e9a8a8', 2, 1); p.px('front', 1, 3, '#e7dccb', 2, 1);
+      } },
+    { name: 'earL', size: [1, 5, 2], pivot: [0, 0, 0], from: [0.5, 3, 1], base: '#9b7552', parent: 'head', paint: (p) => p.px('front', 0, 1, '#e9a8a8', 1, 3) },
+    { name: 'earR', size: [1, 5, 2], pivot: [0, 0, 0], from: [-1.5, 3, 1], base: '#9b7552', parent: 'head', paint: (p) => p.px('front', 0, 1, '#e9a8a8', 1, 3) },
+    { name: 'tail', size: [2, 2, 1], pivot: [0, 0, 0], from: [-1, 2, -4.5], base: '#f2ede4', parent: 'body' },
+    { name: 'legFL', size: [1, 2, 1], pivot: [1.5, 2, 3], from: [-0.5, -2, -0.5], base: '#8a6646' },
+    { name: 'legFR', size: [1, 2, 1], pivot: [-1.5, 2, 3], from: [-0.5, -2, -0.5], base: '#8a6646' },
+    { name: 'legBL', size: [2, 2, 4], pivot: [2, 2, -1.5], from: [-1, -2, -2], base: '#8a6646' },
+    { name: 'legBR', size: [2, 2, 4], pivot: [-2, 2, -1.5], from: [-1, -2, -2], base: '#8a6646' },
+  ];
+}
+
+function crawler(): PartDef[] {
+  const shell = '#2f4b4d', stripe = '#4f7d72';
+  const legs: PartDef[] = [];
+  for (let i = 0; i < 8; i++) {
+    const side = i < 4 ? 1 : -1;
+    const z = 3 - (i % 4) * 2;
+    legs.push({ name: `leg${i}`, size: [14, 2, 2], pivot: [side * 3, 6, z], from: side > 0 ? [0, -1, -1] : [-14, -1, -1], base: '#23393a',
+      paint: (p) => { p.px('top', side > 0 ? 12 : 0, 0, '#101c1c', 2, 2); } });
+  }
+  return [
+    { name: 'abdomen', size: [10, 8, 11], pivot: [0, 6, -4], from: [-5, -2, -11], base: shell, noise: 0.06,
+      paint: (p) => { p.px('top', 4, 1, stripe, 2, 9); p.px('top', 1, 5, stripe, 8, 1); p.px('back', 3, 2, stripe, 4, 3); } },
+    { name: 'body', size: [6, 5, 6], pivot: [0, 6, 0], from: [-3, -2, -3], base: '#29403f' },
+    { name: 'head', size: [7, 6, 6], pivot: [0, 6, 3], from: [-3.5, -2.5, 0], base: shell,
+      paint: (p) => {
+        p.px('front', 1, 1, '#f2b233', 2, 1); p.px('front', 4, 1, '#f2b233', 2, 1);
+        p.px('front', 2, 3, '#f2b233'); p.px('front', 4, 3, '#f2b233');
+        p.px('front', 1, 5, '#162524', 5, 1);
+      } },
+    ...legs,
+  ];
+}
+
+/** Cinderling (2.0): a knee-high scamp of glowing coals with a flickering crest. */
+function cinderling(): PartDef[] {
+  const coal = '#2e2421', crack = '#ff8a2a', hot = '#ffd27a';
+  const cracks = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => {
+    for (const f of ['front', 'back', 'left', 'right'] as const) {
+      p.px(f, 1, 1, crack, 1, 2); p.px(f, 2, 3, crack, 2, 1); p.px(f, 4, 2, hot, 1, 1);
+    }
+    p.px('top', 1, 1, crack, 3, 1);
+  };
+  return [
+    { name: 'body', size: [6, 6, 5], pivot: [0, 4, 0], from: [-3, 0, -2.5], base: coal, noise: 0.14, paint: cracks },
+    { name: 'head', size: [6, 5, 5], pivot: [0, 10, 0.5], from: [-3, 0, -2.5], base: '#382b27', noise: 0.12,
+      paint: (p) => {
+        p.px('front', 1, 2, hot, 1, 1); p.px('front', 4, 2, hot, 1, 1);
+        p.px('front', 1, 3, crack, 1, 1); p.px('front', 4, 3, crack, 1, 1);
+        p.px('front', 2, 4, '#1a1311', 2, 1);
+      } },
+    { name: 'crest', size: [2, 3, 4], pivot: [0, 0, 0], from: [-1, 5, -2], base: crack, parent: 'head',
+      paint: (p) => { p.fill('top', hot, 0.1, 4); p.px('front', 0, 0, hot, 2, 1); p.px('left', 0, 0, hot, 4, 1); p.px('right', 0, 0, hot, 4, 1); } },
+    { name: 'armL', size: [2, 5, 2], pivot: [4, 9, 0], from: [-1, -5, -1], base: coal, paint: (p) => p.px('front', 0, 4, crack, 2, 1) },
+    { name: 'armR', size: [2, 5, 2], pivot: [-4, 9, 0], from: [-1, -5, -1], base: coal, paint: (p) => p.px('front', 0, 4, crack, 2, 1) },
+    { name: 'legL', size: [2, 4, 2], pivot: [1.5, 4, 0], from: [-1, -4, -1], base: '#251d1b' },
+    { name: 'legR', size: [2, 4, 2], pivot: [-1.5, 4, 0], from: [-1, -4, -1], base: '#251d1b' },
+  ];
+}
+
+/** Smoulderer (2.0): a tall, hooded walker caked in ash, with ember eyes and glowing seams. */
+function smoulderer(): PartDef[] {
+  const ashy = '#5f5856', robe = '#3f3937', seam = '#ff7a2a';
+  return humanoid({
+    skin: ashy, shirt: robe, pants: robe, shoes: '#2a2524',
+    face: (p) => {
+      p.fill('front', '#1d1919', 0.05, 31);
+      p.px('front', 1, 3, '#ffcf6a', 2, 1); p.px('front', 5, 3, '#ffcf6a', 2, 1);
+      p.px('front', 2, 4, seam, 1, 1); p.px('front', 5, 4, seam, 1, 1);
+    },
+    torso: (p) => {
+      p.px('front', 3, 1, seam, 2, 1); p.px('front', 4, 2, seam, 1, 4); p.px('front', 2, 6, seam, 1, 3); p.px('front', 5, 7, seam, 1, 3);
+      p.px('back', 3, 2, seam, 1, 5);
+    },
+    extra: [
+      { name: 'hood', size: [9, 4, 9], pivot: [0, 0, 0], from: [-4.5, 6, -4.5], base: robe, parent: 'head', noise: 0.08,
+        paint: (p) => { p.px('front', 0, 3, '#2b2625', 9, 1); } },
+    ],
+  });
+}
+
+/**
+ * Ashboar (2.1): a heavy, low-slung beast of the Cinderdeep. Charcoal hide split
+ * by glowing ember seams, a ridge of black bristles tipped with sparks, a broad
+ * head carried low, small amber eyes and two pale tusks curving up from the snout.
+ */
+function ashboar(): PartDef[] {
+  const hide = '#4b4543', dark = '#2e2928', ember = '#ff8a30', hot = '#ffd27a', tusk = '#ece4d2', bristle = '#211d1c';
+  const seams = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => {
+    for (const f of ['left', 'right'] as const) {
+      p.px(f, 3, 2, ember, 1, 3); p.px(f, 4, 4, ember, 3, 1); p.px(f, 7, 3, hot, 1, 1);
+      p.px(f, 11, 1, ember, 1, 2); p.px(f, 12, 3, ember, 2, 1); p.px(f, 15, 5, ember, 1, 2);
+      p.px(f, 0, 7, dark, 20, 2);
+    }
+    p.px('back', 4, 2, ember, 1, 3); p.px('back', 8, 4, ember, 2, 1);
+    p.fill('bottom', dark, 0.08, 9);
+  };
+  const hoof = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 6, '#171413', 4, 1); };
+  return [
+    { name: 'body', size: [14, 9, 20], pivot: [0, 7, 0], from: [-7, 0, -10], base: hide, noise: 0.12, paint: seams },
+    { name: 'mane', size: [4, 3, 15], pivot: [0, 0, 0], from: [-2, 9, -7], base: bristle, noise: 0.15, parent: 'body',
+      paint: (p) => { for (let z = 1; z < 15; z += 3) p.px('top', 1, z, ember, 2, 1); p.px('top', 1, 13, hot, 2, 1); p.px('left', 2, 0, ember, 1, 1); p.px('right', 9, 0, ember, 1, 1); } },
+    { name: 'head', size: [10, 9, 9], pivot: [0, 13, 10], from: [-5, -7, 0], base: '#524b48', noise: 0.1,
+      paint: (p) => {
+        p.px('front', 0, 0, dark, 10, 2);                                   // heavy brow
+        p.px('front', 1, 2, hot, 2, 1); p.px('front', 7, 2, hot, 2, 1);     // amber eyes
+        p.px('front', 2, 2, '#1a1414'); p.px('front', 7, 2, '#1a1414');
+        p.px('top', 3, 2, ember, 1, 4); p.px('left', 2, 3, ember, 3, 1); p.px('right', 4, 3, ember, 3, 1);
+      } },
+    { name: 'snout', size: [6, 5, 3], pivot: [0, 0, 0], from: [-3, -7, 9], base: '#5f5754', parent: 'head',
+      paint: (p) => { p.px('front', 1, 1, '#1d1817', 1, 2); p.px('front', 4, 1, '#1d1817', 1, 2); p.px('front', 0, 4, dark, 6, 1); } },
+    { name: 'tuskL', size: [1, 4, 1], pivot: [0, 0, 0], from: [3, -5, 10.5], base: tusk, parent: 'head', paint: (p) => p.fill('top', '#fffaf0', 0, 1) },
+    { name: 'tuskR', size: [1, 4, 1], pivot: [0, 0, 0], from: [-4, -5, 10.5], base: tusk, parent: 'head', paint: (p) => p.fill('top', '#fffaf0', 0, 1) },
+    { name: 'earL', size: [3, 2, 1], pivot: [0, 0, 0], from: [5, -1, 2], base: dark, parent: 'head', paint: (p) => p.px('front', 0, 0, ember, 1, 1) },
+    { name: 'earR', size: [3, 2, 1], pivot: [0, 0, 0], from: [-8, -1, 2], base: dark, parent: 'head', paint: (p) => p.px('front', 2, 0, ember, 1, 1) },
+    { name: 'tail', size: [1, 5, 1], pivot: [0, 15, -10], from: [-0.5, -5, -1], base: bristle, paint: (p) => p.fill('bottom', ember, 0, 2) },
+    quad('legFL', 4.5, 6.5, 7, 4, dark, hoof),
+    quad('legFR', -4.5, 6.5, 7, 4, dark, hoof),
+    quad('legBL', 4.5, -6.5, 7, 4, dark, hoof),
+    quad('legBR', -4.5, -6.5, 7, 4, dark, hoof),
+  ];
+}
+
+/**
+ * Drifter (2.2): a floating bell of soft starlight - pale blue with a lilac rim and
+ * a bright crown - trailing four slow tendrils.
+ */
+function drifter(): PartDef[] {
+  const glow = '#bfe6ff', rim = '#a99bff', crown = '#f4ecff', tend = '#9fd0ff';
+  const spots = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => {
+    for (const f of ['front', 'back', 'left', 'right'] as const) { p.px(f, 2, 2, '#ffffff', 1, 1); p.px(f, 6, 1, '#e6f6ff', 1, 1); p.px(f, 4, 4, '#ffffff', 1, 1); p.px(f, 0, 6, rim, 10, 1); }
+    p.fill('bottom', '#7fb6ef', 0.08, 3);
+  };
+  const tendril = (i: number, x: number, z: number): PartDef => ({ name: `tendril${i}`, size: [1, 8, 1], pivot: [x, 10, z], from: [-0.5, -8, -0.5], base: tend,
+    paint: (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 7, '#ffffff', 1, 1); } });
+  return [
+    { name: 'bell', size: [10, 7, 10], pivot: [0, 10, 0], from: [-5, 0, -5], base: glow, noise: 0.06, paint: spots },
+    { name: 'crown', size: [6, 2, 6], pivot: [0, 0, 0], from: [-3, 7, -3], base: crown, parent: 'bell' },
+    { name: 'rim', size: [12, 1, 12], pivot: [0, 0, 0], from: [-6, 0, -6], base: rim, parent: 'bell' },
+    tendril(0, 2.5, 2.5), tendril(1, -2.5, 2.5), tendril(2, 2.5, -2.5), tendril(3, -2.5, -2.5),
+  ];
+}
+
+function dustwalker(): PartDef[] {
+  return humanoid({
+    skin: '#b39d72', shirt: '#cdb685', pants: '#8f774a', shoes: '#5e4a2c',
+    face: (p) => {
+      p.fill('top', '#dccba1', 0.08, 21);
+      p.fill('back', '#dccba1', 0.08, 22);
+      p.px('left', 0, 0, '#dccba1', 8, 3); p.px('right', 0, 0, '#dccba1', 8, 3);
+      p.px('front', 0, 0, '#dccba1', 8, 2);
+      p.px('front', 1, 3, '#3a2e1c', 2, 2); p.px('front', 5, 3, '#3a2e1c', 2, 2);
+      p.px('front', 2, 3, '#e8a83a'); p.px('front', 5, 3, '#e8a83a');
+      p.px('front', 0, 6, '#dccba1', 8, 2);
+    },
+    torso: (p) => {
+      for (let y = 1; y < 12; y += 3) p.px('front', 0, y, '#b19b6c', 8, 1);
+      p.px('front', 2, 0, '#9c8659', 1, 12);
+    },
+  });
+}
+
+/**
+ * Villagers: ORIGINAL townsfolk in knee-length tunics with a belt, arms at their
+ * sides, and a hat or hood that shows their trade.
+ */
+function villager(look: VillagerLook): PartDef[] {
+  const outfit: Record<VillagerLook, { skin: string; tunic: string; trim: string; pants: string; hair: string }> = {
+    none: { skin: '#d9a47e', tunic: '#8b6a47', trim: '#6b4f33', pants: '#5c5a57', hair: '#5a3a22' },
+    farmer: { skin: '#e2b08a', tunic: '#5f8a3c', trim: '#40602a', pants: '#6b4a2e', hair: '#7a4a24' },
+    smith: { skin: '#c98f6a', tunic: '#6c6c70', trim: '#4a3424', pants: '#3a3a3e', hair: '#2e241e' },
+    mason: { skin: '#dcae88', tunic: '#8f8f8a', trim: '#4d6a92', pants: '#5a5650', hair: '#8a8580' },
+    scribe: { skin: '#e8c0a0', tunic: '#6b4a8f', trim: '#d8b04a', pants: '#3e2d52', hair: '#c8c4bc' },
+    fletcher: { skin: '#d7a27a', tunic: '#7a5a3a', trim: '#3f6b3a', pants: '#4a4034', hair: '#a0522d' },
+    mapmaker: { skin: '#e0b090', tunic: '#2f6670', trim: '#d8c48a', pants: '#3a3f48', hair: '#6a4a2a' },
+    trader: { skin: '#cf9a74', tunic: '#b4561e', trim: '#e8c24a', pants: '#3a3430', hair: '#e2dccb' },
+  };
+  const o = outfit[look];
+  const extra: PartDef[] = [];
+  const face = (p: FacePainterLike) => {
+    p.fill('top', o.hair, 0.08, 31);
+    p.fill('back', o.hair, 0.08, 32);
+    p.px('back', 0, 6, o.skin, 8, 2);
+    p.px('left', 0, 0, o.hair, 8, 3); p.px('right', 0, 0, o.hair, 8, 3);
+    p.px('front', 0, 0, o.hair, 8, 1);
+    p.px('front', 1, 2, o.hair, 2, 1); p.px('front', 5, 2, o.hair, 2, 1);          // brows
+    p.px('front', 1, 3, '#ffffff', 2, 1); p.px('front', 5, 3, '#ffffff', 2, 1);    // eyes
+    p.px('front', 2, 3, '#3a5a2a'); p.px('front', 5, 3, '#3a5a2a');
+    p.px('front', 3, 4, shadeHex(o.skin, 0.85), 2, 2);                            // nose
+    p.px('front', 1, 5, '#e89a8a'); p.px('front', 6, 5, '#e89a8a');                // cheeks
+    p.px('front', 3, 6, '#8a4a3a', 2, 1);                                          // mouth
+    if (look === 'smith') p.px('front', 1, 6, '#2e241e', 6, 2);                    // beard
+    if (look === 'scribe') { p.px('front', 1, 3, '#caa84a', 2, 1); p.px('front', 5, 3, '#caa84a', 2, 1); p.px('front', 3, 3, '#caa84a', 2, 1); } // spectacles
+    if (look === 'trader') p.px('front', 1, 6, '#e2dccb', 6, 2);                   // white beard
+    faceExtras(p, o.skin, look !== 'smith' && look !== 'trader');
+    if (look === 'mapmaker') { p.px('front', 5, 2, '#c9a640', 3, 3); p.px('front', 6, 3, '#ffffff'); p.px('front', 7, 5, '#c9a640', 1, 2); } // monocle on a chain
+  };
+  const tunic = (p: FacePainterLike) => {
+    p.px('front', 0, 7, o.trim, 8, 1); p.px('back', 0, 7, o.trim, 8, 1);            // belt
+    p.px('left', 0, 7, o.trim, 4, 1); p.px('right', 0, 7, o.trim, 4, 1);
+    p.px('front', 3, 7, '#c9a640', 2, 1);                                          // buckle
+    p.px('front', 3, 0, shadeHex(o.tunic, 0.8), 2, 4);                              // collar
+    if (look === 'smith') { p.px('front', 1, 1, '#4a3424', 6, 11); p.px('front', 1, 0, '#4a3424', 1, 1); p.px('front', 6, 0, '#4a3424', 1, 1); } // apron
+    if (look === 'scribe') { p.px('front', 0, 0, o.trim, 1, 12); p.px('front', 7, 0, o.trim, 1, 12); }
+    if (look === 'mason') { for (let x = 1; x < 7; x += 2) p.px('front', x, 8, '#6d6d68', 1, 2); } // tool belt
+  };
+  // knee-length skirt of the tunic, over the upper legs
+  extra.push({ name: 'skirt', size: [9, 5, 5], pivot: [0, 12, 0], from: [-4.5, -5, -2.5], base: o.tunic, paint: (p) => {
+    for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 4, shadeHex(o.tunic, 0.8), f === 'front' || f === 'back' ? 9 : 5, 1);
+  } });
+  if (look === 'farmer') {
+    extra.push({ name: 'brim', size: [12, 1, 12], pivot: [0, 0, 0], from: [-6, 7, -6], base: '#d8b860', parent: 'head', noise: 0.12 });
+    extra.push({ name: 'crown', size: [8, 3, 8], pivot: [0, 0, 0], from: [-4, 8, -4], base: '#e2c46e', parent: 'head', noise: 0.1,
+      paint: (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 2, '#a0522d', 8, 1); } });
+  } else if (look === 'smith') {
+    extra.push({ name: 'cap', size: [8, 2, 8], pivot: [0, 0, 0], from: [-4, 8, -4], base: '#2e2a28', parent: 'head' });
+  } else if (look === 'mason') {
+    extra.push({ name: 'cap', size: [8, 2, 8], pivot: [0, 0, 0], from: [-4, 8, -4], base: '#4d6a92', parent: 'head' });
+    extra.push({ name: 'peak', size: [6, 1, 3], pivot: [0, 0, 0], from: [-3, 8, 4], base: '#3c5476', parent: 'head' });
+  } else if (look === 'scribe') {
+    extra.push({ name: 'hood', size: [9, 4, 9], pivot: [0, 0, 0], from: [-4.5, 6, -4.5], base: o.tunic, parent: 'head',
+      paint: (p) => { p.px('front', 0, 3, o.trim, 9, 1); } });
+    extra.push({ name: 'hoodTip', size: [5, 3, 5], pivot: [0, 0, 0], from: [-2.5, 10, -3], base: o.tunic, parent: 'head' });
+  } else if (look === 'mapmaker') {
+    // a broad felt hat with a brass band, and a map case slung on the back
+    extra.push({ name: 'brim', size: [10, 1, 10], pivot: [0, 0, 0], from: [-5, 7, -5], base: '#2b3a40', parent: 'head' });
+    extra.push({ name: 'crown', size: [8, 3, 8], pivot: [0, 0, 0], from: [-4, 8, -4], base: '#34474e', parent: 'head',
+      paint: (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 2, '#c9a640', 8, 1); } });
+    extra.push({ name: 'mapCase', size: [3, 11, 3], pivot: [0, 24, -2], from: [-1.5, -12, -2], base: '#7a5230', parent: 'body',
+      paint: (p) => { p.px('back', 0, 0, '#d8c48a', 3, 1); p.px('back', 0, 10, '#d8c48a', 3, 1); } });
+  } else if (look === 'trader') {
+    // a deep orange hood with a gold edge, and a great bedroll-and-bundle pack on the back
+    extra.push({ name: 'hood', size: [9, 5, 9], pivot: [0, 0, 0], from: [-4.5, 6, -4.5], base: o.tunic, parent: 'head',
+      paint: (p) => { p.px('front', 0, 4, o.trim, 9, 1); } });
+    extra.push({ name: 'hoodTip', size: [5, 4, 5], pivot: [0, 0, 0], from: [-2.5, 11, -3], base: o.tunic, parent: 'head' });
+    extra.push({ name: 'pack', size: [10, 10, 5], pivot: [0, 24, -2], from: [-5, -11, -5], base: '#7a5230', parent: 'body',
+      paint: (p) => { p.px('back', 0, 0, o.trim, 10, 1); p.px('back', 4, 3, '#c9a640', 2, 2); p.px('left', 0, 4, '#4a3320', 5, 1); p.px('right', 0, 4, '#4a3320', 5, 1); } });
+    extra.push({ name: 'roll', size: [12, 3, 3], pivot: [0, 24, -2], from: [-6, -13, -7.5], base: '#2f6670', parent: 'body',
+      paint: (p) => { p.px('front', 0, 1, '#d8c48a', 12, 1); } });
+  } else if (look === 'fletcher') {
+    extra.push({ name: 'hood', size: [9, 3, 9], pivot: [0, 0, 0], from: [-4.5, 7, -4.5], base: o.trim, parent: 'head' });
+    extra.push({ name: 'feather', size: [1, 5, 2], pivot: [0, 0, 0], from: [3, 9, -2], base: '#f4f4f0', parent: 'head',
+      paint: (p) => { p.px('left', 0, 0, '#d63a30', 2, 1); p.px('right', 0, 0, '#d63a30', 2, 1); } });
+    extra.push({ name: 'cape', size: [8, 10, 1], pivot: [0, 24, -2], from: [-4, -10, -1], base: o.trim, parent: 'body' });
+  }
+  return humanoid({ skin: o.skin, shirt: o.tunic, pants: o.pants, shoes: '#3e2a1a', face, torso: tunic, extra });
+}
+
+/** The Sentinel: an ORIGINAL mossy stone guardian with an amber heart-stone. */
+function sentinel(): PartDef[] {
+  const stone = '#8a8c86', dark = '#6d6f6a', moss = '#5f7d45', amber = '#f0a030';
+  const mossy = (seed: number) => (p: FacePainterLike) => {
+    const r = mulberryLike(seed);
+    for (const f of ['front', 'back', 'left', 'right', 'top'] as const) for (let i = 0; i < 6; i++) p.px(f, Math.floor(r() * 10), Math.floor(r() * 14), moss, 2, 1 + Math.floor(r() * 2));
+  };
+  return [
+    { name: 'body', size: [14, 18, 8], pivot: [0, 14, 0], from: [-7, 0, -4], base: stone, noise: 0.1,
+      paint: (p) => {
+        mossy(3)(p);
+        p.px('front', 5, 5, '#b86a18', 4, 4); p.px('front', 6, 6, amber, 2, 2);                   // heart-stone
+        p.px('front', 2, 2, dark, 10, 1); p.px('front', 3, 12, dark, 8, 1);
+        for (let y = 3; y < 16; y += 4) { p.px('front', 1, y, '#c9902a'); p.px('front', 12, y, '#c9902a'); } // rune marks
+      } },
+    { name: 'head', size: [8, 9, 8], pivot: [0, 32, -1], from: [-4, 0, -4], base: stone, noise: 0.1,
+      paint: (p) => {
+        p.fill('top', moss, 0.15, 7);
+        p.px('front', 0, 2, dark, 8, 2);                          // heavy brow
+        p.px('front', 1, 4, '#b86a18', 2, 1); p.px('front', 5, 4, '#b86a18', 2, 1);
+        p.px('front', 1, 4, amber); p.px('front', 6, 4, amber);   // glowing eyes
+        p.px('front', 2, 7, dark, 4, 1);
+      } },
+    { name: 'armL', size: [5, 26, 5], pivot: [9.5, 30, 0], from: [-2.5, -26, -2.5], base: stone, noise: 0.1, paint: mossy(11) },
+    { name: 'armR', size: [5, 26, 5], pivot: [-9.5, 30, 0], from: [-2.5, -26, -2.5], base: stone, noise: 0.1, paint: mossy(12) },
+    { name: 'legL', size: [6, 14, 6], pivot: [3.5, 14, 0], from: [-3, -14, -3], base: dark, noise: 0.1, paint: mossy(13) },
+    { name: 'legR', size: [6, 14, 6], pivot: [-3.5, 14, 0], from: [-3, -14, -3], base: dark, noise: 0.1, paint: mossy(14) },
+  ];
+}
+
+type FacePainterLike = Parameters<NonNullable<PartDef['paint']>>[0];
+/**
+ * FELLHOUND: an original wild canine of the northern woods. Grey-brown coat with
+ * a dark saddle and a pale ruff around the neck, amber eyes, a bushy tail with a
+ * dark tip. A tamed hound wears a blue collar with a brass tag.
+ */
+function hound(collar: boolean): PartDef[] {
+  const coat = '#7d7064', dark = '#4f463f', pale = '#cdbfa6';
+  const parts: PartDef[] = [
+    { name: 'body', size: [6, 6, 10], pivot: [0, 8, 0], from: [-3, 0, -5], base: coat, noise: 0.1,
+      paint: (p) => {
+        p.fill('top', dark, 0.12, 21);
+        p.px('left', 0, 0, dark, 10, 2); p.px('right', 0, 0, dark, 10, 2);
+        p.fill('bottom', pale, 0.08, 22);
+      } },
+    { name: 'ruff', size: [8, 7, 4], pivot: [0, 0, 0], from: [-4, -0.5, 2.5], base: pale, noise: 0.12, parent: 'body',
+      paint: (p) => { p.px('top', 0, 0, '#b8aa90', 8, 2); } },
+    { name: 'head', size: [6, 6, 5], pivot: [0, 13, 6], from: [-3, -2, 0], base: coat, noise: 0.08,
+      paint: (p) => {
+        p.px('front', 0, 2, '#d9a53a', 2, 1); p.px('front', 4, 2, '#d9a53a', 2, 1);
+        p.px('front', 1, 2, '#1d1712'); p.px('front', 4, 2, '#1d1712');
+        p.px('front', 0, 0, dark, 6, 1);
+        p.px('top', 0, 0, dark, 6, 2);
+      } },
+    { name: 'snout', size: [3, 3, 3], pivot: [0, 0, 0], from: [-1.5, -2, 5], base: '#9a8c7a', parent: 'head',
+      paint: (p) => { p.px('front', 0, 0, '#241e1a', 3, 1); p.px('top', 0, 2, '#241e1a', 3, 1); } },
+    { name: 'earL', size: [2, 3, 1], pivot: [0, 0, 0], from: [1, 4, 1], base: dark, parent: 'head', paint: (p) => p.px('front', 0, 1, '#b39a8a', 2, 2) },
+    { name: 'earR', size: [2, 3, 1], pivot: [0, 0, 0], from: [-3, 4, 1], base: dark, parent: 'head', paint: (p) => p.px('front', 0, 1, '#b39a8a', 2, 2) },
+    { name: 'tail', size: [2, 2, 8], pivot: [0, 13, -5], from: [-1, -1, -8], base: coat, noise: 0.12,
+      paint: (p) => { for (const f of ['top', 'left', 'right', 'bottom'] as const) p.px(f, 0, 0, dark, 2, 2); p.fill('back', dark, 0.05, 9); } },
+    quad('legFL', 1.8, 3.5, 8, 2, '#6f6358', (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 7, pale, 2, 1); }),
+    quad('legFR', -1.8, 3.5, 8, 2, '#6f6358', (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 7, pale, 2, 1); }),
+    quad('legBL', 1.8, -3.5, 8, 2, '#6f6358', (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 7, pale, 2, 1); }),
+    quad('legBR', -1.8, -3.5, 8, 2, '#6f6358', (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 7, pale, 2, 1); }),
+  ];
+  if (collar) {
+    parts.push({ name: 'collar', size: [7, 2, 6], pivot: [0, 0, 0], from: [-3.5, -2.3, -0.5], base: '#3b6fc4', parent: 'head',
+      paint: (p) => { p.px('front', 3, 1, '#e3b341', 1, 1); } });
+    parts.push({ name: 'tag', size: [1, 1, 1], pivot: [0, 0, 0], from: [-0.5, -3.2, 5.2], base: '#e3b341', parent: 'head' });
+  }
+  return parts;
+}
+
+/**
+ * 2.3 FOX CUB: an original small fox - a round head with big pointed ears, a
+ * narrow snout with a black nose, a white chin and chest, dark stockings and a
+ * bushy tail with a white tip. Two coats: russet-orange, or snowy white with
+ * grey ear tips (the snowy lands). A tamed one wears a red collar with a brass bell.
+ */
+export type FoxCoat = 'red' | 'snow';
+function fox(coat: FoxCoat, collar: boolean): PartDef[] {
+  const snow = coat === 'snow';
+  const fur = snow ? '#eef0f4' : '#d8742c', dark = snow ? '#c3c9d4' : '#a9521c', white = snow ? '#ffffff' : '#f2ece4';
+  const sock = snow ? '#8d93a0' : '#2f2624', tip = snow ? '#7d8390' : '#2f2624';
+  const parts: PartDef[] = [
+    { name: 'body', size: [5, 5, 9], pivot: [0, 5, 0], from: [-2.5, 0, -4.5], base: fur, noise: 0.08,
+      paint: (p) => { p.fill('top', dark, 0.08, 31); p.fill('bottom', white, 0.04, 32); p.px('front', 1, 1, white, 3, 4); } },
+    { name: 'head', size: [6, 5, 5], pivot: [0, 8.5, 4.5], from: [-3, -2, 0], base: fur, noise: 0.06,
+      paint: (p) => {
+        p.px('front', 0, 3, white, 6, 2);                                       // cheeks
+        p.px('front', 1, 1, '#f0b62a'); p.px('front', 4, 1, '#f0b62a');          // amber eyes
+        p.px('front', 1, 2, '#1d1712'); p.px('front', 4, 2, '#1d1712');
+        p.fill('bottom', white, 0.04, 33);
+      } },
+    { name: 'snout', size: [3, 2, 3], pivot: [0, 0, 0], from: [-1.5, -2, 5], base: fur, parent: 'head',
+      paint: (p) => { p.px('front', 1, 0, '#1d1712', 1, 1); p.fill('bottom', white, 0.04, 34); p.px('front', 0, 1, white, 3, 1); } },
+    { name: 'earL', size: [2, 3, 1], pivot: [0, 0, 0], from: [0.5, 3, 1.5], base: fur, parent: 'head',
+      paint: (p) => { p.px('front', 0, 0, tip, 2, 1); p.px('back', 0, 0, tip, 2, 1); p.px('front', 0, 1, '#3a2a26', 2, 2); } },
+    { name: 'earR', size: [2, 3, 1], pivot: [0, 0, 0], from: [-2.5, 3, 1.5], base: fur, parent: 'head',
+      paint: (p) => { p.px('front', 0, 0, tip, 2, 1); p.px('back', 0, 0, tip, 2, 1); p.px('front', 0, 1, '#3a2a26', 2, 2); } },
+    { name: 'tail', size: [3, 3, 8], pivot: [0, 4.5, -4.5], from: [-1.5, -1.5, -8], base: fur, noise: 0.1,
+      paint: (p) => { for (const f of ['top', 'left', 'right', 'bottom'] as const) p.px(f, 0, 0, white, 3, 2); p.fill('back', white, 0.04, 35); } },
+    quad('legFL', 1.3, 3, 4, 2, sock),
+    quad('legFR', -1.3, 3, 4, 2, sock),
+    quad('legBL', 1.3, -3, 4, 2, sock),
+    quad('legBR', -1.3, -3, 4, 2, sock),
+  ];
+  if (collar) {
+    parts.push({ name: 'collar', size: [7, 1.5, 6], pivot: [0, 0, 0], from: [-3.5, -2.4, -0.5], base: '#c8423a', parent: 'head' });
+    parts.push({ name: 'tag', size: [1, 1, 1], pivot: [0, 0, 0], from: [-0.5, -3.3, 5], base: '#e3b341', parent: 'head' });
+  }
+  return parts;
+}
+
+export function foxModel(coat: FoxCoat, tamed: boolean): BuiltModel {
+  const key = `fox:${coat}:${tamed ? 1 : 0}`;
+  let m = cache.get(key);
+  if (m) return m;
+  m = buildModel(fox(coat, tamed), 64, 64, coat === 'snow' ? 151 : 150);
+  cache.set(key, m);
+  return m;
+}
+
+/**
+ * 2.3 the snowman helper: an ORIGINAL design - two packed snowballs, coal eyes and
+ * a coal smile, stick arms, a red scarf and a knitted blue bobble hat.
+ */
+function snowpal(): PartDef[] {
+  const snow = '#f2f6fb', shade = '#dfe7f0', coal = '#23252b';
+  return [
+    { name: 'body', size: [12, 11, 12], pivot: [0, 0, 0], from: [-6, 0, -6], base: snow, noise: 0.05,
+      paint: (p) => { p.fill('bottom', shade, 0.04, 41); p.px('front', 5, 2, coal, 2, 2); p.px('front', 5, 6, coal, 2, 2); } },
+    { name: 'head', size: [9, 9, 9], pivot: [0, 11, 0], from: [-4.5, 0, -4.5], base: snow, noise: 0.05,
+      paint: (p) => {
+        p.px('front', 2, 3, coal, 2, 2); p.px('front', 5, 3, coal, 2, 2);                  // eyes
+        p.px('front', 4, 5, '#e8862e', 1, 1);                                             // a pebble of a nose
+        p.px('front', 2, 7, coal); p.px('front', 3, 8, coal, 3, 1); p.px('front', 6, 7, coal);  // smile
+      } },
+    { name: 'scarf', size: [11, 2, 11], pivot: [0, 0, 0], from: [-5.5, -1, -5.5], base: '#c8423a', parent: 'head',
+      paint: (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 1, '#a83430', 11, 1); } },
+    { name: 'scarfEnd', size: [3, 5, 1], pivot: [0, 0, 0], from: [1, -5, 5.2], base: '#c8423a', parent: 'head',
+      paint: (p) => { p.px('front', 0, 4, '#f2f6fb', 3, 1); } },
+    { name: 'hat', size: [9.4, 4, 9.4], pivot: [0, 0, 0], from: [-4.7, 7, -4.7], base: '#3c6ec4', parent: 'head',
+      paint: (p) => { for (const f of ['front', 'back', 'left', 'right'] as const) { p.px(f, 0, 3, '#e8ecf4', 10, 1); p.px(f, 0, 1, '#c8423a', 10, 1); } } },
+    { name: 'bobble', size: [3, 3, 3], pivot: [0, 0, 0], from: [-1.5, 11, -1.5], base: '#e8ecf4', parent: 'head' },
+    { name: 'armL', size: [1, 1, 9], pivot: [5.5, 8, 0], from: [-0.5, -0.5, 0], base: '#6b4a2a',
+      paint: (p) => { p.px('top', 0, 6, '#4a321c', 1, 1); } },
+    { name: 'armR', size: [1, 1, 9], pivot: [-5.5, 8, 0], from: [-0.5, -0.5, 0], base: '#6b4a2a',
+      paint: (p) => { p.px('top', 0, 6, '#4a321c', 1, 1); } },
+  ];
+}
+
+export function houndModel(tamed: boolean): BuiltModel {
+  const key = tamed ? 'hound:tamed' : 'hound';
+  let m = cache.get(key);
+  if (m) return m;
+  m = buildModel(hound(tamed), 64, 64, tamed ? 131 : 130);
+  cache.set(key, m);
+  return m;
+}
+
+function shadeHex(hex: string, f: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = (v: number) => Math.max(0, Math.min(255, Math.round(v * f))).toString(16).padStart(2, '0');
+  return '#' + c((n >> 16) & 255) + c((n >> 8) & 255) + c(n & 255);
+}
+function mulberryLike(a: number): () => number {
+  return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+export function villagerModel(look: VillagerLook): BuiltModel {
+  const key = 'villager:' + look;
+  let m = cache.get(key);
+  if (m) return m;
+  m = buildModel(villager(look), 64, 64, 77 + look.length);
+  cache.set(key, m);
+  return m;
+}
+
+export function playerParts(): PartDef[] {
+  return humanoid({
+    skin: '#e0b48f', shirt: '#3f7d4a', pants: '#4a4a55', shoes: '#5b3b22',
+    face: (p) => {
+      p.fill('top', '#8a3f22', 0.08, 11);
+      p.fill('back', '#8a3f22', 0.08, 12);
+      p.px('left', 0, 0, '#8a3f22', 8, 3); p.px('right', 0, 0, '#8a3f22', 8, 3);
+      p.px('front', 0, 0, '#8a3f22', 8, 2);
+      p.px('front', 1, 3, '#ffffff', 2, 1); p.px('front', 5, 3, '#ffffff', 2, 1);
+      p.px('front', 2, 3, '#2d5d8f'); p.px('front', 5, 3, '#2d5d8f');
+      p.px('front', 3, 5, '#c99c78', 2, 1);
+      p.px('front', 2, 6, '#9a5a4a', 4, 1);
+      p.px('front', 1, 2, '#6e3018', 2, 1); p.px('front', 5, 2, '#6e3018', 2, 1);   // brows
+      faceExtras(p, '#e0b48f');
+    },
+    torso: (p) => {
+      p.px('front', 0, 7, '#6b4a2a', 8, 1);
+      p.px('front', 3, 7, '#c9a640', 2, 1);
+      p.px('front', 3, 0, '#2f6039', 2, 7);
+    },
+  });
+}
+
+/** 2.7: a Saddle on a creature's back (hidden until it is saddled): `top` is the body's top, `w` its width, `len` how long. */
+function saddlePart(top: number, w: number, len: number): PartDef {
+  return {
+    name: 'saddle', size: [w * 2, 1.5, len * 1.4], pivot: [0, 0, 0], from: [-w, top, -len * 0.7], base: '#7b4a28', noise: 0.08, parent: 'body',
+    paint: (p) => {
+      p.fill('top', '#8c5a32', 0.08, 3);
+      for (const f of ['left', 'right'] as const) { p.px(f, 0, 0, '#3b2615', 99, 1); p.px(f, 2, 0, '#d9b44a', 1, 1); }
+      p.px('front', 0, 0, '#3b2615', 99, 1); p.px('back', 0, 0, '#3b2615', 99, 1);
+    },
+  };
+}
+
+/** 2.7: coats a Horse can have: body, mane and tail, legs, and a white blaze or not. */
+const HORSE_COATS: { body: string; mane: string; leg: string; blaze: boolean }[] = [
+  { body: '#8b5a34', mane: '#2e2015', leg: '#774b2a', blaze: false },
+  { body: '#2e2b29', mane: '#171514', leg: '#262321', blaze: true },
+  { body: '#dcd8cf', mane: '#a29d94', leg: '#cfcac1', blaze: false },
+  { body: '#a85e2a', mane: '#e2b573', leg: '#98521f', blaze: true },
+  { body: '#d6b06a', mane: '#f2e6c8', leg: '#c8a05a', blaze: false },
+];
+export const HORSE_COAT_COUNT = HORSE_COATS.length;
+
+/** Horse (2.7): a long-legged, deep-chested steed with a mane and a flowing tail. */
+function horse(coat = 0): PartDef[] {
+  const c = HORSE_COATS[coat % HORSE_COATS.length];
+  const hoof = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => { for (const f of ['front', 'back', 'left', 'right'] as const) p.px(f, 0, 13, '#1d1815', 4, 1); };
+  return [
+    { name: 'body', size: [10, 9, 20], pivot: [0, 10, 0], from: [-5, 0, -10], base: c.body, noise: 0.07 },
+    { name: 'neck', size: [4, 9, 5], pivot: [0, 19, 0], from: [-2, 0, 6], base: c.body, noise: 0.07 },
+    { name: 'mane', size: [2, 11, 3], pivot: [0, 18, 0], from: [-1, 0, 3.5], base: c.mane, noise: 0.12 },
+    { name: 'head', size: [5, 5, 10], pivot: [0, 27, 9], from: [-2.5, -4, 0], base: c.body, noise: 0.06,
+      paint: (p) => {
+        for (const f of ['left', 'right'] as const) { p.px(f, 7, 1, '#fffdf7'); p.px(f, 8, 1, '#1a1410'); }
+        p.px('front', 0, 3, '#2a2220', 5, 2); p.px('front', 1, 3, '#14100e'); p.px('front', 3, 3, '#14100e');
+        if (c.blaze) { p.px('top', 1, 0, '#f4f0e6', 3, 9); p.px('front', 1, 0, '#f4f0e6', 3, 3); }
+      } },
+    { name: 'earL', size: [1.5, 3, 1.5], pivot: [0, 0, 0], from: [0.8, 1, 1], base: c.mane, parent: 'head' },
+    { name: 'earR', size: [1.5, 3, 1.5], pivot: [0, 0, 0], from: [-2.3, 1, 1], base: c.mane, parent: 'head' },
+    { name: 'tail', size: [2.5, 10, 2.5], pivot: [0, 19, -10], from: [-1.25, -9, -1.5], base: c.mane, noise: 0.12 },
+    saddlePart(9, 5.5, 5),
+    quad('legFL', 3.1, 7, 10, 3.6, c.leg, hoof),
+    quad('legFR', -3.1, 7, 10, 3.6, c.leg, hoof),
+    quad('legBL', 3.1, -7, 10, 3.6, c.leg, hoof),
+    quad('legBR', -3.1, -7, 10, 3.6, c.leg, hoof),
+  ];
+}
+
+/** 2.7: a Horse's model for a coat. */
+export function horseModel(coat: number): BuiltModel {
+  const key = `horse:${coat % HORSE_COATS.length}`;
+  let m = cache.get(key);
+  if (m) return m;
+  m = buildModel(horse(coat), 128, 64, 79 + coat);
+  cache.set(key, m);
+  return m;
+}
+
+/**
+ * Lavastrider (2.7): a tall-legged, slow-stepping beast of the lava seas. Dark
+ * red-brown hide, glowing ember fins along its flanks, amber eyes and four long
+ * thin legs that are never hurt by the heat.
+ */
+/** 2.9: Sporecap colours. `glow` caps shine softly in the dark. */
+export const SPORECAP_VARIANTS = [
+  { id: 'violet', name: 'Violet', cap: '#8f55c4', top: '#a468d8', dot: '#f7efe4', glow: false },
+  { id: 'crimson', name: 'Crimson', cap: '#b83a34', top: '#d4524a', dot: '#fbe9d6', glow: false },
+  { id: 'pale', name: 'Pale', cap: '#cfdbe8', top: '#e8f0f8', dot: '#9fc8ee', glow: true },
+] as const;
+export const SPORECAP_VARIANT_COUNT = SPORECAP_VARIANTS.length;
+
+/** 2.8: the Sporecap: a small round creature with a big spotted mushroom cap (hidden while it is sheared). 2.9: three colours. */
+function sporecap(variant = 0): PartDef[] {
+  const v = SPORECAP_VARIANTS[variant % SPORECAP_VARIANTS.length];
+  const spots = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => {
+    p.px('top', 1, 1, v.dot, 3, 3); p.px('top', 8, 3, v.dot, 4, 4); p.px('top', 4, 9, v.dot, 3, 3); p.px('left', 2, 0, v.dot, 3, 1);
+    p.px('right', 8, 0, v.dot, 2, 1); p.px('front', 3, 0, v.dot, 4, 1);
+  };
+  return [
+    { name: 'body', size: [8, 6, 9], pivot: [0, 3, 0], from: [-4, 0, -4.5], base: '#e6d9bd',
+      paint: (p) => { p.px('left', 1, 4, '#d3c4a2', 4, 2); p.px('right', 2, 4, '#d3c4a2', 4, 2); } },
+    { name: 'head', size: [6, 6, 6], pivot: [0, 6, 4.5], from: [-3, -3, 0], base: '#efe3c8',
+      paint: (p) => { p.px('front', 1, 2, '#2a1c3a', 1, 2); p.px('front', 4, 2, '#2a1c3a', 1, 2); p.px('front', 2, 4, '#c98f8f', 2, 1); } },
+    { name: 'cap', size: [14, 3, 14], pivot: [0, 0, 0], from: [-7, 6, -7], base: v.cap, parent: 'body', noise: 0.1, paint: spots },
+    { name: 'capTop', size: [8, 3, 8], pivot: [0, 0, 0], from: [-4, 9, -4], base: v.top, parent: 'body', noise: 0.1, paint: spots },
+    quad('legFL', 2.6, 3, 3, 2.4, '#d3c4a2'),
+    quad('legFR', -2.6, 3, 3, 2.4, '#d3c4a2'),
+    quad('legBL', 2.6, -3, 3, 2.4, '#d3c4a2'),
+    quad('legBR', -2.6, -3, 3, 2.4, '#d3c4a2'),
+  ];
+}
+
+export function sporecapModel(variant: number): BuiltModel {
+  const vi = ((variant % SPORECAP_VARIANT_COUNT) + SPORECAP_VARIANT_COUNT) % SPORECAP_VARIANT_COUNT;
+  const key = `sporecap:${vi}`;
+  let m = cache.get(key);
+  if (m) return m;
+  m = buildModel(sporecap(vi), 64, 64, 300 + vi);
+  if (SPORECAP_VARIANTS[vi].glow) { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.35; }
+  cache.set(key, m);
+  return m;
+}
+
+/**
+ * Powderbug (2.9): a round, many-legged beetle with a smouldering fuse on its back. ORIGINAL design.
+ */
+function powderbug(): PartDef[] {
+  const shell = '#4f5a46', dark = '#2f372b', fuse = '#f08a2a', hot = '#ffd36a';
+  const legs = (name: string, x: number, z: number): PartDef => quad(name, x, z, 3, 1.6, dark);
+  return [
+    { name: 'body', size: [10, 7, 12], pivot: [0, 3, 0], from: [-5, 0, -6], base: shell, noise: 0.12,
+      paint: (p) => {
+        p.px('top', 1, 1, dark, 8, 1); p.px('top', 1, 5, dark, 8, 1); p.px('top', 1, 9, dark, 8, 1);
+        for (const f of ['left', 'right'] as const) { p.px(f, 2, 2, fuse, 2, 1); p.px(f, 7, 3, fuse, 2, 1); }
+        p.px('back', 3, 3, fuse, 4, 1);
+      } },
+    { name: 'head', size: [6, 5, 4], pivot: [0, 4, 6], from: [-3, -1, 0], base: '#5d6a52',
+      paint: (p) => { p.px('front', 0, 1, '#e8e2c8', 2, 2); p.px('front', 4, 1, '#e8e2c8', 2, 2); p.px('front', 1, 2, '#161616'); p.px('front', 4, 2, '#161616'); p.px('front', 1, 4, dark, 4, 1); } },
+    { name: 'fuse', size: [1, 4, 1], pivot: [0, 0, 0], from: [-0.5, 7, -1], base: '#6b5a3a', parent: 'body', paint: (p) => p.px('top', 0, 0, hot, 1, 1) },
+    { name: 'spark', size: [2, 2, 2], pivot: [0, 0, 0], from: [-1, 11, -1.5], base: hot, parent: 'body' },
+    legs('legFL', 4.5, 3), legs('legFR', -4.5, 3), legs('legML', 4.5, -1), legs('legMR', -4.5, -1), legs('legBL', 4.5, -4), legs('legBR', -4.5, -4),
+  ];
+}
+
+/**
+ * Gloommoth (2.9): a night-flying moth with big soft wings and glowing eyes. ORIGINAL design.
+ */
+function gloommoth(): PartDef[] {
+  const fur = '#3a3350', wing = '#2a2440', dust = '#a99bff', eye = '#ffe27a';
+  const mark = (w: number, d: number) => (p: Parameters<NonNullable<PartDef['paint']>>[0]) => {
+    p.px('top', Math.floor(w * 0.35), Math.floor(d * 0.3), dust, 3, 3); p.px('top', Math.floor(w * 0.7), Math.floor(d * 0.55), dust, 2, 2);
+    p.px('top', Math.floor(w * 0.15), Math.floor(d * 0.7), '#6e5ea8', 2, 2);
+  };
+  return [
+    { name: 'body', size: [5, 5, 10], pivot: [0, 8, 0], from: [-2.5, 0, -5], base: fur, noise: 0.14,
+      paint: (p) => { p.px('top', 1, 1, '#6e5ea8', 3, 1); p.px('top', 1, 5, '#6e5ea8', 3, 1); } },
+    { name: 'head', size: [5, 5, 4], pivot: [0, 10, 5], from: [-2.5, -2.5, 0], base: '#463e62',
+      paint: (p) => { p.px('front', 0, 1, eye, 2, 2); p.px('front', 3, 1, eye, 2, 2); p.px('front', 1, 2, '#1a1424'); p.px('front', 3, 2, '#1a1424'); } },
+    { name: 'antL', size: [1, 4, 1], pivot: [0, 0, 0], from: [1, 2.5, 2], base: dust, parent: 'head' },
+    { name: 'antR', size: [1, 4, 1], pivot: [0, 0, 0], from: [-2, 2.5, 2], base: dust, parent: 'head' },
+    { name: 'wingL', size: [16, 1, 12], pivot: [2.5, 4, 0], from: [0, 0, -6], base: wing, parent: 'body', noise: 0.08, paint: mark(16, 12) },
+    { name: 'wingR', size: [16, 1, 12], pivot: [-2.5, 4, 0], from: [-16, 0, -6], base: wing, parent: 'body', noise: 0.08, paint: mark(16, 12) },
+  ];
+}
+
+/** 2.17: Emberling, a small salamander with a glowing ember spine. ORIGINAL design. */
+function emberling(): PartDef[] {
+  const skin = '#c9582a', dark = '#6e2a18', belly = '#ffc766', ember = '#ffb23a', hot = '#fff0a0';
+  return [
+    { name: 'body', size: [6, 4, 11], pivot: [0, 2, 0], from: [-3, 0, -5.5], base: skin, noise: 0.1,
+      paint: (p) => { p.fill('bottom', belly, 0.04, 3); for (let i = 0; i < 4; i++) p.px('top', 2, 1 + i * 3, ember, 2, 1); p.px('top', 1, 2, dark, 1, 1); p.px('top', 4, 6, dark, 1, 1); } },
+    { name: 'head', size: [5, 4, 5], pivot: [0, 3, 5.5], from: [-2.5, -1, 0], base: '#d6643a',
+      paint: (p) => { p.px('front', 0, 1, '#ffe27a', 1, 1); p.px('front', 4, 1, '#ffe27a', 1, 1); p.px('front', 1, 3, dark, 3, 1); p.px('top', 2, 1, ember, 1, 2); } },
+    { name: 'tail', size: [3, 3, 8], pivot: [0, 0, 0], from: [-1.5, 0, -13], base: skin, parent: 'body', noise: 0.08, paint: (p) => { p.px('top', 1, 5, ember, 1, 1); p.px('back', 1, 1, hot, 1, 1); } },
+    quad('legFL', 3.2, 3.5, 2, 2, dark), quad('legFR', -3.2, 3.5, 2, 2, dark), quad('legBL', 3.2, -3.5, 2, 2, dark), quad('legBR', -3.2, -3.5, 2, 2, dark),
+  ];
+}
+
+/** 2.17: Mossback, a slow tortoise with a garden growing on its shell. ORIGINAL design. */
+function mossback(): PartDef[] {
+  const shell = '#6d5a3c', moss = '#4e8a3a', mossLt = '#79b04a', skin = '#8a8f5a', flower = '#f3d34a';
+  return [
+    { name: 'body', size: [11, 5, 13], pivot: [0, 4, 0], from: [-5.5, 0, -6.5], base: shell, noise: 0.1,
+      paint: (p) => { p.fill('bottom', '#cdbf94', 0.04, 3); p.px('left', 1, 1, '#4e3e28', 9, 1); p.px('right', 1, 1, '#4e3e28', 9, 1); } },
+    { name: 'dome', size: [9, 3, 10], pivot: [0, 0, 0], from: [-4.5, 5, -5], base: moss, parent: 'body', noise: 0.18,
+      paint: (p) => { p.px('top', 1, 1, mossLt, 3, 2); p.px('top', 5, 5, mossLt, 3, 3); p.px('top', 2, 7, mossLt, 2, 2); p.px('top', 6, 2, flower, 1, 1); p.px('top', 3, 4, flower, 1, 1); } },
+    { name: 'head', size: [4, 4, 5], pivot: [0, 4, 6.5], from: [-2, -2, 0], base: skin,
+      paint: (p) => { p.px('front', 0, 1, '#161616', 1, 1); p.px('front', 3, 1, '#161616', 1, 1); p.px('front', 1, 3, '#5d6038', 2, 1); } },
+    quad('legFL', 4.5, 4.5, 3, 3, '#7a7f4c'), quad('legFR', -4.5, 4.5, 3, 3, '#7a7f4c'), quad('legBL', 4.5, -4.5, 3, 3, '#7a7f4c'), quad('legBR', -4.5, -4.5, 3, 3, '#7a7f4c'),
+  ];
+}
+
+/** 2.17: Stormkit, a small hopping creature with static-bristled fur and a zigzag tail. ORIGINAL design. */
+function stormkit(): PartDef[] {
+  const fur = '#5b6f9c', lt = '#8fa4d4', spark = '#ffe24a', dark = '#34415f';
+  return [
+    { name: 'body', size: [5, 5, 7], pivot: [0, 2, 0], from: [-2.5, 0, -3.5], base: fur, noise: 0.1,
+      paint: (p) => { p.fill('bottom', lt, 0.05, 3); p.px('top', 1, 1, spark, 1, 1); p.px('top', 3, 3, spark, 1, 1); p.px('top', 2, 5, spark, 1, 1); } },
+    { name: 'head', size: [4, 4, 4], pivot: [0, 6, 3], from: [-2, -1, 0], base: '#6a7fae',
+      paint: (p) => { p.px('front', 0, 1, spark, 1, 1); p.px('front', 3, 1, spark, 1, 1); p.px('front', 1, 3, dark, 2, 1); } },
+    { name: 'earL', size: [1, 4, 1], pivot: [0, 0, 0], from: [1, 3, 1.5], base: spark, parent: 'head' },
+    { name: 'earR', size: [1, 4, 1], pivot: [0, 0, 0], from: [-2, 3, 1.5], base: spark, parent: 'head' },
+    { name: 'tail1', size: [1, 3, 1], pivot: [0, 0, 0], from: [-0.5, 3, -4.5], base: spark, parent: 'body' },
+    { name: 'tail2', size: [1, 1, 3], pivot: [0, 0, 0], from: [-0.5, 5, -6.5], base: spark, parent: 'body' },
+    { name: 'legFL', size: [1, 2, 1], pivot: [1.5, 2, 3], from: [-0.5, -2, -0.5], base: dark },
+    { name: 'legFR', size: [1, 2, 1], pivot: [-1.5, 2, 3], from: [-0.5, -2, -0.5], base: dark },
+    { name: 'legBL', size: [2, 2, 4], pivot: [2, 2, -1.5], from: [-1, -2, -2], base: dark },
+    { name: 'legBR', size: [2, 2, 4], pivot: [-2, 2, -1.5], from: [-1, -2, -2], base: dark },
+  ];
+}
+
+/** 2.19: Shellsnap, a little shore crab with two big claws and eyes on stalks. ORIGINAL design. */
+function shellsnap(): PartDef[] {
+  const shell = '#c9684a', spot = '#e8a07c', claw = '#e0573b', dark = '#8e4330', belly = '#f1dcb8';
+  return [
+    { name: 'body', size: [9, 3, 7], pivot: [0, 3, 0], from: [-4.5, 0, -3.5], base: shell, noise: 0.1,
+      paint: (p) => { p.fill('bottom', belly, 0.04, 3); p.px('top', 2, 2, spot, 2, 1); p.px('top', 6, 4, spot, 1, 2); p.px('top', 4, 1, spot, 1, 1); p.px('top', 3, 5, dark, 3, 1); } },
+    { name: 'head', size: [5, 2, 2], pivot: [0, 5, 3.5], from: [-2.5, 0, 0], base: shell,
+      paint: (p) => { p.px('front', 0, 0, '#111111', 1, 1); p.px('front', 4, 0, '#111111', 1, 1); p.px('front', 1, 1, '#ffffff', 1, 1); p.px('front', 3, 1, '#ffffff', 1, 1); } },
+    { name: 'clawL', size: [3, 2, 4], pivot: [0, 0, 0], from: [4.5, 0.5, 1], base: claw, parent: 'body', paint: (p) => { p.px('front', 0, 0, dark, 1, 1); p.px('front', 2, 0, dark, 1, 1); } },
+    { name: 'clawR', size: [3, 2, 4], pivot: [0, 0, 0], from: [-7.5, 0.5, 1], base: claw, parent: 'body', paint: (p) => { p.px('front', 0, 0, dark, 1, 1); p.px('front', 2, 0, dark, 1, 1); } },
+    quad('legFL', 4, 2, 3, 1, dark), quad('legFR', -4, 2, 3, 1, dark), quad('legBL', 4, -2, 3, 1, dark), quad('legBR', -4, -2, 3, 1, dark),
+  ];
+}
+
+/** 2.19: Pinecub, a round woodland cub with a back of pine needles. ORIGINAL design. */
+function pinecub(): PartDef[] {
+  const fur = '#8a6a48', face = '#e6d3ae', needle = '#4f7a3c', needleLt = '#7fa957', cone = '#6b4a2e', dark = '#3b2a1c';
+  return [
+    { name: 'body', size: [7, 5, 9], pivot: [0, 3, 0], from: [-3.5, 0, -4.5], base: fur, noise: 0.1, paint: (p) => { p.fill('bottom', face, 0.04, 3); } },
+    { name: 'needles', size: [7, 3, 8], pivot: [0, 0, 0], from: [-3.5, 5, -4.5], base: needle, parent: 'body', noise: 0.18,
+      paint: (p) => { for (let i = 0; i < 4; i++) { p.px('top', 1, 1 + i * 2, needleLt, 5, 1); p.px('top', 0, 2 + i * 2, cone, 1, 1); p.px('top', 6, 2 + i * 2, cone, 1, 1); } } },
+    { name: 'head', size: [5, 4, 4], pivot: [0, 5, 4.5], from: [-2.5, -1.5, 0], base: face,
+      paint: (p) => { p.px('front', 0, 1, '#161616', 1, 1); p.px('front', 4, 1, '#161616', 1, 1); p.px('front', 2, 2, dark, 1, 1); p.px('top', 0, 0, fur, 5, 2); } },
+    { name: 'earL', size: [1, 1, 1], pivot: [0, 0, 0], from: [1.5, 2.5, 1], base: fur, parent: 'head' },
+    { name: 'earR', size: [1, 1, 1], pivot: [0, 0, 0], from: [-2.5, 2.5, 1], base: fur, parent: 'head' },
+    quad('legFL', 2.5, 3, 3, 2, dark), quad('legFR', -2.5, 3, 3, 2, dark), quad('legBL', 2.5, -3, 3, 2, dark), quad('legBR', -2.5, -3, 3, 2, dark),
+  ];
+}
+
+/** 2.19: Lanternling, a small bulb-headed creature of the Spore Isle that glows softly. ORIGINAL design. */
+function lanternling(): PartDef[] {
+  const skin = '#5f8f86', lt = '#9fd6c4', glow = '#d8ffe6', dark = '#2f524c';
+  return [
+    { name: 'body', size: [5, 5, 5], pivot: [0, 3, 0], from: [-2.5, 0, -2.5], base: skin, noise: 0.1,
+      paint: (p) => { p.fill('bottom', lt, 0.05, 3); p.px('front', 1, 2, lt, 3, 1); p.px('back', 2, 1, lt, 1, 3); } },
+    { name: 'head', size: [4, 3, 4], pivot: [0, 8, 0], from: [-2, 0, -2], base: skin,
+      paint: (p) => { p.px('front', 0, 1, '#161616', 1, 1); p.px('front', 3, 1, '#161616', 1, 1); p.px('front', 1, 2, dark, 2, 1); } },
+    { name: 'stalk', size: [1, 3, 1], pivot: [0, 0, 0], from: [-0.5, 3, -0.5], base: dark, parent: 'head' },
+    { name: 'bulb', size: [4, 4, 4], pivot: [0, 0, 0], from: [-2, 6, -2], base: glow, parent: 'head', noise: 0.06,
+      paint: (p) => { p.px('front', 1, 1, '#ffffff', 2, 2); p.px('top', 1, 1, '#ffffff', 2, 2); } },
+    quad('legFL', 1.5, 1.5, 3, 1, dark), quad('legFR', -1.5, 1.5, 3, 1, dark), quad('legBL', 1.5, -1.5, 3, 1, dark), quad('legBR', -1.5, -1.5, 3, 1, dark),
+  ];
+}
+
+/** 2.10: the Hootlet, a small ORIGINAL owl; a tamed one wears a red ribbon. */
+function hootlet(tamed: boolean): PartDef[] {
+  const feather = '#8a6a48', dark = '#5e4630', belly = '#eadcc0', disc = '#f2e8d2', gold = '#ffd23a', beak = '#e8902c';
+  return [
+    { name: 'body', size: [5, 6, 4], pivot: [0, 3, 0], from: [-2.5, 0, -2], base: feather, noise: 0.1,
+      paint: (p) => {
+        p.px('front', 1, 1, belly, 3, 4); p.px('front', 2, 2, '#cdb892', 1, 1); p.px('front', 1, 4, '#cdb892', 1, 1); p.px('front', 3, 3, '#cdb892', 1, 1);
+        p.px('back', 0, 0, dark, 5, 1); p.px('back', 1, 3, dark, 1, 2); p.px('back', 3, 2, dark, 1, 2);
+      } },
+    { name: 'head', size: [6, 5, 5], pivot: [0, 9, 0], from: [-3, 0, -2.5], base: feather, noise: 0.08,
+      paint: (p) => {
+        p.px('front', 0, 0, disc, 6, 4);
+        p.px('front', 0, 1, gold, 2, 2); p.px('front', 4, 1, gold, 2, 2);
+        p.px('front', 1, 1, '#1a1210', 1, 1); p.px('front', 4, 1, '#1a1210', 1, 1);
+        p.px('front', 2, 3, beak, 2, 1); p.px('front', 2, 2, beak, 2, 1);
+      } },
+    { name: 'tuftL', size: [1, 2, 1], pivot: [0, 0, 0], from: [1.5, 5, -0.5], base: dark, parent: 'head' },
+    { name: 'tuftR', size: [1, 2, 1], pivot: [0, 0, 0], from: [-2.5, 5, -0.5], base: dark, parent: 'head' },
+    ...(tamed ? [{ name: 'ribbon', size: [5.4, 1, 4.4], pivot: [0, 0, 0], from: [-2.7, 5.2, -2.2], base: '#d03a3a', parent: 'body' } as PartDef] : []),
+    { name: 'wingL', size: [1, 5, 3], pivot: [2.5, 8.5, 0], from: [0, -5, -1.5], base: dark, parent: 'body', noise: 0.1,
+      paint: (p) => { p.px('left', 0, 0, feather, 3, 2); p.px('right', 0, 0, feather, 3, 2); } },
+    { name: 'wingR', size: [1, 5, 3], pivot: [-2.5, 8.5, 0], from: [-1, -5, -1.5], base: dark, parent: 'body', noise: 0.1,
+      paint: (p) => { p.px('left', 0, 0, feather, 3, 2); p.px('right', 0, 0, feather, 3, 2); } },
+    { name: 'tail', size: [3, 1, 4], pivot: [0, 0.5, 0], from: [-1.5, 0, -5], base: dark, parent: 'body', noise: 0.1 },
+    { name: 'footL', size: [1, 2, 1], pivot: [0, 0, 0], from: [0.5, -2, -0.5], base: beak, parent: 'body' },
+    { name: 'footR', size: [1, 2, 1], pivot: [0, 0, 0], from: [-1.5, -2, -0.5], base: beak, parent: 'body' },
+  ];
+}
+export function hootletModel(tamed: boolean): BuiltModel {
+  const key = tamed ? 'hootlet:tamed' : 'hootlet';
+  let m = cache.get(key);
+  if (m) return m;
+  m = buildModel(hootlet(tamed), 64, 64, 77);
+  cache.set(key, m);
+  return m;
+}
+
+function lavastrider(): PartDef[] {
+  const hide = '#5a2a2a', dark = '#341919', ember = '#ff8a30', hot = '#ffd27a';
+  const foot = (p: Parameters<NonNullable<PartDef['paint']>>[0]) => { for (const f of ['front', 'back', 'left', 'right'] as const) { p.px(f, 0, 12, ember, 3, 1); p.px(f, 0, 13, hot, 3, 1); } };
+  return [
+    { name: 'body', size: [12, 8, 14], pivot: [0, 14, 0], from: [-6, 0, -7], base: hide, noise: 0.1,
+      paint: (p) => {
+        for (const f of ['left', 'right'] as const) { p.px(f, 2, 2, ember, 1, 3); p.px(f, 5, 4, ember, 3, 1); p.px(f, 9, 1, ember, 1, 2); p.px(f, 11, 3, hot, 1, 1); }
+        p.px('back', 3, 2, ember, 1, 3); p.px('back', 7, 4, ember, 2, 1);
+        p.fill('bottom', ember, 0.08, 5);
+      } },
+    { name: 'finL', size: [1, 4, 9], pivot: [0, 0, 0], from: [6, 3, -4.5], base: ember, parent: 'body', paint: (p) => p.px('left', 1, 0, hot, 2, 1) },
+    { name: 'finR', size: [1, 4, 9], pivot: [0, 0, 0], from: [-7, 3, -4.5], base: ember, parent: 'body', paint: (p) => p.px('right', 1, 0, hot, 2, 1) },
+    { name: 'head', size: [7, 6, 6], pivot: [0, 20, 7], from: [-3.5, -3, 0], base: '#663030', noise: 0.08,
+      paint: (p) => {
+        p.px('front', 1, 1, hot, 2, 1); p.px('front', 4, 1, hot, 2, 1);
+        p.px('front', 2, 1, '#1a0f0f'); p.px('front', 4, 1, '#1a0f0f');
+        p.px('front', 1, 4, dark, 5, 1);
+        p.px('top', 2, 1, ember, 3, 2);
+      } },
+    { name: 'crest', size: [3, 3, 4], pivot: [0, 0, 0], from: [-1.5, 3, 1], base: ember, parent: 'head', paint: (p) => p.px('top', 0, 0, hot, 3, 1) },
+    { name: 'tail', size: [2, 6, 2], pivot: [0, 18, -7], from: [-1, -6, -1], base: dark, paint: (p) => p.fill('bottom', ember, 0, 2) },
+    saddlePart(8, 5.5, 5),
+    quad('legFL', 4, 4, 14, 3, dark, foot),
+    quad('legFR', -4, 4, 14, 3, dark, foot),
+    quad('legBL', 4, -4, 14, 3, dark, foot),
+    quad('legBR', -4, -4, 14, 3, dark, foot),
+  ];
+}
+
+
+/** 2.13: Axolotl colours (index saved with the creature). */
+export const AXOLOTL_COATS = ['pink', 'brown', 'gold', 'cyan', 'blue'] as const;
+export type AxolotlCoat = (typeof AXOLOTL_COATS)[number];
+const AX_COLORS: Record<AxolotlCoat, { body: string; belly: string; gill: string; spot: string }> = {
+  pink: { body: '#f4a9c6', belly: '#fbd3e0', gill: '#d8587f', spot: '#e88bb0' },
+  brown: { body: '#9a6a50', belly: '#c49a7d', gill: '#7a3e3a', spot: '#7e523c' },
+  gold: { body: '#f0cf6a', belly: '#fbe9a4', gill: '#e0953a', spot: '#d9b24c' },
+  cyan: { body: '#7cd8e4', belly: '#c4f0f4', gill: '#3c9ec0', spot: '#5cbfd0' },
+  blue: { body: '#5b78ee', belly: '#a7baff', gill: '#2f3fb0', spot: '#4660d0' },
+};
+
+/** 2.13: the Axolotl, a smiling pond salamander with frilly gills. ORIGINAL design. */
+function axolotl(coat: AxolotlCoat): PartDef[] {
+  const c = AX_COLORS[coat];
+  const gill = (name: string, side: number, y: number): PartDef => ({ name, size: [3, 1.6, 0.9], pivot: [0, 0, 0], from: [side > 0 ? 4 : -7, y, 1.8], base: c.gill, parent: 'head', noise: 0.1 });
+  const leg = (name: string, x: number, z: number): PartDef => ({ name, size: [2, 3, 2], pivot: [x, 3, z], from: [-1, -3, -1], base: c.body, noise: 0.08, paint: (p) => p.px('bottom', 0, 0, c.belly, 2, 2) });
+  return [
+    { name: 'body', size: [7, 4, 12], pivot: [0, 4, 0], from: [-3.5, -1, -6], base: c.body, noise: 0.1,
+      paint: (p) => { p.px('top', 1, 2, c.spot, 2, 2); p.px('top', 4, 5, c.spot, 2, 2); p.px('top', 2, 8, c.spot, 2, 1); p.px('bottom', 1, 1, c.belly, 5, 10); } },
+    { name: 'head', size: [8, 5, 5], pivot: [0, 4.5, 6], from: [-4, -1.5, 0], base: c.body, noise: 0.08,
+      paint: (p) => {
+        p.px('front', 1, 2, '#1a1418', 1, 1); p.px('front', 6, 2, '#1a1418', 1, 1);
+        p.px('front', 2, 4, '#b04868', 1, 1); p.px('front', 3, 4, '#b04868', 2, 1); p.px('front', 5, 4, '#b04868', 1, 1);
+        p.px('front', 0, 3, c.spot, 1, 1); p.px('front', 7, 3, c.spot, 1, 1);
+      } },
+    gill('gillL1', 1, 2.2), gill('gillL2', 1, 0.2), gill('gillL3', 1, -1.8),
+    gill('gillR1', -1, 2.2), gill('gillR2', -1, 0.2), gill('gillR3', -1, -1.8),
+    { name: 'tail', size: [1.4, 5, 9], pivot: [0, 4, -6], from: [-0.7, -2.5, -9], base: c.body, noise: 0.08, paint: (p) => p.fill('left', c.belly, 0, 2) },
+    { name: 'fin', size: [0.8, 2, 7], pivot: [0, 0, 0], from: [-0.4, 3, -5], base: c.gill, parent: 'body', noise: 0.1 },
+    leg('legFL', 3.5, 4), leg('legFR', -3.5, 4), leg('legBL', 3.5, -4), leg('legBR', -3.5, -4),
+  ];
+}
+const axCache = new Map<string, BuiltModel>();
+export function axolotlModel(coat: AxolotlCoat): BuiltModel {
+  let m = axCache.get(coat);
+  if (m) return m;
+  m = buildModel(axolotl(coat), 64, 64, 301 + AXOLOTL_COATS.indexOf(coat) * 17);
+  axCache.set(coat, m);
+  return m;
+}
+
+/** 2.13: the Squid, a slate-blue drifter with big eyes and eight trailing arms. ORIGINAL design. */
+function squid(): PartDef[] {
+  const skin = '#3e5a8a', pale = '#a8c2e8', dark = '#2c4268';
+  const arm = (i: number): PartDef => {
+    const a = (i / 8) * Math.PI * 2;
+    return { name: `ten${i}`, size: [1.4, 7, 1.4], pivot: [Math.cos(a) * 2.4, -4.5, Math.sin(a) * 2.4], from: [-0.7, -7, -0.7], base: i % 2 ? dark : skin, parent: 'body', noise: 0.1,
+      paint: (p) => { p.px('front', 0, 3, pale, 1, 1); p.px('front', 0, 6, pale, 1, 1); } };
+  };
+  return [
+    { name: 'body', size: [8, 9, 8], pivot: [0, 12, 0], from: [-4, -4.5, -4], base: skin, noise: 0.12,
+      paint: (p) => {
+        p.px('front', 1, 1, pale, 2, 1); p.px('front', 6, 2, pale, 2, 1); p.px('front', 3, 5, pale, 1, 1); p.px('front', 5, 7, pale, 2, 1);
+        p.px('right', 2, 2, pale, 2, 1); p.px('left', 4, 3, pale, 2, 1); p.px('back', 2, 3, pale, 2, 1); p.px('back', 6, 6, pale, 1, 1);
+        p.px('top', 2, 2, dark, 5, 5);
+      } },
+    { name: 'eyeL', size: [1.2, 3.4, 3.4], pivot: [0, 0, 0], from: [3.9, -1.5, -1.7], base: '#f2f4f8', parent: 'body', paint: (p) => p.px('right', 1, 1, '#14161c', 1, 2) },
+    { name: 'eyeR', size: [1.2, 3.4, 3.4], pivot: [0, 0, 0], from: [-5.1, -1.5, -1.7], base: '#f2f4f8', parent: 'body', paint: (p) => p.px('left', 1, 1, '#14161c', 1, 2) },
+    ...Array.from({ length: 8 }, (_, i) => arm(i)),
+  ];
+}
+
+/** 2.13: the Guardian, a barnacled shell-fish with a ring of coral spines and one amber eye. ORIGINAL design. */
+function guardian(): PartDef[] {
+  const shell = '#4f6a74', tile = '#3f5a66', barn = '#d8e4e0', coral = '#d4574a', amber = '#ffb43a';
+  const spine = (i: number, x: number, y: number, z: number, h = 3): PartDef => ({ name: `sp${i}`, size: [1.2, h, 1.2], pivot: [0, 0, 0], from: [x - 0.6, y, z - 0.6], base: coral, parent: 'shell', noise: 0.1 });
+  return [
+    { name: 'shell', size: [12, 10, 12], pivot: [0, 8, 0], from: [-6, -5, -6], base: shell, noise: 0.12,
+      paint: (p) => {
+        for (const f of ['left', 'right', 'back', 'top'] as const) { p.px(f, 1, 1, tile, 3, 3); p.px(f, 6, 2, tile, 4, 3); p.px(f, 2, 6, tile, 4, 3); p.px(f, 8, 7, barn, 1, 1); p.px(f, 3, 4, barn, 1, 1); p.px(f, 10, 3, barn, 1, 1); }
+        p.px('front', 0, 0, tile, 12, 2); p.px('front', 1, 9, barn, 1, 1); p.px('front', 10, 8, barn, 1, 1); p.px('front', 0, 8, tile, 3, 2); p.px('front', 9, 8, tile, 3, 2);
+        p.px('front', 3, 2, '#22323a', 6, 6); p.px('front', 4, 3, amber, 4, 4); p.px('front', 6, 3, '#2a1408', 1, 4);
+      } },
+    spine(0, -4, 5, -4), spine(1, 0, 5, -4), spine(2, 4, 5, -4), spine(3, -4, 5, 0), spine(4, 4, 5, 0), spine(5, -4, 5, 4), spine(6, 0, 5, 4, 4), spine(7, 4, 5, 4),
+    { name: 'sp8', size: [3, 1.2, 1.2], pivot: [0, 0, 0], from: [6, 0, -0.6], base: coral, parent: 'shell' },
+    { name: 'sp9', size: [3, 1.2, 1.2], pivot: [0, 0, 0], from: [-9, 0, -0.6], base: coral, parent: 'shell' },
+    { name: 'sp10', size: [1.2, 1.2, 3], pivot: [0, 0, 0], from: [-0.6, 0, -9], base: coral, parent: 'shell' },
+    { name: 'tail', size: [4, 4, 6], pivot: [0, 8, -6], from: [-2, -2, -6], base: tile, noise: 0.1, paint: (p) => p.px('top', 1, 1, barn, 1, 1) },
+    { name: 'finL', size: [1, 5, 6], pivot: [6, 8, 0], from: [0, -3, -3], base: '#2f8a8a', noise: 0.1 },
+    { name: 'finR', size: [1, 5, 6], pivot: [-6, 8, 0], from: [-1, -3, -3], base: '#2f8a8a', noise: 0.1 },
+  ];
+}
+
+const cache = new Map<string, BuiltModel>();
+
+export function mobModel(type: MobType): BuiltModel {
+  let m = cache.get(type);
+  if (m) return m;
+  if (type === 'villager') return villagerModel('none');
+  if (type === 'trader') return villagerModel('trader');
+  if (type === 'hound') return houndModel(false);
+  if (type === 'hollowdrake') return drakeModel();
+  if (type === 'sheep') return sheepModel('white', false);
+  if (type === 'fox') return foxModel('red', false);
+  if (type === 'hootlet') return hootletModel(false);
+  if (type === 'axolotl') return axolotlModel('pink');
+  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider, sporecap, powderbug, gloommoth, squid, guardian, emberling, mossback, stormkit, shellsnap, pinecub, lanternling }[type as Exclude<MobType, 'villager' | 'trader' | 'hound' | 'hollowdrake' | 'sheep' | 'fox' | 'hootlet' | 'axolotl'>]();
+  m = buildModel(parts, 64, 64, type.length * 13);
+  if (type === 'ashboar' || type === 'lavastrider') glowSeams(m);
+  if (type === 'gloommoth') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.25; }
+  if (type === 'lanternling') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.55; }
+  if (type === 'emberling' || type === 'stormkit') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.3; }
+  if (type === 'guardian') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.2; }
+  if (type === 'drifter') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.45; }
+  cache.set(type, m);
+  return m;
+}
+
+/**
+ * 2.1: the ember-coloured pixels of a model glow on their own (an emissive map of
+ * just those pixels), so an Ashboar's seams and eyes shine in the dark caverns.
+ */
+function glowSeams(m: BuiltModel): void {
+  const src = m.texture.image as HTMLCanvasElement;
+  const c = document.createElement('canvas');
+  c.width = src.width; c.height = src.height;
+  const ctx = c.getContext('2d')!;
+  ctx.drawImage(src, 0, 0);
+  const img = ctx.getImageData(0, 0, c.width, c.height), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const ember = d[i] > 200 && d[i + 1] > 90 && d[i] - d[i + 2] > 110;
+    if (!ember) { d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; }
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.colorSpace = THREE.NoColorSpace;
+  m.material.emissiveMap = t;
+  m.material.emissive.setRGB(1, 1, 1);
+  m.material.emissiveIntensity = 0.85;
+}
+
+export function playerModel(): BuiltModel {
+  let m = cache.get('player');
+  if (m) return m;
+  m = buildModel(playerParts(), 64, 64, 99);
+  cache.set('player', m);
+  return m;
+}

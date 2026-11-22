@@ -1,0 +1,651 @@
+import * as THREE from 'three';
+import { Entity, EntityHost, EntityQueries, Hurtable } from './Entity';
+import { Mob, MOB_SPECS, NAME_TAG_MAX } from './Mob';
+import { Arrow, ItemEntity, XpOrb } from './Drops';
+import { EmberBolt } from './EmberBolt';
+import { Villager } from './Villager';
+import { Sentinel } from './Sentinel';
+import { Hound } from './Hound';
+import { Painting } from './Painting';
+import { ArmourStand } from './ArmourStand';
+import { Ashboar } from './Ashboar';
+import { Hollowdrake } from './Hollowdrake';
+import { Drifter } from './Drifter';
+import { StarBolt } from './StarBolt';
+import { Powderbug } from './Powderbug';
+import { Gloommoth } from './Gloommoth';
+import { Hootlet } from './Hootlet';
+import { Axolotl, Squid, Guardian } from './Aquatic';
+import { WanderingTrader } from './WanderingTrader';
+import { FarmAnimal, Sheep, Sporecap, FARM_TYPES, FARM_GROW_TICKS, naturalWool } from './FarmAnimal';
+import { Fox } from './Fox';
+import { SnowPal } from './SnowPal';
+import { Snowball } from './Snowball';
+import { OrbShot } from './OrbShot';
+import { Wildling, isWildKind } from './Wildling';
+import { SplashPotion } from './SplashPotion';
+import { Sledge } from './Sledge';
+import { Horse } from './Horse';
+import { Minecart } from './Minecart';
+import { cleanStack } from '../inventory/Inventory';
+import { Boat } from './Boat';
+import { Bobber } from './Fishing';
+import { motifById } from '../render/paintingArt';
+import type { Facing } from '../world/BlockRegistry';
+import type { MobType } from './mobModels';
+import type { ItemStack } from '../inventory/ItemStack';
+import { rayBox } from '../interaction/VoxelRaycaster';
+import { IS_WATER, GRASS, IS_FLUID, IS_LAVA, IS_SOLID, AIR, SNOWY_GRASS, SAND, RED_SAND, STONE, SNOW, SPAWN_FLOOR, EMBER_LAMP, SPORELOAM } from '../world/BlockRegistry';
+import { BIOME_BADLANDS, BIOME_DESERT, BIOME_MOUNTAINS, BIOME_SNOWY, BIOME_TAIGA, BIOME_FOREST, BIOME_BIRCH, BIOME_SPORE, BIOME_BEACH } from '../world/BiomeSystem';
+import { UNLOADED } from '../world/World';
+import { WORLD_HEIGHT } from '../world/constants';
+import { LAVA_SEA } from '../world/Cinderdeep';
+
+const PASSIVE: MobType[] = ['pig', 'cow', 'sheep', 'chicken'];
+
+function pick<T>(table: [T, number][]): T {
+  let r = Math.random() * table.reduce((a, [, w]) => a + w, 0);
+  for (const [v, w] of table) { r -= w; if (r <= 0) return v; }
+  return table[table.length - 1][0];
+}
+
+/** Which animal a biome favours (desert rabbits, mountain goats...). */
+function passiveFor(biome: number, ground: number): MobType | null {
+  if (biome === BIOME_SPORE) return ground === SPORELOAM ? (Math.random() < 0.14 ? 'lanternling' : 'sporecap') : null;
+  if (biome === BIOME_DESERT || biome === BIOME_BADLANDS) return ground === SAND || ground === RED_SAND ? (Math.random() < 0.18 ? 'emberling' : 'rabbit') : null;
+  if (biome === BIOME_SNOWY) return pick<MobType>([['goat', 42], ['rabbit', 14], ['sheep', 14], ['hound', 16], ['fox', 14], ['stormkit', 9], ['pinecub', 7]]);
+  if (biome === BIOME_MOUNTAINS) return pick<MobType>([['goat', 65], ['rabbit', 15], ['sheep', 20], ['stormkit', 12]]);
+  if (biome === BIOME_BEACH && ground === SAND && Math.random() < 0.3) return 'shellsnap';
+  if (ground === STONE || ground === SNOW) return null;
+  if (biome === BIOME_TAIGA) return pick<MobType>([['rabbit', 24], ['sheep', 20], ['pig', 12], ['cow', 12], ['goat', 9], ['hound', 13], ['fox', 10], ['hootlet', 6], ['pinecub', 8]]);
+  if (biome === BIOME_FOREST && Math.random() < 0.08) return 'hound';
+  if ((biome === BIOME_FOREST || biome === BIOME_BIRCH) && Math.random() < 0.08) return 'mossback';
+  if ((biome === BIOME_FOREST || biome === BIOME_BIRCH || biome === BIOME_TAIGA) && ground !== STONE && Math.random() < 0.07) return 'hootlet';
+  if (biome === BIOME_BIRCH && Math.random() < 0.05) return 'hound';
+  const r = Math.random();
+  if (r < 0.03) return 'mossback';
+  if (r > 0.985) return 'stormkit';
+  return r < 0.1 ? 'rabbit' : r < 0.17 ? 'horse' : PASSIVE[Math.floor(Math.random() * PASSIVE.length)];
+}
+
+/**
+ * Owns every non-player entity: ticking within the simulation distance,
+ * interpolated rendering, spawning/despawning rules and entity queries
+ * (melee/arrow ray hits, item merging).
+ */
+export class EntityManager implements EntityQueries {
+  readonly group = new THREE.Group();
+  readonly list: Entity[] = [];
+  simulationDistance = 96; // blocks
+  mobSpawning = true;
+  private spawnTimer = 0;
+
+  constructor() {
+    this.group.name = 'entities';
+  }
+
+  add<T extends Entity>(e: T): T {
+    this.list.push(e);
+    this.group.add(e.object);
+    return e;
+  }
+
+  get mobCount(): number {
+    let n = 0;
+    for (const e of this.list) if (e instanceof Mob) n++;
+    return n;
+  }
+
+  spawnMob(type: MobType, x: number, y: number, z: number, host: EntityHost): Mob {
+    const m = type === 'villager' ? new Villager(host) : type === 'trader' ? new WanderingTrader(host) : type === 'sentinel' ? new Sentinel(host) : type === 'hound' ? new Hound(host)
+      : type === 'ashboar' ? new Ashboar(host) : type === 'hollowdrake' ? new Hollowdrake(host) : type === 'drifter' ? new Drifter(host) : type === 'powderbug' ? new Powderbug(host) : type === 'gloommoth' ? new Gloommoth(host) : type === 'hootlet' ? new Hootlet(host) : type === 'axolotl' ? new Axolotl(host) : type === 'squid' ? new Squid(host) : type === 'guardian' ? new Guardian(host)
+      : type === 'sheep' ? new Sheep(host) : type === 'sporecap' ? new Sporecap(host) : FARM_TYPES.includes(type) ? new FarmAnimal(type, host)
+      : type === 'horse' ? new Horse(host) : type === 'fox' ? new Fox(host) : type === 'snowpal' ? new SnowPal(host) : isWildKind(type) ? new Wildling(type, host) : new Mob(type, host);
+    m.setPos(x, y, z);
+    // 2.3: snowy-white foxes in the snowy lands
+    if (m instanceof Fox && host.world.dim === 'overworld') {
+      const col = host.world.generator.column(Math.floor(x), Math.floor(z));
+      if (col.biome === BIOME_SNOWY || (col.biome === BIOME_MOUNTAINS && col.height >= 90)) m.setCoat('snow');
+    }
+    return this.add(m);
+  }
+
+  spawnItem(stack: ItemStack, x: number, y: number, z: number, vel?: [number, number, number], delay = 10): ItemEntity {
+    const e = new ItemEntity(stack, delay);
+    e.setPos(x, y, z);
+    if (vel) { e.vx = vel[0]; e.vy = vel[1]; e.vz = vel[2]; }
+    else { e.vx = (Math.random() - 0.5) * 0.2; e.vy = 0.2; e.vz = (Math.random() - 0.5) * 0.2; }
+    return this.add(e);
+  }
+
+  spawnXp(value: number, x: number, y: number, z: number): void {
+    // split into a few orbs like the reference game
+    while (value > 0) {
+      const v = value >= 7 ? 7 : value >= 3 ? 3 : 1;
+      value -= v;
+      const o = new XpOrb(v);
+      o.setPos(x, y, z);
+      o.vx = (Math.random() - 0.5) * 0.2; o.vy = 0.2 + Math.random() * 0.1; o.vz = (Math.random() - 0.5) * 0.2;
+      this.add(o);
+    }
+  }
+
+  spawnArrow(x: number, y: number, z: number, vx: number, vy: number, vz: number, fromPlayer: boolean, damage: number, shooter: Mob | null = null, flame = false): void {
+    const a = new Arrow(fromPlayer, damage);
+    if (flame) a.setFlame();
+    a.shooter = shooter;
+    a.setPos(x, y, z);
+    a.vx = vx; a.vy = vy; a.vz = vz;
+    this.add(a);
+  }
+
+  /** 2.8: a thrown Trident. */
+  spawnTrident(x: number, y: number, z: number, vx: number, vy: number, vz: number, stack: ItemStack, damage: number): void {
+    const a = new Arrow(true, damage);
+    a.setTrident(stack);
+    a.setPos(x, y, z);
+    a.vx = vx; a.vy = vy; a.vz = vz;
+    this.add(a);
+  }
+
+  spawnEmber(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob): void {
+    const e = new EmberBolt();
+    e.shooter = shooter;
+    e.setPos(x, y, z);
+    e.vx = vx; e.vy = vy; e.vz = vz;
+    this.add(e);
+  }
+
+  /** 2.2: a Hollowdrake's star bolt. */
+  spawnStarBolt(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob, damage: number): void {
+    const b = new StarBolt();
+    b.shooter = shooter;
+    b.damage = damage;
+    b.setPos(x, y, z);
+    b.vx = vx; b.vy = vy; b.vz = vz;
+    this.add(b);
+  }
+
+  itemsNear(x: number, y: number, z: number, r: number): Entity[] {
+    const out: Entity[] = [];
+    for (const e of this.list) {
+      if (e instanceof ItemEntity && Math.abs(e.x - x) <= r && Math.abs(e.y - y) <= r && Math.abs(e.z - z) <= r) out.push(e);
+    }
+    return out;
+  }
+
+  mobsNear(x: number, y: number, z: number, r: number): Mob[] {
+    const out: Mob[] = [];
+    for (const e of this.list) {
+      if (e instanceof Mob && !e.removed && Math.abs(e.x - x) <= r && Math.abs(e.y - y) <= r && Math.abs(e.z - z) <= r) out.push(e);
+    }
+    return out;
+  }
+
+  boats(): Boat[] {
+    const out: Boat[] = [];
+    for (const e of this.list) if (e instanceof Boat && !e.removed) out.push(e);
+    return out;
+  }
+
+  /** Nearest boat hit by a ray (`skip`: the boat the player sits in). */
+  rayHitBoat(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number, skip: Boat | null): { boat: Boat; t: number } | null {
+    let best: { boat: Boat; t: number } | null = null;
+    for (const e of this.list) {
+      if (!(e instanceof Boat) || e.removed || e === skip) continue;
+      if (Math.abs(e.x - ox) > max + 3 || Math.abs(e.z - oz) > max + 3 || Math.abs(e.y - oy) > max + 3) continue;
+      const t = e.rayHit(ox, oy, oz, dx, dy, dz);
+      if (t !== null && t <= max && (!best || t < best.t)) best = { boat: e, t };
+    }
+    return best;
+  }
+
+  /** 2.3: a snowball (thrown by the player, or by a Snow Pal). */
+  spawnSnowball(x: number, y: number, z: number, vx: number, vy: number, vz: number, shooter: Mob | null): Snowball {
+    const s = new Snowball();
+    s.shooter = shooter;
+    s.setPos(x, y, z);
+    s.vx = vx; s.vy = vy; s.vz = vz;
+    return this.add(s);
+  }
+
+  /** 2.17: a thrown Capture Orb. */
+  spawnOrb(x: number, y: number, z: number, vx: number, vy: number, vz: number, sneaking: boolean): OrbShot {
+    const o = new OrbShot();
+    o.sneaking = sneaking;
+    o.setPos(x, y, z);
+    o.vx = vx; o.vy = vy; o.vz = vz;
+    return this.add(o);
+  }
+
+  /** 2.5: a thrown splash potion. */
+  spawnSplash(x: number, y: number, z: number, vx: number, vy: number, vz: number, effectId: string): SplashPotion {
+    const s = new SplashPotion();
+    s.setEffect(effectId);
+    s.setPos(x, y, z);
+    s.vx = vx; s.vy = vy; s.vz = vz;
+    return this.add(s);
+  }
+
+  /** 2.3: a sledge. */
+  spawnSledge(x: number, y: number, z: number, yaw: number): Sledge {
+    const b = new Sledge();
+    b.setPos(x, y, z);
+    b.yaw = b.prevYaw = yaw;
+    return this.add(b);
+  }
+
+  spawnBoat(x: number, y: number, z: number, yaw: number): Boat {
+    const b = new Boat();
+    b.setPos(x, y, z);
+    b.yaw = b.prevYaw = yaw;
+    return this.add(b);
+  }
+
+  spawnBobber(x: number, y: number, z: number, vx: number, vy: number, vz: number): Bobber {
+    const b = new Bobber();
+    b.setPos(x, y, z);
+    b.vx = vx; b.vy = vy; b.vz = vz;
+    return this.add(b);
+  }
+
+  paintings(): Painting[] {
+    const out: Painting[] = [];
+    for (const e of this.list) if (e instanceof Painting && !e.removed) out.push(e);
+    return out;
+  }
+
+  /** Nearest painting hit by a ray. */
+  rayHitPainting(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number): { painting: Painting; t: number } | null {
+    let best: { painting: Painting; t: number } | null = null;
+    for (const e of this.list) {
+      if (!(e instanceof Painting) || e.removed) continue;
+      if (Math.abs(e.x - ox) > max + 4 || Math.abs(e.z - oz) > max + 4 || Math.abs(e.y - oy) > max + 4) continue;
+      const t = e.rayHit(ox, oy, oz, dx, dy, dz);
+      if (t !== null && t <= max && (!best || t < best.t)) best = { painting: e, t };
+    }
+    return best;
+  }
+
+  stands(): ArmourStand[] {
+    const out: ArmourStand[] = [];
+    for (const e of this.list) if (e instanceof ArmourStand && !e.removed) out.push(e);
+    return out;
+  }
+
+  /** Nearest armour stand hit by a ray (2.1). */
+  rayHitStand(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number): { stand: ArmourStand; t: number } | null {
+    let best: { stand: ArmourStand; t: number } | null = null;
+    for (const e of this.list) {
+      if (!(e instanceof ArmourStand) || e.removed) continue;
+      if (Math.abs(e.x - ox) > max + 3 || Math.abs(e.z - oz) > max + 3 || Math.abs(e.y - oy) > max + 3) continue;
+      const t = e.rayHit(ox, oy, oz, dx, dy, dz);
+      if (t !== null && t <= max && (!best || t < best.t)) best = { stand: e, t };
+    }
+    return best;
+  }
+
+  /** Nearest living mob hit by a ray (used for melee targeting and arrows). */
+  rayHitMob(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, max: number, except?: Mob | null): { mob: Mob & Hurtable; t: number } | null {
+    let best: { mob: Mob; t: number } | null = null;
+    for (const e of this.list) {
+      if (!(e instanceof Mob) || !e.alive || e === except || e.cartSeat) continue;   // (a passenger sits behind its cart: you click the cart)
+      if (Math.abs(e.x - ox) > max + 3 || Math.abs(e.z - oz) > max + 3) continue;
+      const b = e.box;
+      const r = rayBox(ox, oy, oz, dx, dy, dz, b.minX - 0.05, b.minY, b.minZ - 0.05, b.maxX + 0.05, b.maxY + 0.05, b.maxZ + 0.05);
+      if (r && r.t <= max && (!best || r.t < best.t)) best = { mob: e, t: r.t };
+    }
+    return best;
+  }
+
+  tick(host: EntityHost): void {
+    const p = host.player;
+    const sd2 = this.simulationDistance * this.simulationDistance;
+    for (const e of this.list) {
+      if (e.removed) continue;
+      const dx = e.x - p.x, dz = e.z - p.z;
+      const d2 = dx * dx + dz * dz;
+      // freeze entities outside the simulation distance or in unloaded chunks
+      if (d2 > sd2 || !host.world.isLoaded(Math.floor(e.x), Math.floor(e.z))) {
+        e.prevX = e.x; e.prevY = e.y; e.prevZ = e.z;
+        continue;
+      }
+      e.tick(host);
+      if (e instanceof Mob && e.spec.hostile) {
+        if (host.difficulty === 'peaceful') e.removed = true;
+        else if (!e.persistent && d2 > 128 * 128) e.removed = true;
+        else if (!e.persistent && d2 > 48 * 48 && Math.random() < 1 / 800) e.removed = true;
+      }
+      if (e.y < -32) e.removed = true;
+    }
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      if (this.list[i].removed) {
+        this.list[i].dispose();
+        this.list.splice(i, 1);
+      }
+    }
+    if (++this.spawnTimer >= 20) {
+      this.spawnTimer = 0;
+      if (this.mobSpawning) this.trySpawn(host);
+    }
+  }
+
+  private trySpawn(host: EntityHost): void {
+    if (host.world.dim === 'cinderdeep') { this.trySpawnDeep(host); return; }
+    if (host.world.dim === 'starhollow') return;   // 2.2: Drifters come and go with the Starhollow system
+    const p = host.player;
+    let passive = 0, hostile = 0;
+    for (const e of this.list) {
+      if (!(e instanceof Mob)) continue;
+      const d = Math.hypot(e.x - p.x, e.z - p.z);
+      if (d > 80) continue;
+      if (e.spec.hostile) hostile++; else passive++;
+    }
+    // passive animals: gentle cap around the player, on grass in the light
+    if (passive < 12 && Math.random() < 0.35) {
+      const spot = this.findSpawnSpot(host, 20, 56, false);
+      const type = spot ? passiveFor(host.world.generator.column(Math.floor(spot.x), Math.floor(spot.z)).biome, spot.ground) : null;
+      if (spot && type) {
+        const herd = type === 'fox' || type === 'horse' || type === 'hootlet' || isWildKind(type) ? 1 + Math.floor(Math.random() * 2) : type === 'chicken' || type === 'rabbit' || type === 'goat' ? 1 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < herd; i++) {
+          const ox = spot.x + (Math.random() - 0.5) * 3, oz = spot.z + (Math.random() - 0.5) * 3;
+          const y = this.groundAt(host, Math.floor(ox), Math.floor(oz), spot.y + 3);
+          if (y === null || Math.abs(y - spot.y) > 2) continue;
+          const m = this.spawnMob(type, ox, y, oz, host);
+          // 2.3: sheep come in their natural colours, and a herd may have young ones
+          if (m instanceof Sheep) m.setWool(naturalWool(), false);
+          if (m instanceof FarmAnimal && i > 0 && Math.random() < 0.12) m.makeBaby(Math.floor(FARM_GROW_TICKS * (0.3 + Math.random() * 0.7)));
+        }
+      }
+    }
+    // hostile creatures: only in darkness, never in peaceful
+    const cap = host.difficulty === 'peaceful' ? 0 : host.difficulty === 'easy' ? 5 : host.difficulty === 'normal' ? 8 : 12;
+    if (hostile < cap) {
+      for (let tries = 0; tries < 3; tries++) {
+        const spot = this.findSpawnSpot(host, 24, 44, true);
+        if (!spot) continue;
+        const biome = host.world.generator.column(Math.floor(spot.x), Math.floor(spot.z)).biome;
+        if (biome === BIOME_SPORE) continue;   // 2.8: Spore Isle is a peaceful place
+        const dry = biome === BIOME_DESERT || biome === BIOME_BADLANDS;
+        const r = Math.random();
+        const type: MobType = r < 0.2 ? 'crawler' : r < 0.62 ? (dry && Math.random() < 0.8 ? 'dustwalker' : 'shambler') : 'skeleton';
+        this.spawnMob(Math.random() < 0.12 && !dry ? 'powderbug' : type, spot.x, spot.y, spot.z, host);
+        break;
+      }
+    }
+    if (host.world.dim === 'overworld') this.trySpawnWater(host, cap);
+    // 2.9: Gloommoths flutter out of the night sky, a couple at a time
+    if (cap > 0 && !host.isDay() && host.world.dim === 'overworld' && Math.random() < 0.12) {
+      let moths = 0;
+      for (const e of this.list) if (e instanceof Gloommoth) moths++;
+      if (moths < (host.difficulty === 'hard' ? 3 : 2)) {
+        const a = Math.random() * Math.PI * 2, r = 16 + Math.random() * 16;
+        const x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+        const y = Math.floor(p.y + 6 + Math.random() * 6);
+        if (host.world.isLoaded(x, z) && host.world.highestSolid(x, z) < y - 2 && host.world.getBlock(x, y, z) === AIR
+          && host.world.generator.column(x, z).biome !== BIOME_SPORE) this.spawnMob('gloommoth', x + 0.5, y, z + 0.5, host);
+      }
+    }
+  }
+
+  /** A spot in the water 14 to 44 blocks from the player: x, z, the floor, and how deep the water is there. */
+  private findWater(host: EntityHost, minDepth: number): { x: number; z: number; floor: number; depth: number } | null {
+    const p = host.player, a = Math.random() * Math.PI * 2, r = 14 + Math.random() * 30;
+    const x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+    if (!host.world.isLoaded(x, z)) return null;
+    const floor = host.world.highestSolid(x, z);
+    let y = floor + 1, n = 0;
+    while (y < 120 && IS_WATER[host.world.getBlock(x, y, z)] === 1) { y++; n++; }
+    return n >= minDepth && host.world.getBlock(x, y, z) === AIR ? { x, z, floor, depth: n } : null;
+  }
+
+  /** 2.13: Squid in open water, Axolotls in the shallows and lakes, Guardians in the deep sea. */
+  private trySpawnWater(host: EntityHost, hostileCap: number): void {
+    const p = host.player;
+    let squid = 0, axo = 0, guard = 0;
+    for (const e of this.list) {
+      if (!(e instanceof Mob) || Math.hypot(e.x - p.x, e.z - p.z) > 80) continue;
+      if (e instanceof Squid) squid++; else if (e instanceof Axolotl) axo++; else if (e instanceof Guardian) guard++;
+    }
+    const r = Math.random();
+    if (r < 0.22 && squid < 5) {
+      const w = this.findWater(host, 3);
+      if (w) {
+        const n = 1 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < n; i++) this.spawnMob('squid', w.x + 0.5 + (Math.random() - 0.5) * 2, w.floor + 1.5 + Math.random() * Math.max(0.5, w.depth - 2.5), w.z + 0.5 + (Math.random() - 0.5) * 2, host);
+      }
+    } else if (r < 0.34 && axo < 3) {
+      const w = this.findWater(host, 1);
+      if (w && w.depth <= 8) {
+        const c = Math.random() * 100;
+        const m = this.spawnMob('axolotl', w.x + 0.5, w.floor + 1.05, w.z + 0.5, host) as Axolotl;
+        m.setCoat(c < 30 ? 'pink' : c < 60 ? 'brown' : c < 85 ? 'gold' : c < 99 ? 'cyan' : 'blue');
+      }
+    } else if (r < 0.4 && hostileCap > 0 && guard < (host.difficulty === 'hard' ? 3 : 2)) {
+      const w = this.findWater(host, 7);
+      // Spore Isle is a peaceful place: no Guardians in the sea around it (checked in a ring round the spot and round the player)
+      const sporey = (cx: number, cz: number): boolean => {
+        for (const rr of [0, 20, 40]) for (let k = 0; k < (rr ? 8 : 1); k++) {
+          const a2 = (k / 8) * Math.PI * 2;
+          if (host.world.generator.column(Math.floor(cx + Math.cos(a2) * rr), Math.floor(cz + Math.sin(a2) * rr)).biome === BIOME_SPORE) return true;
+        }
+        return false;
+      };
+      if (w && !sporey(w.x, w.z) && !sporey(p.x, p.z)) this.spawnMob('guardian', w.x + 0.5, w.floor + 2 + Math.random() * Math.max(0.5, w.depth - 5), w.z + 0.5, host);
+    }
+  }
+
+  /**
+   * The Cinderdeep (2.0): no animals; Cinderlings and Smoulderers come out of the
+   * shadows between the lava's glow (block light below 12, so not right beside lava).
+   */
+  private trySpawnDeep(host: EntityHost): void {
+    const p = host.player;
+    let hostile = 0, boars = 0, striders = 0;
+    for (const e of this.list) {
+      if (!(e instanceof Mob) || Math.hypot(e.x - p.x, e.z - p.z) > 96) continue;
+      if (e.spec.hostile) { if (Math.hypot(e.x - p.x, e.z - p.z) <= 80) hostile++; }
+      else if (e instanceof Ashboar) boars++;
+      else if (e.mobType === 'lavastrider') striders++;
+    }
+    // 2.7: Lavastriders wade across the lava seas
+    if (striders < 6 && Math.random() < 0.05) this.spawnStriders(host);
+    // 2.1: Ashboar herds graze the cavern floors (any light, but never near an Ember Lamp)
+    if (boars < 8 && Math.random() < 0.06) this.spawnHerd(host);
+    const cap = host.difficulty === 'peaceful' ? 0 : host.difficulty === 'easy' ? 5 : host.difficulty === 'normal' ? 8 : 12;
+    if (hostile >= cap) return;
+    for (let tries = 0; tries < 4; tries++) {
+      const a = Math.random() * Math.PI * 2, r = 20 + Math.random() * 24;
+      const x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+      if (!host.world.isLoaded(x, z)) continue;
+      const y0 = LAVA_SEA + 2 + Math.floor(Math.random() * (118 - LAVA_SEA - 2));
+      for (let y = y0; y > LAVA_SEA; y--) {
+        const b = host.world.getBlock(x, y, z);
+        if (b === UNLOADED || !SPAWN_FLOOR[b]) continue;
+        if (host.world.getBlock(x, y + 1, z) !== AIR || host.world.getBlock(x, y + 2, z) !== AIR) continue;
+        if ((host.world.getLight(x, y + 1, z) & 15) >= 12) break;
+        if (Math.abs(y + 1 - p.y) < 3 && Math.hypot(x - p.x, z - p.z) < 24) break;
+        this.spawnMob(Math.random() < 0.62 ? 'cinderling' : 'smoulderer', x + 0.5, y + 1, z + 0.5, host);
+        return;
+      }
+    }
+  }
+
+  /** One or two Lavastriders on the lava sea 20-44 blocks away. */
+  private spawnStriders(host: EntityHost): void {
+    const p = host.player, w = host.world;
+    const a = Math.random() * Math.PI * 2, r = 20 + Math.random() * 24;
+    const x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+    if (!w.isLoaded(x, z)) return;
+    const n = 1 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < n; i++) {
+      const sx = x + i * 2, sz = z;
+      if (!IS_LAVA[w.getBlock(sx, LAVA_SEA, sz)] || w.getBlock(sx, LAVA_SEA + 1, sz) !== AIR || w.getBlock(sx, LAVA_SEA + 2, sz) !== AIR) continue;
+      this.spawnMob('lavastrider', sx + 0.5, LAVA_SEA + 0.875, sz + 0.5, host);
+    }
+  }
+
+  /** A herd of two to four Ashboars (now and then with a piglet) on a cavern floor 24-48 blocks away. */
+  private spawnHerd(host: EntityHost): void {
+    const p = host.player, w = host.world;
+    const a = Math.random() * Math.PI * 2, r = 24 + Math.random() * 24;
+    const x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+    if (!w.isLoaded(x, z)) return;
+    const floor = (fx: number, fz: number, fromY: number): number | null => {
+      for (let y = fromY; y > LAVA_SEA; y--) {
+        const b = w.getBlock(fx, y, fz);
+        if (b === UNLOADED) return null;
+        if (!SPAWN_FLOOR[b]) { if (IS_SOLID[b] || IS_FLUID[b]) return null; continue; }
+        if (w.getBlock(fx, y + 1, fz) !== AIR || w.getBlock(fx, y + 2, fz) !== AIR) return null;
+        return y + 1;
+      }
+      return null;
+    };
+    // drop down from a random height to the first floor with headroom
+    let y: number | null = null;
+    for (let y0 = LAVA_SEA + 4 + Math.floor(Math.random() * (110 - LAVA_SEA)); y0 > LAVA_SEA && y === null; y0--) {
+      const b = w.getBlock(x, y0, z);
+      if (b === AIR && SPAWN_FLOOR[w.getBlock(x, y0 - 1, z)] && w.getBlock(x, y0 + 1, z) === AIR) y = y0;
+    }
+    if (y === null) return;
+    // Ember Lamps keep them away
+    for (let dy = -3; dy <= 3; dy++) for (let dz = -8; dz <= 8; dz++) for (let dx = -8; dx <= 8; dx++) if (w.getBlock(x + dx, y + dy, z + dz) === EMBER_LAMP) return;
+    const n = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) {
+      const ox = x + Math.floor((Math.random() - 0.5) * 5), oz = z + Math.floor((Math.random() - 0.5) * 5);
+      const fy = floor(ox, oz, y + 2);
+      if (fy === null || Math.abs(fy - y) > 2) continue;
+      const m = this.spawnMob('ashboar', ox + 0.5, fy, oz + 0.5, host) as Ashboar;
+      if (i === n - 1 && n > 2 && Math.random() < 0.35) m.makeBaby(2400 + Math.floor(Math.random() * 9600));
+    }
+  }
+
+  private groundAt(host: EntityHost, x: number, z: number, fromY: number): number | null {
+    for (let y = Math.min(WORLD_HEIGHT - 2, fromY); y > 1; y--) {
+      const b = host.world.getBlock(x, y, z);
+      if (b === UNLOADED) return null;
+      if (IS_SOLID[b]) {
+        if (!SPAWN_FLOOR[b]) return null;
+        const a1 = host.world.getBlock(x, y + 1, z), a2 = host.world.getBlock(x, y + 2, z);
+        if (!IS_SOLID[a1] && !IS_SOLID[a2] && !IS_FLUID[a1] && !IS_FLUID[a2]) return y + 1;
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /** 2.11: a visiting Wandering Trader arrives on open ground 24-40 blocks away (one at a time). Returns him, or null. */
+  trySpawnTrader(host: EntityHost): WanderingTrader | null {
+    if (this.list.some((e) => e instanceof WanderingTrader && !e.removed)) return null;
+    for (let tries = 0; tries < 300; tries++) {
+      const spot = this.findSpawnSpot(host, 24, 40, false);
+      if (!spot || spot.ground === STONE || spot.ground === SNOW) continue;
+      const m = this.spawnMob('trader', spot.x, spot.y, spot.z, host);
+      return m instanceof WanderingTrader ? m : null;
+    }
+    return null;
+  }
+
+  private findSpawnSpot(host: EntityHost, minR: number, maxR: number, dark: boolean): { x: number; y: number; z: number; ground: number } | null {
+    const p = host.player;
+    const a = Math.random() * Math.PI * 2, r = minR + Math.random() * (maxR - minR);
+    const x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+    if (!host.world.isLoaded(x, z)) return null;
+    if (dark) {
+      // pick a random height column cell (caves too) with air above solid ground
+      const top = host.world.highestSolid(x, z);
+      if (top < 0) return null;
+      const y0 = Math.random() < 0.5 ? top : 5 + Math.floor(Math.random() * Math.max(1, top - 5));
+      for (let y = y0; y > 2; y--) {
+        const b = host.world.getBlock(x, y, z);
+        if (!SPAWN_FLOOR[b] || b === UNLOADED) continue;
+        if (host.world.getBlock(x, y + 1, z) !== AIR || host.world.getBlock(x, y + 2, z) !== AIR) continue;
+        const light = host.world.getLight(x, y + 1, z);
+        // thunderstorms are dark enough for creatures to appear in the open by day
+        const sky = ((light >> 4) & 15) * host.daylightFactor() * (1 - 0.4 * host.weatherThunder());
+        const blk = light & 15;
+        if (Math.max(sky, blk) >= 7) return null;
+        if (Math.abs(y + 1 - p.y) < 3 && Math.hypot(x - p.x, z - p.z) < 24) return null;
+        return { x: x + 0.5, y: y + 1, z: z + 0.5, ground: b };
+      }
+      return null;
+    }
+    const y = host.world.highestSolid(x, z);
+    if (y < 0) return null;
+    const ground = host.world.getBlock(x, y, z);
+    if (ground !== GRASS && ground !== SPORELOAM && ground !== SNOWY_GRASS && ground !== SAND && ground !== RED_SAND && ground !== STONE && ground !== SNOW) return null;
+    if ((ground === SAND || ground === RED_SAND) && Math.random() < 0.5) return null;
+    const light = host.world.getLight(x, y + 1, z);
+    if ((light >> 4) < 9) return null;
+    return { x: x + 0.5, y: y + 1, z: z + 0.5, ground };
+  }
+
+  render(alpha: number, host: EntityHost): void {
+    const p = host.player;
+    for (const e of this.list) {
+      const far = Math.abs(e.x - p.x) > this.simulationDistance + 32 || Math.abs(e.z - p.z) > this.simulationDistance + 32;
+      e.object.visible = !far;
+      if (!far) e.render(alpha, host);
+    }
+  }
+
+  serialize(): Record<string, unknown>[] {
+    const out: Record<string, unknown>[] = [];
+    for (const e of this.list) {
+      const s = e.serialize();
+      if (s) out.push(s);
+    }
+    return out;
+  }
+
+  load(data: Record<string, unknown>[] | undefined, host: EntityHost): void {
+    if (!data) return;
+    for (const d of data) {
+      if (d.t === 'mob' && typeof d.m === 'string' && d.m in MOB_SPECS) {
+        const m = this.spawnMob(d.m as MobType, d.x as number, d.y as number, d.z as number, host);
+        m.persistent = d.p === true;
+        m.yaw = (d.yaw as number) ?? 0;
+        m.health = (d.h as number) ?? m.health;
+        if (m instanceof Villager && d.v && typeof d.v === 'object') m.restore(d.v as Record<string, unknown>);
+        if (m instanceof Sentinel && d.s && typeof d.s === 'object') m.restore(d.s as Record<string, unknown>);
+        if (m instanceof Hound && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);
+        if (m instanceof Ashboar && d.a && typeof d.a === 'object') m.restore(d.a as Record<string, unknown>);
+        // 2.3
+        if (m instanceof FarmAnimal && d.f && typeof d.f === 'object') m.restore(d.f as Record<string, unknown>);
+        if (m instanceof Fox && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);
+        if (m instanceof Hootlet && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);
+        if (m instanceof Wildling && d.d && typeof d.d === 'object') m.restore(d.d as Record<string, unknown>);   // (2.13: tamed Hootlets were not being restored)
+        if (m instanceof Axolotl && typeof d.ax === 'number') m.setCoat(d.ax);
+        if (m instanceof SnowPal && d.sp && typeof d.sp === 'object') m.restore(d.sp as Record<string, unknown>);
+        if (d.sd === 1) { m.saddled = true; m.persistent = true; }
+        if (m instanceof Horse && typeof d.cv === 'number') m.setCoat(d.cv);
+        if (typeof d.n === 'string' && d.n.trim()) m.nameTag = d.n.trim().slice(0, NAME_TAG_MAX);
+      } else if (d.t === 'painting' && typeof d.m === 'string') {
+        const m = motifById(d.m);
+        if (m && ['n', 'e', 's', 'w'].includes(d.f as string)) this.add(new Painting(m, d.f as Facing, d.x as number, d.y as number, d.z as number));
+      } else if (d.t === 'stand' && [d.x, d.y, d.z].every((v) => typeof v === 'number' && Number.isFinite(v))) {
+        const st = new ArmourStand(typeof d.yaw === 'number' ? d.yaw : 0);
+        st.setPos(d.x as number, d.y as number, d.z as number);
+        if (Array.isArray(d.items)) for (let i = 0; i < st.items.length; i++) st.items[i] = cleanStack(d.items[i]);
+        this.add(st);
+      } else if (d.t === 'boat') {
+        this.spawnBoat(d.x as number, d.y as number, d.z as number, (d.yaw as number) ?? 0);
+      } else if (d.t === 'minecart') {
+        const mc = new Minecart();
+        mc.setPos(d.x as number, d.y as number, d.z as number);
+        mc.yaw = mc.prevYaw = (d.yaw as number) ?? 0;
+        this.add(mc);
+      } else if (d.t === 'sledge') {
+        this.spawnSledge(d.x as number, d.y as number, d.z as number, (d.yaw as number) ?? 0);
+      } else if (d.t === 'item' && d.stack) {
+        const e = this.spawnItem(d.stack as ItemStack, d.x as number, d.y as number, d.z as number, [0, 0, 0], 0);
+        e.age = (d.age as number) ?? 0;
+      }
+    }
+  }
+
+  clear(): void {
+    for (const e of this.list) e.dispose();
+    this.list.length = 0;
+  }
+}
