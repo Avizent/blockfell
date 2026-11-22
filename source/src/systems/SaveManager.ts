@@ -77,6 +77,8 @@ export interface WorldRecord {
   advancements: string[];
   /** When the world was last exported or backed up (1.6), for the backup reminder. */
   lastBackup?: number;
+  /** 2.18: a small JPEG snapshot (data URL) taken when you leave the world, shown on the title screen and world list. */
+  thumb?: string;
   /** Dimensions other than the overworld that exist in this world (1.10; the overworld uses genVersion). */
   dims?: Partial<Record<DimId, DimInfo>>;
   /** Other players' saved state by player id (1.10, for multiplayer; empty in single player). */
