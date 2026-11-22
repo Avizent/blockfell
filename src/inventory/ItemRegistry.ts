@@ -1,0 +1,428 @@
+import { FISH } from './fish';
+import * as B from '../world/BlockRegistry';
+import { DYE_COLORS, DYE_NAMES, woolKey } from '../world/dyes';
+import { NAMES } from '../world/names';
+import { EFFECTS, potionItem, splashItem } from './potions';
+
+export type ItemKind = 'block' | 'item' | 'tool' | 'food' | 'armor' | 'spawn' | 'bow' | 'crossbow' | 'bucket' | 'boat' | 'rod';
+export type Category = 'building' | 'decoration' | 'natural' | 'functional' | 'tools' | 'combat' | 'food' | 'ingredients' | 'spawn';
+export type ToolKind = 'pickaxe' | 'axe' | 'shovel' | 'sword' | 'hoe' | 'spear';
+
+export interface ToolInfo {
+  type: ToolKind;
+  tier: number;          // 0 wood, 1 stone, 2 iron
+  speed: number;         // mining speed multiplier with the right block
+  durability: number;
+}
+
+export interface ItemDef {
+  id: string;
+  name: string;
+  kind: ItemKind;
+  maxStack: number;
+  category: Category;
+  block?: number;                        // block placed by this item
+  tool?: ToolInfo;
+  attack: number;                        // melee damage (hearts x2)
+  durability?: number;                   // tools, armour, bow
+  food?: { hunger: number; saturation: number };
+  armor?: { slot: number; points: number }; // slot 0 head .. 3 feet
+  spawn?: string;
+  icon: { kind: 'iso'; block: number } | { kind: 'flat'; texture: string } | { kind: 'sprite'; name: string };
+  fuel?: number;                         // furnace burn ticks
+  smelt?: { result: string; xp: number };
+}
+
+const items: ItemDef[] = [];
+const byId = new Map<string, ItemDef>();
+
+function add(d: Partial<ItemDef> & { id: string; name: string; category: Category }): ItemDef {
+  const def: ItemDef = {
+    kind: 'item', maxStack: 64, attack: 1,
+    icon: { kind: 'sprite', name: d.id },
+    ...d,
+  } as ItemDef;
+  items.push(def);
+  byId.set(def.id, def);
+  return def;
+}
+
+function blockItem(key: string, category: Category, extra: Partial<ItemDef> = {}): ItemDef {
+  const block = B.blockByKey(key) ?? B.blockByKey(key + ':s')!;
+  const flat = block.render === B.RENDER_CROSS || block.render === B.RENDER_TORCH || block.render === B.RENDER_RAIL;
+  return add({
+    id: key, name: block.name, kind: 'block', category, block: block.id,
+    icon: flat ? { kind: 'flat', texture: key === 'torch' ? 'torch' : key } : { kind: 'iso', block: block.id },
+    ...extra,
+  });
+}
+
+// ---- blocks
+blockItem('grass', 'natural');
+blockItem('dirt', 'natural');
+blockItem('stone', 'building', { smelt: undefined });
+blockItem('cobblestone', 'building', { smelt: { result: 'stone', xp: 0.1 } });
+blockItem('mossy_cobblestone', 'building');
+blockItem('planks', 'building', { fuel: 300 });
+blockItem('log', 'natural', { fuel: 300, smelt: { result: 'coal', xp: 0.15 } });
+blockItem('leaves', 'natural');
+blockItem('sand', 'natural', { smelt: { result: 'glass', xp: 0.1 } });
+blockItem('sandstone', 'building');
+blockItem('gravel', 'natural');
+blockItem('coal_ore', 'natural', { smelt: { result: 'coal', xp: 0.1 } });
+blockItem('iron_ore', 'natural', { smelt: { result: 'iron_ingot', xp: 0.7 } });
+blockItem('bricks', 'building');
+blockItem('stone_bricks', 'building');
+blockItem('glass', 'building');
+blockItem('wool', 'building');
+blockItem('snow', 'natural');
+blockItem('snowy_grass', 'natural');
+blockItem('bedrock', 'building');
+blockItem('lumen', 'building');
+blockItem('tall_grass', 'natural');
+blockItem('flower_red', 'natural');
+blockItem('flower_yellow', 'natural');
+blockItem('crafting_table', 'functional', { fuel: 300 });
+blockItem('furnace', 'functional');
+blockItem('chest', 'functional', { fuel: 300 });
+blockItem('torch', 'functional');
+
+// ---- 1.1 blocks
+/** Item for a block family registered under several ids (slabs, stairs, doors, beds). */
+function familyItem(id: string, block: number, category: Category, sprite = false, extra: Partial<ItemDef> = {}): ItemDef {
+  return add({
+    id, name: B.getBlock(block).name, kind: 'block', category, block,
+    icon: sprite ? { kind: 'sprite', name: id } : { kind: 'iso', block }, ...extra,
+  });
+}
+for (const [item, ids] of Object.entries(B.SLABS)) familyItem(item, ids.bottom, 'building', false, item === 'oak_slab' ? { fuel: 150 } : {});
+for (const [item, ids] of Object.entries(B.STAIRS)) familyItem(item, ids['n:bottom'], 'building', false, item === 'oak_stairs' ? { fuel: 300 } : {});
+familyItem('oak_door', B.doorId('lower', 'n', false, 'l'), 'functional', true, { maxStack: 16, fuel: 200 });
+familyItem('bed', B.bedId('foot', 'n'), 'functional', true, { maxStack: 1 });
+blockItem('birch_log', 'natural', { fuel: 300, smelt: { result: 'coal', xp: 0.15 } });
+blockItem('birch_leaves', 'natural');
+blockItem('spruce_log', 'natural', { fuel: 300, smelt: { result: 'coal', xp: 0.15 } });
+blockItem('spruce_leaves', 'natural');
+blockItem('red_sand', 'natural', { smelt: { result: 'glass', xp: 0.1 } });
+for (const k of ['terracotta', 'orange_terracotta', 'yellow_terracotta', 'brown_terracotta', 'white_terracotta']) blockItem(k, 'building');
+blockItem('cactus', 'natural', { smelt: { result: 'green_dye', xp: 0.2 } });
+blockItem('dead_bush', 'natural');
+blockItem('rune_ore', 'natural');
+blockItem('rune_table', 'functional');
+
+// ---- 1.2 blocks
+blockItem('path', 'building');
+blockItem('hay_bale', 'building');
+for (const k of ['grain_bin', 'forge', 'mason_bench', 'scribe_desk', 'fletching_bench']) blockItem(k, 'functional', k === 'grain_bin' || k === 'scribe_desk' || k === 'fletching_bench' ? { fuel: 300 } : {});
+
+// ---- 1.4 decoration
+familyItem('oak_fence', B.OAK_FENCE, 'decoration', true, { fuel: 300 });
+familyItem('oak_fence_gate', B.gateId('n', false), 'decoration', true, { fuel: 300 });
+familyItem('glass_pane', B.GLASS_PANE, 'decoration', false, { icon: { kind: 'flat', texture: 'glass' } });
+familyItem('ladder', B.LADDERS.s, 'decoration', false, { icon: { kind: 'flat', texture: 'ladder' }, fuel: 300 });
+familyItem('oak_trapdoor', B.trapdoorId('n', 'bottom', false), 'decoration', false, { fuel: 300 });
+familyItem('sign', B.SIGN_STANDING, 'decoration', true, { maxStack: 16, fuel: 200 });
+familyItem('lantern', B.LANTERN_STANDING, 'decoration', true);
+familyItem('flower_pot', B.FLOWER_POT, 'decoration', true);
+add({ id: 'painting', name: 'Painting', category: 'decoration' });
+for (const c of DYE_COLORS) if (c !== 'white') blockItem(woolKey(c), 'decoration');
+blockItem('flower_blue', 'natural');
+blockItem('flower_white', 'natural');
+
+// ---- 1.7 lava and dungeons
+blockItem('cinderstone', 'building');
+blockItem('cinderstone_bricks', 'building');
+blockItem('spawner', 'functional', { maxStack: 16 });
+// ---- 1.8 village life
+blockItem('bell', 'functional');
+blockItem('drake_trophy', 'decoration');
+blockItem('map_table', 'functional', { fuel: 300 });
+add({ id: 'dungeon_map', name: 'Dungeon Map', maxStack: 1, category: 'tools' });
+add({ id: 'ruin_map', name: 'Ruin Map', maxStack: 1, category: 'tools' });
+add({ id: 'village_map', name: 'Village Map', maxStack: 1, category: 'tools' });
+add({ id: 'treasure_map', name: 'Treasure Map', maxStack: 1, category: 'tools' });
+/** Explorer maps: hold one to see which way to go; right-click to look at it. */
+export const MAP_ITEMS: Record<string, 'dungeon' | 'ruin' | 'village' | 'treasure'> = { dungeon_map: 'dungeon', ruin_map: 'ruin', village_map: 'village', treasure_map: 'treasure' };
+
+// ---- ingredients
+add({ id: 'stick', name: 'Stick', category: 'ingredients', fuel: 100 });
+add({ id: 'coal', name: 'Coal', category: 'ingredients', fuel: 1600 });
+add({ id: 'raw_iron', name: 'Raw Iron', category: 'ingredients', smelt: { result: 'iron_ingot', xp: 0.7 } });
+add({ id: 'iron_ingot', name: 'Iron Ingot', category: 'ingredients' });
+add({ id: 'flint', name: 'Flint', category: 'ingredients' });
+add({ id: 'leather', name: 'Leather', category: 'ingredients' });
+add({ id: 'feather', name: 'Feather', category: 'ingredients' });
+add({ id: 'bone', name: 'Bone', category: 'ingredients' });
+add({ id: 'string', name: 'String', category: 'ingredients' });
+add({ id: 'rune_shard', name: 'Rune Shard', category: 'ingredients' });
+add({ id: 'bucket', name: 'Bucket', kind: 'bucket', maxStack: 16, category: 'tools' });
+add({ id: 'water_bucket', name: 'Water Bucket', kind: 'bucket', maxStack: 1, category: 'tools' });
+add({ id: 'lava_bucket', name: 'Lava Bucket', kind: 'bucket', maxStack: 1, category: 'tools', fuel: 20000 });
+// ---- 1.6 boats and fishing
+add({ id: 'boat', name: 'Boat', kind: 'boat', maxStack: 1, category: 'tools', fuel: 1200 });
+add({ id: 'fishing_rod', name: 'Fishing Rod', kind: 'rod', maxStack: 1, category: 'tools', durability: 64, fuel: 300 });
+// ---- 1.2 items
+add({ id: 'wheat_seeds', name: 'Wheat Seeds', category: 'ingredients', block: B.WHEAT[0] });
+add({ id: 'wheat', name: 'Wheat', category: 'ingredients' });
+add({ id: 'bone_meal', name: 'Bone Meal', category: 'ingredients' });
+add({ id: 'amber', name: 'Amber', category: 'ingredients' });
+// ---- 1.4 dyes
+for (const c of DYE_COLORS) add({ id: `${c}_dye`, name: `${DYE_NAMES[c]} Dye`, category: 'ingredients' });
+
+// ---- tools
+const MATS: [string, string, number, number, number][] = [
+  // prefix, display, tier, speed, durability
+  ['wooden', 'Wooden', 0, 2, 59],
+  ['stone', 'Stone', 1, 4, 131],
+  ['iron', 'Iron', 2, 6, 250],
+];
+const ATTACK: Record<ToolKind, number[]> = { sword: [4, 5, 6], axe: [3, 4, 5], pickaxe: [2, 3, 4], shovel: [1.5, 2.5, 3.5], hoe: [1, 1, 1], spear: [3.5, 4.5, 5.5] };
+for (const [p, disp, tier, speed, dur] of MATS) {
+  for (const t of ['pickaxe', 'axe', 'shovel', 'sword', 'hoe', 'spear'] as ToolKind[]) {
+    add({
+      id: `${p}_${t}`, name: `${disp} ${t[0].toUpperCase()}${t.slice(1)}`, kind: 'tool', maxStack: 1,
+      category: t === 'sword' || t === 'spear' ? 'combat' : 'tools',
+      tool: { type: t, tier, speed, durability: dur }, durability: dur, attack: ATTACK[t][tier],
+      fuel: p === 'wooden' ? 200 : undefined,
+    });
+  }
+}
+add({ id: 'bow', name: 'Bow', kind: 'bow', maxStack: 1, category: 'combat', durability: 384, fuel: 300 });
+add({ id: 'arrow', name: 'Arrow', category: 'combat' });
+// 2.6: Flame Arrows, and the Crossbow (three ids: the empty one, and loaded with an arrow or a flame arrow, which saves who is loaded)
+add({ id: 'flame_arrow', name: 'Flame Arrow', category: 'combat' });
+// 2.7: riding
+add({ id: 'saddle', name: 'Saddle', maxStack: 1, category: 'tools' });
+add({ id: 'ember_lure', name: 'Ember Lure', maxStack: 1, category: 'tools' });
+add({ id: 'crossbow', name: 'Crossbow', kind: 'crossbow', maxStack: 1, category: 'combat', durability: 465, fuel: 300 });
+add({ id: 'crossbow_loaded', name: 'Crossbow (loaded)', kind: 'crossbow', maxStack: 1, category: 'hidden' as unknown as Category, durability: 465, fuel: 300 });
+add({ id: 'crossbow_loaded_flame', name: 'Crossbow (loaded, flame)', kind: 'crossbow', maxStack: 1, category: 'hidden' as unknown as Category, durability: 465, fuel: 300 });
+
+// ---- armour
+const ARMOR: [string, string, number[], number[]][] = [
+  ['leather', 'Leather', [1, 3, 2, 1], [55, 80, 75, 65]],
+  ['iron', 'Iron', [2, 6, 5, 2], [165, 240, 225, 195]],
+];
+const PIECES = [['helmet', 'Cap'], ['chestplate', 'Tunic'], ['leggings', 'Pants'], ['boots', 'Boots']];
+for (const [mat, disp, pts, durs] of ARMOR) {
+  PIECES.forEach(([piece, leatherName], slot) => {
+    const name = mat === 'leather' ? `Leather ${leatherName}` : `${disp} ${piece[0].toUpperCase()}${piece.slice(1)}`;
+    add({
+      id: `${mat}_${piece}`, name, kind: 'armor', maxStack: 1, category: 'combat',
+      armor: { slot, points: pts[slot] }, durability: durs[slot],
+    });
+  });
+}
+
+// ---- food
+const FOOD: [string, string, number, number, string?][] = [
+  ['apple', 'Apple', 4, 2.4],
+  ['raw_porkchop', 'Raw Porkchop', 3, 1.8, 'cooked_porkchop'],
+  ['cooked_porkchop', 'Cooked Porkchop', 8, 12.8],
+  ['raw_beef', 'Raw Beef', 3, 1.8, 'steak'],
+  ['steak', 'Steak', 8, 12.8],
+  ['raw_chicken', 'Raw Chicken', 2, 1.2, 'cooked_chicken'],
+  ['cooked_chicken', 'Cooked Chicken', 6, 7.2],
+  ['raw_mutton', 'Raw Mutton', 2, 1.2, 'cooked_mutton'],
+  ['cooked_mutton', 'Cooked Mutton', 6, 9.6],
+  ['spoiled_flesh', 'Spoiled Flesh', 4, 0.8],
+  ['raw_rabbit', 'Raw Rabbit', 3, 1.8, 'cooked_rabbit'],
+  ['cooked_rabbit', 'Cooked Rabbit', 5, 6],
+  ['bread', 'Bread', 5, 6],
+  ['carrot', 'Carrot', 3, 3.6],
+  ['raw_trout', 'Raw Trout', 2, 0.4, 'cooked_trout'],
+  ['cooked_trout', 'Cooked Trout', 5, 6],
+  ['raw_perch', 'Raw Perch', 2, 0.4, 'cooked_perch'],
+  ['cooked_perch', 'Cooked Perch', 6, 9.6],
+  // 2.1: from Ashboars in the Cinderdeep
+  ['raw_ashboar', 'Raw Ashboar', 3, 1.8, 'roast_ashboar'],
+  ['roast_ashboar', 'Roast Ashboar', 8, 12.8],
+  // 2.9
+  ['potato', 'Potato', 2, 1.2, 'baked_potato'],
+  ['baked_potato', 'Baked Potato', 5, 6],
+];
+for (const [id, name, hunger, saturation, cooked] of FOOD) {
+  add({
+    id, name, kind: 'food', category: 'food', food: { hunger, saturation },
+    smelt: cooked ? { result: cooked, xp: 0.35 } : undefined,
+    ...(id === 'carrot' ? { block: B.CARROTS[0] } : id === 'potato' ? { block: B.POTATOES[0] } : {}),
+  });
+}
+
+// ---- 2.0 the Cinderdeep
+blockItem('ashrock', 'building');
+blockItem('ashrock_bricks', 'building');
+blockItem('ash', 'natural');
+blockItem('ember_ore', 'natural', { smelt: { result: 'ember', xp: 0.2 } });
+blockItem('fire_opal_ore', 'natural', { smelt: { result: 'fire_opal', xp: 1 } });
+blockItem('glowcap', 'natural');
+blockItem('ember_lamp', 'decoration');
+/** Ember: glowing crystal from Ember Ore. Burns three times as long as coal. */
+add({ id: 'ember', name: 'Ember', category: 'ingredients', fuel: 4800 });
+/** Fire Opal: a rare gem from deep in the Cinderdeep. */
+add({ id: 'fire_opal', name: 'Fire Opal', category: 'ingredients' });
+/** Cinder Charm: held in the off hand it halves fire and lava damage and puts fire out sooner. */
+add({ id: 'cinder_charm', name: 'Cinder Charm', category: 'combat', maxStack: 1 });
+// ---- 2.0.1
+blockItem('glimmerstone', 'decoration');
+add({ id: 'glimmer_dust', name: 'Glimmer Dust', category: 'ingredients' });
+// ---- 2.1 armour stands
+add({ id: 'armour_stand', name: 'Armour Stand', category: 'decoration', maxStack: 16 });
+// ---- 2.2 the Starhollow
+blockItem('starstone', 'building');
+blockItem('starstone_bricks', 'building');
+blockItem('starbloom', 'natural');
+/** Star Lens: lights a Stargate on the surface (and, used on the Roost's gate, calls the Hollowdrake back). */
+add({ id: 'star_lens', name: 'Star Lens', category: 'tools', maxStack: 16 });
+/** Star Scale: left on the Roost by the beaten Hollowdrake. */
+add({ id: 'star_scale', name: 'Star Scale', category: 'ingredients' });
+/** Drift Silk: from Drifters. */
+add({ id: 'drift_silk', name: 'Drift Silk', category: 'ingredients' });
+/** Starwings: worn in the chest slot; jump while falling to glide. */
+add({ id: 'star_wings', name: 'Starwings', kind: 'armor', maxStack: 1, category: 'combat', armor: { slot: 1, points: 1 }, durability: 432 });
+
+// ---- 2.3 snow day, pets and farm animals
+/** Snowball: throw it (right-click). Four make a Snow Block. */
+add({ id: 'snowball', name: 'Snowball', category: 'combat', maxStack: 16 });
+/** Shears: clip the wool off a sheep. */
+add({ id: 'shears', name: 'Shears', category: 'tools', maxStack: 1, durability: 238 });
+/** Name Tag: right-click a creature to give it a name. */
+add({ id: 'name_tag', name: 'Name Tag', category: 'tools' });
+/** Sledge: put it down on snow and ride it downhill. */
+add({ id: 'sledge', name: NAMES.sledge, kind: 'boat', maxStack: 1, category: 'tools', fuel: 300 });
+
+// ---- 2.4 tracks, carts and parties
+blockItem('rail', 'tools');
+blockItem('boost_rail', 'tools');
+blockItem('station_rail', 'tools');
+/** Minecart: put it on a rail and ride. */
+add({ id: 'minecart', name: 'Minecart', kind: 'boat', maxStack: 1, category: 'tools' });
+/** Party Bag: carries up to nine things; can be dyed, handed to someone, or tipped out. Its contents ride in the stack (`bag`). */
+add({ id: 'party_bag', name: 'Party Bag', maxStack: 1, category: 'tools' });
+/** Party Hat: worn on the head. Can be dyed. */
+add({ id: 'party_hat', name: 'Party Hat', kind: 'armor', maxStack: 1, category: 'decoration', armor: { slot: 0, points: 0 }, durability: 500 });
+/** Party Popper: right-click for a bang and a burst of confetti. */
+add({ id: 'party_popper', name: 'Party Popper', category: 'tools', maxStack: 16 });
+familyItem('bunting', B.BUNTING.ew, 'decoration', true);
+blockItem('balloons', 'decoration');
+familyItem('cake', B.CAKE[0], 'food', true, { maxStack: 1 });
+
+// ---- 2.8: Spore Isle and the Trident (appended last)
+blockItem('sporeloam', 'natural');
+blockItem('spore_stem', 'natural');
+blockItem('cap_violet', 'natural');
+blockItem('cap_crimson', 'natural');
+blockItem('cap_gills', 'natural');
+blockItem('spore_tuft', 'natural');
+blockItem('spore_lamp', 'decoration');
+add({ id: 'sporecap', name: 'Sporecap', kind: 'food', category: 'food', food: { hunger: 2, saturation: 1.6 } });
+add({ id: 'spore_stew', name: 'Spore Stew', kind: 'food', category: 'food', food: { hunger: 8, saturation: 10 } });
+add({ id: 'spore_compass', name: 'Spore Compass', maxStack: 1, category: 'tools' });
+add({
+  id: 'trident', name: 'Trident', kind: 'tool', maxStack: 1, category: 'combat',
+  tool: { type: 'spear', tier: 2, speed: 6, durability: 300 }, durability: 300, attack: 6.5,
+});
+
+// ---- spawn items
+const MOBS: [string, string][] = [
+  ['pig', 'Pig'], ['cow', 'Cow'], ['sheep', 'Sheep'], ['chicken', 'Chicken'], ['shambler', 'Shambler'], ['skeleton', 'Bone Archer'],
+  ['goat', 'Goat'], ['rabbit', 'Rabbit'], ['crawler', 'Crawler'], ['dustwalker', 'Dustwalker'],
+  ['villager', 'Villager'], ['sentinel', 'Sentinel'], ['hound', 'Fellhound'],
+  ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'], ['ashboar', 'Ashboar'], ['drifter', 'Drifter'],
+  ['fox', NAMES.fox], ['snowpal', NAMES.snowpal], ['horse', 'Horse'], ['lavastrider', 'Lavastrider'], ['sporecap', 'Sporecap'],
+  ['emberling', 'Emberling'], ['mossback', 'Mossback'], ['stormkit', 'Stormkit'], ['shellsnap', 'Shellsnap'], ['pinecub', 'Pinecub'], ['lanternling', 'Lanternling'], ['powderbug', 'Powderbug'], ['gloommoth', 'Gloommoth'], ['hootlet', 'Hootlet'], ['axolotl', 'Axolotl'], ['squid', 'Squid'], ['guardian', 'Guardian'],
+];
+for (const [mob, name] of MOBS) {
+  add({ id: `spawn_${mob}`, name: `${name} Spawn Egg`, kind: 'spawn', category: 'spawn', spawn: mob });
+}
+
+// ---- 2.9
+add({ id: 'milk_bucket', name: 'Milk Bucket', kind: 'item', maxStack: 1, category: 'tools' });
+add({ id: 'blast_powder', name: 'Blast Powder', category: 'ingredients' });
+add({ id: 'gloomdust', name: 'Gloomdust', category: 'ingredients' });
+
+// ---- 2.13: water creatures (appended last)
+add({ id: 'ink_sac', name: 'Ink Sac', category: 'ingredients' });
+add({ id: 'tide_shard', name: 'Tide Shard', category: 'ingredients' });
+
+export const ITEMS: ReadonlyArray<ItemDef> = items;
+
+export function getItem(id: string): ItemDef {
+  return byId.get(id) ?? byId.get('stick')!;
+}
+
+export function hasItem(id: string): boolean {
+  return byId.has(id);
+}
+
+export function maxStackOf(id: string): number {
+  return byId.get(id)?.maxStack ?? 64;
+}
+
+/** Item for a block (e.g. pick block). Orientation variants map to the base item. */
+export function itemForBlock(blockId: number): string | null {
+  const b = B.getBlock(blockId);
+  if (b.item && byId.has(b.item)) return b.item;
+  return null;
+}
+
+export const CATEGORY_LABELS: Record<Category, string> = {
+  building: 'Building Blocks',
+  decoration: 'Decoration Blocks',
+  natural: 'Natural Blocks',
+  functional: 'Functional Blocks',
+  tools: 'Tools',
+  combat: 'Combat',
+  food: 'Food',
+  ingredients: 'Ingredients',
+  spawn: 'Spawn Items',
+};
+
+// ---- 2.5: potions and the Brewing Stand (appended last)
+blockItem('brewing_stand', 'functional');
+add({ id: 'glass_bottle', name: 'Glass Bottle', category: 'ingredients', maxStack: 16 });
+add({ id: 'water_bottle', name: 'Water Bottle', category: 'ingredients', maxStack: 16 });
+for (const e of EFFECTS) {
+  add({ id: potionItem(e.id), name: e.potion, category: 'combat', maxStack: 16 });
+}
+for (const e of EFFECTS) {
+  add({ id: splashItem(e.id), name: e.splash, category: 'combat', maxStack: 16 });
+}
+
+// ---- 2.10: Moth Wings, Fireworks, more fish, Fish Jars and the Spring Pad (appended last)
+/** Moth Silk: soft silk from Gloommoths. Four and a string make Moth Wings. */
+add({ id: 'moth_silk', name: 'Moth Silk', category: 'ingredients' });
+/** Moth Wings: lighter Starwings you can make early. Worn in the chest slot; jump while falling to glide (a shorter, steeper glide that wears out sooner). */
+add({ id: 'moth_wings', name: 'Moth Wings', kind: 'armor', maxStack: 1, category: 'combat', armor: { slot: 1, points: 1 }, durability: 160 });
+/** Firework: right-click to launch (sneak to launch a volley of three). */
+add({ id: 'firework', name: 'Firework', category: 'tools', maxStack: 64 });
+add({ id: 'grilled_fish', name: 'Grilled Fish', kind: 'food', category: 'food', food: { hunger: 6, saturation: 9.6 } });
+for (const f of FISH) {
+  if (!f.isNew) continue;
+  add({ id: `raw_${f.key}`, name: `Raw ${f.name}`, kind: 'food', category: 'food', food: { hunger: 2, saturation: 0.4 }, smelt: { result: 'grilled_fish', xp: 0.35 } });
+}
+blockItem('spring_pad', 'decoration');
+blockItem('fish_jar', 'decoration');
+// ---- 2.11
+blockItem('lightning_rod', 'functional');
+blockItem('tune_box', 'functional');
+blockItem('jukebox', 'functional');
+blockItem('note_block', 'functional');
+// ---- 2.14
+blockItem('powder_snow', 'natural');
+// ---- 2.15
+blockItem('cobweb', 'natural');
+add({ id: 'weather_glass', name: 'Weather Glass', maxStack: 1, category: 'tools' });
+add({ id: 'blank_disc', name: 'Blank Disc', maxStack: 16, category: 'tools' });
+add({ id: 'music_disc', name: 'Music Disc', maxStack: 1, category: 'tools' });
+add({ id: 'disc_jig', name: 'Disc: Fellfire Jig', maxStack: 1, category: 'tools' });
+add({ id: 'disc_lullaby', name: 'Disc: Moss Lullaby', maxStack: 1, category: 'tools' });
+add({ id: 'disc_drift', name: 'Disc: Starhollow Drift', maxStack: 1, category: 'tools' });
+
+// ---- 2.16: Carpets and Banners (appended last)
+for (const c of DYE_COLORS) blockItem(`carpet_${c}`, 'decoration');
+for (const c of DYE_COLORS) familyItem(`banner_${c}`, B.BANNERS[`banner_${c}`].ew, 'decoration', false);
+
+// ---- 2.17: catching creatures
+add({ id: 'capture_orb', name: 'Capture Orb', category: 'tools' });
+add({ id: 'creature_ledger', name: 'Creature Ledger', category: 'tools', maxStack: 1 });
