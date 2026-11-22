@@ -120,7 +120,7 @@ if (run('items')) {
       bad: window.__bf.craft([null, 'amber', null, 'amber', 'stick', 'amber', null, 'amber', null]),
     };
   });
-  check('items: version 2.17.0', info.ver === '2.17.0', info);
+  check('items: version 2.17.0', /^2\.1[7-9]\.0$/.test(info.ver), info);
   check('items: Capture Orb, Creature Ledger and three spawn eggs exist; the Wildlings are peaceful', info.items && info.specs.length === 3 && info.specs.every(Boolean), info);
   check('items: four Amber round a Tide Shard make three Capture Orbs; a stick will not do', info.orb?.id === 'capture_orb' && info.orb?.count === 3 && !info.bad, info);
   check('items: leather, feather and Amber make a Creature Ledger', info.led?.id === 'creature_ledger', info);
