@@ -29,27 +29,50 @@ export function TitleScreen() {
   const scale = short ? 0.72 : 1;
   // Continue: straight back into the world played last
   const version = useStore(ui, (st) => st.worldsVersion);
-  const [last, setLast] = useState<WorldRecord | null>(null);
+  const [recent, setRecent] = useState<WorldRecord[]>([]);
+  const last = recent[0] ?? null;
   useEffect(() => {
     let live = true;
-    void engine.lastWorld().then((w) => { if (live) setLast(w); });
+    void engine.recentWorlds(3).then((w) => { if (live) setRecent(w); });
     return () => { live = false; };
   }, [version]);
+  useStore(ui, (st) => st.optionsVersion);
   return (
     <div className="screen" data-testid="title-screen">
       <div className="logo-wrap" style={{ width: `${hudIcons.logoW * scale}rem`, height: `${hudIcons.logoH * scale}rem`, marginTop: short ? '12rem' : undefined }}>
         <img src={hudIcons.logo} alt="Blockfell" style={{ width: '100%', height: '100%', imageRendering: 'pixelated' }} />
         <div className="splash" style={short ? { fontSize: '6rem', lineHeight: '8rem' } : undefined}>{splash}</div>
       </div>
-      <div className="col" style={{ marginTop: short ? '14rem' : '30rem' }}>
+      <div className="col" style={{ marginTop: short ? '12rem' : last ? '14rem' : '30rem' }}>
         {last && (
-          <Button testId="btn-continue" title={`Carry on in '${last.name}'`} onClick={() => void engine.playWorld(last.id)}>
-            <span className="continue-label">Continue: {last.name}</span>
-          </Button>
+          <div className="recent-row" data-testid="recent-worlds">
+            {recent.map((w, i) => (
+              <div key={w.id} className={'recent-card' + (i === 0 ? ' latest' : '') + (short ? ' short' : '')}
+                data-testid={i === 0 ? 'btn-continue' : 'recent-world'} title={`Play '${w.name}'`}
+                role="button" tabIndex={0}
+                onClick={() => void engine.playWorld(w.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') void engine.playWorld(w.id); }}>
+                <div className="pic" style={{ backgroundImage: `url(${w.thumb ?? hudIcons.grassThumb})`, imageRendering: w.thumb ? 'auto' : 'pixelated' }} />
+                <div className="nm">{w.name}</div>
+                <div className="when gray">{i === 0 ? `Continue · ${ago(w.lastPlayed)}` : `${ago(w.lastPlayed)} · ${w.gameMode === 'creative' ? 'Creative' : 'Survival'}`}</div>
+              </div>
+            ))}
+          </div>
         )}
-        <Button testId="btn-singleplayer" onClick={() => ui.set({ screen: 'worlds', selectedWorld: last?.id ?? null })}>Singleplayer</Button>
+        {last ? (
+          <div className="row">
+            <Button size="half" testId="btn-singleplayer" onClick={() => ui.set({ screen: 'worlds', selectedWorld: last.id })}>All Worlds...</Button>
+            <Button size="half" testId="btn-reopen-toggle"
+              title="When Blockfell is closed without Save and Quit, open straight back into that world next time"
+              onClick={() => engine.setReopenLast(!engine.options.reopenLastWorld)}>
+              Resume: {engine.options.reopenLastWorld ? 'On' : 'Off'}
+            </Button>
+          </div>
+        ) : (
+          <Button testId="btn-singleplayer" onClick={() => ui.set({ screen: 'worlds', selectedWorld: null })}>Singleplayer</Button>
+        )}
         {!last && <Button disabled title="Multiplayer is not available in this version">Multiplayer (unavailable)</Button>}
-        <div style={{ height: '8rem' }} />
+        <div style={{ height: last ? '1rem' : '8rem' }} />
         <div className="row">
           <Button size="half" onClick={() => ui.set({ screen: 'options', optionsReturn: 'title' })}>Options...</Button>
           <Button size="half" onClick={() => engine.quitGame()}>Quit Game</Button>
@@ -172,7 +195,7 @@ export function WorldSelect() {
               ui.set({ selectedWorld: w.id });
             }}
           >
-            <div className="thumb" style={{ backgroundImage: `url(${hudIcons.grassThumb})` }} />
+            <div className="thumb" style={{ backgroundImage: `url(${w.thumb ?? hudIcons.grassThumb})`, imageRendering: w.thumb ? 'auto' : 'pixelated' }} />
             <div className="meta">
               <div>{w.name}</div>
               <div className="gray">{formatDate(w.lastPlayed)}</div>

@@ -179,7 +179,7 @@ body {
 }
 .world-entry.selected { border-color: #808080; background: #000; }
 .world-entry:hover:not(.selected) { background: rgba(255,255,255,0.05); }
-.world-entry .thumb { width: 32rem; height: 32rem; flex-shrink: 0; image-rendering: pixelated; background-size: cover; }
+.world-entry .thumb { width: 56rem; height: 32rem; flex-shrink: 0; image-rendering: pixelated; background-size: cover; }
 .world-entry .meta { display: flex; flex-direction: column; overflow: hidden; }
 .world-entry .meta div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 11rem; }
 .world-entry.with-cloud { height: 46rem; }
@@ -565,3 +565,13 @@ html.touch .map-compass { left: calc(62px + env(safe-area-inset-left)); top: cal
 .charge-bar .fill { height: 100%; background: #9fe3a0; }
 .charge-bar.full .fill { background: #ffd35a; }
 .charge-bar.loaded .fill { background: #ff8a1e; }
+
+/* 2.18: recent-world cards on the title screen */
+.recent-row { display: flex; gap: 4rem; justify-content: center; margin-bottom: 4rem; }
+.recent-card { width: 98rem; background: rgba(0,0,0,0.6); border: 2rem solid #000; outline: 1rem solid #555; cursor: pointer; padding: 2rem; overflow: hidden; }
+.recent-card:hover, .recent-card:focus-visible { outline-color: #fff; }
+.recent-card.latest { outline-color: #8fd16a; }
+.recent-card .pic { width: 100%; height: 28rem; background-size: cover; background-position: center; background-color: #222; }
+.recent-card.short .pic { height: 18rem; }
+.recent-card .nm { font-size: 9rem; line-height: 11rem; margin-top: 2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent-card .when { font-size: 7rem; line-height: 9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

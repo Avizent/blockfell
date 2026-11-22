@@ -145,6 +145,7 @@ export function PauseMenu() {
         </div>
         {engine.game?.record.star?.seenEnd && <Button size="wide" testId="btn-replay-end" onClick={() => engine.replayTheEnd()}>Replay the Credits</Button>}
         <div style={{ height: '8rem' }} />
+        <Button size="wide" testId="btn-switch-world" title="Save this world and choose another" onClick={() => void engine.switchWorld()}>Switch World...</Button>
         <Button size="wide" testId="btn-save-quit" onClick={() => void engine.saveAndQuit()}>Save and Quit to Title</Button>
         <PauseUpdate />
         <div className="pause-version" data-testid="pause-version">Blockfell {GAME_VERSION} (build {BUILD_CODE})</div>
