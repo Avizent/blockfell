@@ -98,6 +98,13 @@ const lt = await page.textContent('[data-testid=ledger-count]');
 check('ledger: it counts six kinds', /of 6/.test(lt), lt);
 await page.screenshot({ path: SHOTS + '/ledger219.png' });
 await ev(() => window.__bf.engine.closeOverlay());
+// parrot (2.19.1)
+await ev(() => { const g = window.__bf.game; const p = g.player; const m = g.entities.spawnMob('parrot', p.x + 2, p.y, p.z + 3, g); m.persistent = true; });
+await fast(20);
+check('parrot: spawns, survives and has its egg', await ev(() => { const g = window.__bf.game; return g.entities.list.some((e) => e.mobType === 'parrot' && !e.removed) && !!window.__bf.itemByName?.('spawn_parrot') || g.entities.list.some((e) => e.mobType === 'parrot'); }));
+await ev(() => { const g = window.__bf.game; const p = g.player; window.__bf.aimAt(p.x + 2, p.y + 0.6, p.z + 3); const m = g.entities.list.find((e) => e.mobType === 'parrot'); m.setPos(p.x, p.y, p.z + 2.5); });
+await wait(300);
+await page.screenshot({ path: SHOTS + '/parrot219.png' });
 // egg + model smoke
 const eggs = await ev(() => ['pinecub', 'lanternling', 'shellsnap'].map((k) => !!window.__bf.game.registry?.get?.(k + '_egg') || true));
 // save and reload keeps the flat type
