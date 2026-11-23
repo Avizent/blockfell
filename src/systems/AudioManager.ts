@@ -293,6 +293,7 @@ export class AudioManager {
       case 'pig': this.tone(dest, t, 0.22, 170 * p, 110 * p, 'sawtooth', 0.18); this.noiseBurst(dest, t, 0.18, 400, 2, 'bandpass', 0.2); break;
       case 'cow': this.tone(dest, t, 0.7, 130 * p, 95 * p, 'sawtooth', 0.14, 0.08); break;
       case 'sheep': for (let i = 0; i < 5; i++) this.tone(dest, t + i * 0.07, 0.09, 280 * p, 250 * p, 'sawtooth', 0.1); break;
+      case 'parrot': this.tone(dest, t, 0.08, 1500 * p, 2300 * p, 'square', 0.07); this.tone(dest, t + 0.1, 0.1, 2300 * p, 1200 * p, 'square', 0.07); this.tone(dest, t + 0.22, 0.06, 1800 * p, 2000 * p, 'square', 0.05); break;
       case 'chicken': for (let i = 0; i < 3; i++) this.tone(dest, t + i * 0.09, 0.05, 1300 * p, 900 * p, 'square', 0.08); break;
       case 'shambler': this.tone(dest, t, 0.8, 95 * p, 70 * p, 'sawtooth', 0.16, 0.1); this.noiseBurst(dest, t, 0.6, 300, 1, 'lowpass', 0.2); break;
       case 'skeleton': for (let i = 0; i < 6; i++) this.noiseBurst(dest, t + i * 0.04, 0.03, 2500 * p, 3, 'bandpass', 0.4); break;
