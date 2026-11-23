@@ -330,7 +330,7 @@ const MOBS: [string, string][] = [
   ['villager', 'Villager'], ['sentinel', 'Sentinel'], ['hound', 'Fellhound'],
   ['cinderling', 'Cinderling'], ['smoulderer', 'Smoulderer'], ['ashboar', 'Ashboar'], ['drifter', 'Drifter'],
   ['fox', NAMES.fox], ['snowpal', NAMES.snowpal], ['horse', 'Horse'], ['lavastrider', 'Lavastrider'], ['sporecap', 'Sporecap'],
-  ['emberling', 'Emberling'], ['mossback', 'Mossback'], ['stormkit', 'Stormkit'], ['shellsnap', 'Shellsnap'], ['pinecub', 'Pinecub'], ['lanternling', 'Lanternling'], ['powderbug', 'Powderbug'], ['gloommoth', 'Gloommoth'], ['hootlet', 'Hootlet'], ['axolotl', 'Axolotl'], ['squid', 'Squid'], ['guardian', 'Guardian'],
+  ['emberling', 'Emberling'], ['mossback', 'Mossback'], ['stormkit', 'Stormkit'], ['shellsnap', 'Shellsnap'], ['pinecub', 'Pinecub'], ['lanternling', 'Lanternling'], ['parrot', 'Parrot'], ['powderbug', 'Powderbug'], ['gloommoth', 'Gloommoth'], ['hootlet', 'Hootlet'], ['axolotl', 'Axolotl'], ['squid', 'Squid'], ['guardian', 'Guardian'],
 ];
 for (const [mob, name] of MOBS) {
   add({ id: `spawn_${mob}`, name: `${name} Spawn Egg`, kind: 'spawn', category: 'spawn', spawn: mob });
