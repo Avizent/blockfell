@@ -79,6 +79,7 @@ export const MOB_SPECS: Record<MobType, MobSpec> = {
   // 2.9
   powderbug: { name: 'Powderbug', hostile: true, health: 12, speed: 0.22, width: 0.9, height: 0.8, drops: [['blast_powder', 0, 2], ['string', 0, 1]], xp: [5, 5], attack: 0, sound: 'powderbug' },
   trader: { name: 'Wandering Trader', hostile: false, health: 20, speed: 0.25, width: 0.6, height: 1.95, drops: [], xp: [0, 0], sound: 'villager', folk: 'villager' },
+  parrot: { name: 'Parrot', hostile: false, health: 6, speed: 0.28, width: 0.4, height: 0.7, drops: [['feather', 1, 2]], xp: [1, 3], sound: 'parrot' },
   hootlet: { name: 'Hootlet', hostile: false, health: 8, speed: 0.3, width: 0.4, height: 0.6, drops: [['feather', 0, 2]], xp: [1, 3], sound: 'hootlet' },
   gloommoth: { name: 'Gloommoth', hostile: true, health: 10, speed: 0.05, width: 0.8, height: 0.6, drops: [['gloomdust', 0, 2], ['moth_silk', 0, 2]], xp: [5, 5], attack: 3, sound: 'gloommoth', fireproof: false },
   // 2.13: the water creatures

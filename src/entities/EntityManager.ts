@@ -36,7 +36,7 @@ import type { MobType } from './mobModels';
 import type { ItemStack } from '../inventory/ItemStack';
 import { rayBox } from '../interaction/VoxelRaycaster';
 import { IS_WATER, GRASS, IS_FLUID, IS_LAVA, IS_SOLID, AIR, SNOWY_GRASS, SAND, RED_SAND, STONE, SNOW, SPAWN_FLOOR, EMBER_LAMP, SPORELOAM } from '../world/BlockRegistry';
-import { BIOME_BADLANDS, BIOME_DESERT, BIOME_MOUNTAINS, BIOME_SNOWY, BIOME_TAIGA, BIOME_FOREST, BIOME_BIRCH, BIOME_SPORE, BIOME_BEACH } from '../world/BiomeSystem';
+import { BIOME_BADLANDS, BIOME_DESERT, BIOME_MOUNTAINS, BIOME_SNOWY, BIOME_TAIGA, BIOME_FOREST, BIOME_BIRCH, BIOME_SPORE, BIOME_BEACH, BIOME_PLAINS } from '../world/BiomeSystem';
 import { UNLOADED } from '../world/World';
 import { WORLD_HEIGHT } from '../world/constants';
 import { LAVA_SEA } from '../world/Cinderdeep';
@@ -60,6 +60,7 @@ function passiveFor(biome: number, ground: number): MobType | null {
   if (biome === BIOME_TAIGA) return pick<MobType>([['rabbit', 24], ['sheep', 20], ['pig', 12], ['cow', 12], ['goat', 9], ['hound', 13], ['fox', 10], ['hootlet', 6], ['pinecub', 8]]);
   if (biome === BIOME_FOREST && Math.random() < 0.08) return 'hound';
   if ((biome === BIOME_FOREST || biome === BIOME_BIRCH) && Math.random() < 0.08) return 'mossback';
+  if ((biome === BIOME_FOREST || biome === BIOME_PLAINS) && ground !== STONE && Math.random() < 0.06) return 'parrot';
   if ((biome === BIOME_FOREST || biome === BIOME_BIRCH || biome === BIOME_TAIGA) && ground !== STONE && Math.random() < 0.07) return 'hootlet';
   if (biome === BIOME_BIRCH && Math.random() < 0.05) return 'hound';
   const r = Math.random();
@@ -346,7 +347,7 @@ export class EntityManager implements EntityQueries {
       const spot = this.findSpawnSpot(host, 20, 56, false);
       const type = spot ? passiveFor(host.world.generator.column(Math.floor(spot.x), Math.floor(spot.z)).biome, spot.ground) : null;
       if (spot && type) {
-        const herd = type === 'fox' || type === 'horse' || type === 'hootlet' || isWildKind(type) ? 1 + Math.floor(Math.random() * 2) : type === 'chicken' || type === 'rabbit' || type === 'goat' ? 1 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 3);
+        const herd = type === 'fox' || type === 'horse' || type === 'hootlet' || type === 'parrot' || isWildKind(type) ? 1 + Math.floor(Math.random() * 2) : type === 'chicken' || type === 'rabbit' || type === 'goat' ? 1 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 3);
         for (let i = 0; i < herd; i++) {
           const ox = spot.x + (Math.random() - 0.5) * 3, oz = spot.z + (Math.random() - 0.5) * 3;
           const y = this.groundAt(host, Math.floor(ox), Math.floor(oz), spot.y + 3);

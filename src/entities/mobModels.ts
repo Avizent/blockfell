@@ -8,7 +8,7 @@ import { DYE_RGB, type DyeColor } from '../world/dyes';
  * feet centre is the origin and it faces +Z.
  */
 export type MobType = 'pig' | 'cow' | 'sheep' | 'chicken' | 'shambler' | 'skeleton' | 'goat' | 'rabbit' | 'crawler' | 'dustwalker' | 'villager' | 'sentinel' | 'hound'
-  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider' | 'sporecap' | 'powderbug' | 'gloommoth' | 'hootlet' | 'trader' | 'axolotl' | 'squid' | 'guardian' | 'emberling' | 'mossback' | 'stormkit' | 'shellsnap' | 'pinecub' | 'lanternling';
+  | 'cinderling' | 'smoulderer' | 'ashboar' | 'hollowdrake' | 'drifter' | 'fox' | 'snowpal' | 'horse' | 'lavastrider' | 'sporecap' | 'powderbug' | 'gloommoth' | 'hootlet' | 'trader' | 'axolotl' | 'squid' | 'guardian' | 'emberling' | 'mossback' | 'stormkit' | 'shellsnap' | 'pinecub' | 'lanternling' | 'parrot';
 export type VillagerLook = 'none' | 'farmer' | 'smith' | 'mason' | 'scribe' | 'fletcher' | 'mapmaker' | 'trader';
 
 const quad = (name: string, x: number, z: number, h: number, w: number, base: string, paint?: PartDef['paint']): PartDef => ({
@@ -867,6 +867,23 @@ function stormkit(): PartDef[] {
   ];
 }
 
+/** 2.19.1: a bright parrot, an ORIGINAL design: red body, blue and yellow wings, a hooked beak. */
+function parrot(): PartDef[] {
+  const red = '#d6362e', blue = '#2f6fd0', yellow = '#f2c230', beak = '#2b2b2b', pale = '#f1ece0';
+  return [
+    { name: 'body', size: [4, 5, 4], pivot: [0, 7, 0], from: [-2, 0, -2], base: red, noise: 0.08,
+      paint: (p) => { p.px('front', 1, 1, '#e9776a', 2, 3); } },
+    { name: 'tail', size: [2, 1, 5], pivot: [0, 0, 0], from: [-1, 0.5, -7], base: blue, parent: 'body', paint: (p) => { p.px('top', 0, 3, yellow, 2, 2); } },
+    { name: 'head', size: [3, 3, 3], pivot: [0, 12, 0.5], from: [-1.5, 0, -1.5], base: red,
+      paint: (p) => { p.px('front', 0, 1, pale, 1, 1); p.px('front', 2, 1, pale, 1, 1); p.px('front', 0, 1, '#111111', 1, 1); p.px('front', 2, 1, '#111111', 1, 1); } },
+    { name: 'beak', size: [1, 2, 2], pivot: [0, 0, 0], from: [-0.5, 0.5, 1.5], base: beak, parent: 'head' },
+    { name: 'wingL', size: [1, 4, 4], pivot: [2, 11, 0], from: [0, -4, -2], base: blue, paint: (p) => { p.px('left', 0, 0, yellow, 4, 1); } },
+    { name: 'wingR', size: [1, 4, 4], pivot: [-2, 11, 0], from: [-1, -4, -2], base: blue, paint: (p) => { p.px('right', 0, 0, yellow, 4, 1); } },
+    { name: 'legL', size: [1, 3, 1], pivot: [1, 7, 0], from: [-0.5, -3, -0.5], base: '#c9a15a' },
+    { name: 'legR', size: [1, 3, 1], pivot: [-1, 7, 0], from: [-0.5, -3, -0.5], base: '#c9a15a' },
+  ];
+}
+
 /** 2.19: Shellsnap, a little shore crab with two big claws and eyes on stalks. ORIGINAL design. */
 function shellsnap(): PartDef[] {
   const shell = '#c9684a', spot = '#e8a07c', claw = '#e0573b', dark = '#8e4330', belly = '#f1dcb8';
@@ -1074,7 +1091,7 @@ export function mobModel(type: MobType): BuiltModel {
   if (type === 'fox') return foxModel('red', false);
   if (type === 'hootlet') return hootletModel(false);
   if (type === 'axolotl') return axolotlModel('pink');
-  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider, sporecap, powderbug, gloommoth, squid, guardian, emberling, mossback, stormkit, shellsnap, pinecub, lanternling }[type as Exclude<MobType, 'villager' | 'trader' | 'hound' | 'hollowdrake' | 'sheep' | 'fox' | 'hootlet' | 'axolotl'>]();
+  const parts = { pig, cow, chicken, shambler, skeleton, goat, rabbit, crawler, dustwalker, sentinel, cinderling, smoulderer, ashboar, drifter, snowpal, horse, lavastrider, sporecap, powderbug, gloommoth, squid, guardian, emberling, mossback, stormkit, shellsnap, pinecub, lanternling, parrot }[type as Exclude<MobType, 'villager' | 'trader' | 'hound' | 'hollowdrake' | 'sheep' | 'fox' | 'hootlet' | 'axolotl'>]();
   m = buildModel(parts, 64, 64, type.length * 13);
   if (type === 'ashboar' || type === 'lavastrider') glowSeams(m);
   if (type === 'gloommoth') { m.material.emissiveMap = m.texture; m.material.emissive.setRGB(1, 1, 1); m.material.emissiveIntensity = 0.25; }
